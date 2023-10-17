@@ -32,9 +32,10 @@ if (${TBB_FOUND})
    add_compile_definitions(USE_TBB)
 endif()
 if (${USE_UMPS})
-   find_package(spdlog REQUIRED)
    message("Will compile with UMPS logging")
    add_compile_definitions(WITH_UMPS)
+else()
+   find_package(spdlog REQUIRED)
 endif()
 
 # Versioning information
