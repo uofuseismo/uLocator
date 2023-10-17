@@ -415,10 +415,14 @@ mWidthInX = 0;
         const std::vector<double> utahSVelocities{2169, 3443, 3653, 4486, 5022};
         const std::vector<double> ynpInterfaces{-4500, -1000,  2000,  5000,  8000,
                                                 12000, 16000, 21000, 50000};
-        const std::vector<double> ynpPVelocities{2720, 2790, 5210, 5560, 5770,
-                                                 6070, 6330, 6630, 8000};
-        const std::vector<double> ynpSVelocities{1950, 2000, 3400, 3420, 3490,
-                                                 3680, 3780, 4000, 4850};
+        //const std::vector<double> ynpPVelocities{2720, 2790, 5210, 5560, 5770,
+        //                                         6070, 6330, 6630, 8000};
+        const std::vector<double> ynpPVelocities{2512, 3398, 4689, 5456, 5674,
+                                                 6250, 6398, 6574, 8200};
+        //const std::vector<double> ynpSVelocities{1950, 2000, 3400, 3420, 3490,
+        //                                         3680, 3780, 4000, 4850};
+        const std::vector<double> ynpSVelocities{1725, 2343, 3064, 3425, 3569,
+                                                 3690, 3705, 3975, 4950};
         /*
         const std::vector<double> ynpPVelocities{2750, 2810, 5210, 5560, 5770,
                                                  6070, 6330, 6630, 8000};

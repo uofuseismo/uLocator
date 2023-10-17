@@ -1,0 +1,345 @@
+#include <iostream>
+#include <string>
+#include <cmath>
+#include <vector>
+#include <eikonalxx/ray/layerSolver.hpp>
+#include <eikonalxx/ray/path2d.hpp>
+#include <eikonalxx/ray/segment2d.hpp>
+#include <eikonalxx/ray/point2d.hpp>
+#include <umps/logging/standardOut.hpp>
+#include "uLocator/firstArrivalRayTracer.hpp"
+#include "uLocator/station.hpp"
+#include "uLocator/staticCorrection.hpp"
+#include "uLocator/sourceSpecificStationCorrection.hpp"
+#include "uLocator/position/wgs84.hpp"
+
+using namespace ULocator;
+
+class FirstArrivalRayTracer::FirstArrivalRayTracerImpl
+{
+public:
+    FirstArrivalRayTracerImpl(
+        std::shared_ptr<UMPS::Logging::ILog> logger = nullptr) :
+        mLogger(logger)
+    {
+        if (mLogger == nullptr)
+        {
+            mLogger = std::make_shared<UMPS::Logging::StandardOut> ();
+        }
+    }
+    double evaluateLayerSolver(const double sourceDepth, const double offset,
+                               double *dtdx, double *dtdz) const
+    { 
+        constexpr bool doReflections{false};
+        double travelTime{0};
+        if (dtdx != nullptr){*dtdx = 0;} 
+        if (dtdz != nullptr){*dtdz = 0;} 
+        try
+        {
+            auto sourceDepthToUse = sourceDepth;
+            if (sourceDepth < mMinimumDepth)
+            {
+                sourceDepthToUse = mMinimumDepth;
+                mLogger->warn("Overriding source depth "
+                            + std::to_string(sourceDepth)
+                            + " to " + std::to_string(mMinimumDepth));
+            }
+            mSolver.setStationOffsetAndDepth(offset, mStationDepth);
+            mSolver.setSourceDepth(sourceDepthToUse);
+            mSolver.solve(doReflections);
+        }
+        catch (const std::exception &e) 
+        {
+            mLogger->error("Failed to compute ray paths for "
+                         + mStation.getNetwork() + "." 
+                         + mStation.getName() + "." 
+                         + mPhase
+                         + ".  Failed with: "
+                         + std::string {e.what()}
+                         +  ".  Source depth is: " 
+                         + std::to_string(sourceDepth));
+            return travelTime;
+        }
+        const auto &rayPaths = mSolver.getRayPaths(); 
+        if (!rayPaths.empty())
+        {
+            travelTime = rayPaths[0].getTravelTime();
+            // Decompose segments in first leg into slowness in x and z
+            // as these are the sensitivities at the source.
+            if (dtdx != nullptr || dtdz != nullptr)
+            {
+                auto takeOffAngle = rayPaths[0].getTakeOffAngle()*(M_PI/180);
+                auto slowness = rayPaths[0].at(0).getSlowness();
+                if (dtdx != nullptr){*dtdx = slowness*std::sin(takeOffAngle);}
+                if (dtdz != nullptr){*dtdz = slowness*std::cos(takeOffAngle);}
+            }
+        }
+        return travelTime;
+    }
+    std::shared_ptr<UMPS::Logging::ILog> mLogger{nullptr};
+    std::unique_ptr<SourceSpecificStationCorrection>
+        mSourceSpecificStationCorrection{nullptr};
+    StaticCorrection mStaticCorrection;
+    mutable EikonalXX::Ray::LayerSolver mSolver;
+    Station mStation;
+    std::string mPhase;
+    double mStationUTMX{0};
+    double mStationUTMY{0};
+    double mStationDepth{0};
+    double mMinimumDepth{0};
+    bool mInitialized{false};
+};
+
+/// Constructor
+FirstArrivalRayTracer::FirstArrivalRayTracer() :
+    pImpl(std::make_unique<FirstArrivalRayTracerImpl> ())
+{
+}
+
+/// Constructor with logger
+FirstArrivalRayTracer::FirstArrivalRayTracer(
+    std::shared_ptr<UMPS::Logging::ILog> &logger) :
+    pImpl(std::make_unique<FirstArrivalRayTracerImpl> (logger))
+{
+}
+
+/// Move constructor
+FirstArrivalRayTracer::FirstArrivalRayTracer(
+    FirstArrivalRayTracer &&rayTracer) noexcept
+{
+    *this = std::move(rayTracer);
+}
+
+/// Reset class
+void FirstArrivalRayTracer::clear() noexcept
+{
+    pImpl->mSolver.clear();
+    pImpl->mStation.clear();
+    pImpl->mPhase.clear();
+    pImpl->mStationDepth = 0;
+    pImpl->mMinimumDepth = 0;
+    pImpl->mInitialized = false;
+}
+
+/// Destructor
+FirstArrivalRayTracer::~FirstArrivalRayTracer() = default;
+
+/// Move assignment
+FirstArrivalRayTracer&
+FirstArrivalRayTracer::operator=(FirstArrivalRayTracer &&rayTracer) noexcept
+{
+    if (&rayTracer == this){return *this;}
+    pImpl = std::move(rayTracer.pImpl);
+    return *this;
+}
+
+/// Initialized?
+bool FirstArrivalRayTracer::isInitialized() const noexcept
+{
+    return pImpl->mInitialized;
+}
+
+/// Evaluate
+double FirstArrivalRayTracer::evaluate(
+    const Position::WGS84 &epicenter,
+    const double depth,
+    const bool applyCorrection) const
+{
+    if (!isInitialized())
+    {
+        throw std::runtime_error("Ray tracer class not initialized");
+    }
+    if (!epicenter.havePosition())
+    {
+        throw std::invalid_argument("Latitude/longitude not set");
+    }
+    double epicentralDistance, distance;
+    ULocator::Position::computeDistanceAzimuth(
+        epicenter,
+        pImpl->mStation.getGeographicPositionReference(),
+        &epicentralDistance,
+        &distance,
+        nullptr,
+        nullptr);
+    auto travelTime = pImpl->evaluateLayerSolver(depth, distance,
+                                                 nullptr, nullptr);
+    if (applyCorrection)
+    {
+        if (pImpl->mStaticCorrection.haveCorrection())
+        {
+            travelTime = pImpl->mStaticCorrection.evaluate(travelTime);
+        }
+        if (pImpl->mSourceSpecificStationCorrection)
+        {
+            if (pImpl->mSourceSpecificStationCorrection)
+            {
+                auto correction
+                    = pImpl->mSourceSpecificStationCorrection->evaluate(
+                         epicenter.getLatitude(),
+                         epicenter.getLongitude(),
+                         depth,
+                         SourceSpecificStationCorrection::
+                            EvaluationMethod::InverseDistanceWeighted);
+                travelTime = travelTime + correction;
+            }
+        }
+    }
+    return travelTime;
+}
+
+/*
+/// Evaluate
+double FirstArrivalRayTracer::evaluate(
+    const double utmX,
+    const double utmY,
+    const double depth,
+    double *dtdx, double *dtdy, double *dtdz,
+    const bool applyCorrection) const
+{
+    if (!isInitialized())
+    {   
+        throw std::runtime_error("Ray tracer class not initialized");
+    }   
+    auto dx = pImpl->mStationUTMX - utmX;
+    auto dy = pImpl->mStationUTMY - utmY;
+    auto azimuth = std::atan2(dy, dx); 
+    double distance = std::hypot(dx, dy);
+    double dtdr;
+    auto travelTime = pImpl->evaluateLayerSolver(depth, distance, &dtdr, dtdz);
+    constexpr double degreesToRadians{M_PI/180.};
+    *dtdx = dtdr*std::cos(azimuth);
+    *dtdy = dtdr*std::sin(azimuth);
+    if (applyCorrection)
+    {
+        if (pImpl->mStaticCorrection.haveCorrection())
+        {
+            travelTime = pImpl->mStaticCorrection.evaluate(travelTime);
+        }
+    }
+    return travelTime;
+}
+*/
+
+/// Evaluate
+double FirstArrivalRayTracer::evaluate(
+    const Position::WGS84 &epicenter,
+    const double depth,
+    double *dtdx, double *dtdy, double *dtdz,
+    const bool applyCorrection) const
+{
+    if (!isInitialized())
+    {
+        throw std::runtime_error("Ray tracer class not initialized");
+    }
+    if (!epicenter.havePosition())
+    {   
+        throw std::invalid_argument("Latitude/longitude not set");
+    }   
+    double epicentralDistance, distance, azimuth;
+    ULocator::Position::computeDistanceAzimuth(
+        epicenter,
+        pImpl->mStation.getGeographicPositionReference(),
+        &epicentralDistance,
+        &distance,
+        &azimuth,
+        nullptr);
+    double dtdr;
+    auto travelTime = pImpl->evaluateLayerSolver(depth, distance, &dtdr, dtdz);
+    constexpr double degreesToRadians{M_PI/180.};
+    *dtdx = dtdr*std::sin(azimuth*degreesToRadians);
+    *dtdy = dtdr*std::cos(azimuth*degreesToRadians);
+    if (applyCorrection)
+    {
+        if (pImpl->mStaticCorrection.haveCorrection())
+        {
+            travelTime = pImpl->mStaticCorrection.evaluate(travelTime);
+        }
+        if (pImpl->mSourceSpecificStationCorrection)
+        {
+            if (pImpl->mSourceSpecificStationCorrection)
+            {
+                auto correction
+                    = pImpl->mSourceSpecificStationCorrection->evaluate(
+                         epicenter.getLatitude(),
+                         epicenter.getLongitude(),
+                         depth,
+                         SourceSpecificStationCorrection::
+                            EvaluationMethod::InverseDistanceWeighted);
+                travelTime = travelTime + correction;
+            }
+        }
+    }
+    return travelTime;
+}
+
+/// Predefined models
+void FirstArrivalRayTracer::initialize(
+    const Station &station,
+    const std::string &phase,
+    const std::vector<double> &interfaces,
+    const std::vector<double> &velocities)
+{
+    clear();
+    if (phase.empty()){throw std::invalid_argument("Phase is empty");}
+    if (!station.haveGeographicPosition())
+    {
+        throw std::invalid_argument("Station position not set");
+    }
+    if (!station.haveElevation())
+    {
+        throw std::invalid_argument("Station elevation not set");
+    }
+    if (interfaces.empty()){throw std::invalid_argument("Interfaces is empty");}
+    if (velocities.empty()){throw std::invalid_argument("Velocities is empty");}
+    pImpl->mSolver.setVelocityModel(interfaces, velocities); 
+    pImpl->mMinimumDepth = interfaces.at(0);
+    pImpl->mStationDepth =-station.getElevation();
+    pImpl->mStation = station;
+    pImpl->mStationUTMX = station.getGeographicPosition().getEasting();
+    pImpl->mStationUTMY = station.getGeographicPosition().getNorthing();
+    pImpl->mPhase = phase;
+    pImpl->mInitialized = true;
+}
+
+void FirstArrivalRayTracer::initializeUtahP(const Station &station,
+                                            const bool useAlternateModel)
+{
+    const std::vector<double> interfaces{-4500,   40,  15600, 26500, 40500};
+    std::vector<double> velocities{       3400, 5900,  6400,  7500,  7900};
+    if (useAlternateModel)
+    {
+        velocities = std::vector<double> {3400, 5950, 6450,  7550,  7900};
+    }
+    initialize(station, "P", interfaces, velocities);
+}
+
+void FirstArrivalRayTracer::initializeUtahS(const Station &station,
+                                            const bool useAlternateModel)
+{
+    const std::vector<double> interfaces{-4500,  40,  15600, 26500, 40500};
+    std::vector<double> velocities{1950, 3390, 3680,   4310,  4540};
+    if (useAlternateModel)
+    {
+        velocities = std::vector<double> {2000, 3425, 3700,   4400,  4550};
+    }
+    initialize(station, "S", interfaces, velocities);
+}
+
+void FirstArrivalRayTracer::initializeYellowstoneP(const Station &station)
+{
+    const std::vector<double> interfaces{-4500, -1000,  2000,  5000,  8000,
+                                         12000, 16000, 21000, 50000};
+    const std::vector<double> velocities{2720, 2790, 5210, 5560, 5770,
+                                         6070, 6330, 6630, 8000};
+    initialize(station, "P", interfaces, velocities);
+}
+
+void FirstArrivalRayTracer::initializeYellowstoneS(const Station &station)
+{
+    const std::vector<double> interfaces{-4500, -1000,  2000,  5000,  8000,
+                                         12000, 16000, 21000, 50000};
+    const std::vector<double> velocities{1950, 2000, 3400, 3420, 3490,
+                                         3680, 3780, 4000, 4850};
+    initialize(station, "S", interfaces, velocities);
+}
+

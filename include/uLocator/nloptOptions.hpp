@@ -106,6 +106,19 @@ public:
     [[nodiscard]] double getLongitudeRefinement() const noexcept;
 
     [[nodiscard]] std::vector<double> getRefinementSearchDepths() const noexcept;
+
+    /// @brief The global search methods will stop after this many function
+    ///        evaluations.
+    void setMaximumNumberOfFunctionEvaluations(int nEvaluations);
+    /// @result The maximum number of global search function evaluations.
+    ///         By default this is 10000.
+    [[nodiscard]] int getMaximumNumberOfFunctionEvaluations() const noexcept;
+    /// @brief The initial global search methods will stop after this many
+    ///        function evaluations.
+    void setInitialMaximumNumberOfFunctionEvaluations(int nEvaluations);
+    /// @result The maximum number of global search function evaluations.
+    ///         By default this is 8000.
+    [[nodiscard]] int getInitialMaximumNumberOfFunctionEvaluations() const noexcept;
     
     /// @brief Resets the class.
     void clear() noexcept;

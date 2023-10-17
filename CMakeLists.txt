@@ -15,7 +15,7 @@ find_package(Eigen3 3.3 REQUIRED Dense)
 find_package(GeographicLib REQUIRED)
 #find_package(TTimes REQUIRED)
 find_package(HDF5 COMPONENTS C REQUIRED)
-find_package(MCMC REQUIRED)
+#find_package(MCMC REQUIRED)
 find_package(NLopt REQUIRED)
 find_package(TBB REQUIRED)
 set(ONEDAL_USE_DPCPP no) 
@@ -35,14 +35,15 @@ endif()
 configure_file(${CMAKE_SOURCE_DIR}/include/private/version.hpp.in
                ${CMAKE_SOURCE_DIR}/include/uLocator/version.hpp)
 
-set(LIBRARY_SRC src/version.cpp src/homogeneous.cpp
+set(LIBRARY_SRC src/version.cpp
+                src/homogeneous.cpp
                 src/arrival.cpp
-                src/direct.cpp
-                src/directOptions.cpp
+                #src/direct.cpp
+                #src/directOptions.cpp
                 src/firstArrivalRayTracer.cpp
                 #src/hamiltonianMonteCarlo.cpp
                 #src/hamiltonianMonteCarloOptions.cpp
-                src/lineSearchOptions.cpp
+                #src/lineSearchOptions.cpp
                 src/nlopt.cpp
                 src/nloptOptions.cpp
                 src/origin.cpp
@@ -72,14 +73,16 @@ set_target_properties(uLocator PROPERTIES
 target_link_libraries(uLocator
                       PRIVATE Threads::Threads spdlog::spdlog Eigen3::Eigen
                               hdf5::hdf5 NLopt::nlopt TBB::tbb hdf5::hdf5
-                              Boost::program_options ${MCMC_LIBRARY} ttimes
+                              Boost::program_options 
+                              #${MCMC_LIBRARY} ttimes
                               GeographicLib::GeographicLib ${UMPS_LIBRARY}
                               ${EIKONALXX_LIBRARY} ${DAL_LIBS})
 target_include_directories(uLocator
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
                            PRIVATE ${UMPS_INCLUDE_DIR} ${MCMC_INCLUDE_DIR}
                                    ${NLOPT_INCLUDE_DIRS} ${EIKONALXX_INCLUDE_DIR}
-                                   ${oneDAL_INCLUDE_DIRS} hdf5::hdf5 ttimes
+                                   ${oneDAL_INCLUDE_DIRS} hdf5::hdf5
+                                   #ttimes
                            PUBLIC $<INSTALL_INTERFACE:${CMAKE_SOURCE_DIR}/include/umps>)
 
 

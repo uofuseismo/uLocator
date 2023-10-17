@@ -1,4 +1,6 @@
 #include <iostream>
+#include <filesystem>
+#include <string>
 #include <fstream>
 #include <iomanip>
 #include <functional>
@@ -43,7 +45,8 @@ double qualityToStandardError(const double quality)
 
 std::vector<ULocator::Origin>
     loadCatalog(const std::string &fileName,
-                const std::string &trainingFileName)
+                const std::string &trainingFileName,
+                std::shared_ptr<UMPS::Logging::ILog> logger)
 {
     // Get training events
     std::string line;
@@ -145,7 +148,26 @@ std::vector<ULocator::Origin>
         arrival.setPhase(phase);
         arrival.setStation(station);
         arrival.setIdentifier(arid);
-        arrivals.push_back(std::move(arrival));
+        // Assert the arrival does not already exist
+        bool exists{false};
+        for (const auto &a : arrivals)
+        {
+            const auto &si = a.getStation();
+            if (si.getNetwork() == network &&
+                si.getName()    == stationName &&
+                a.getPhase()    == phase)
+            {
+                exists = true;
+                logger->warn("Duplicate phase arrival for: "
+                            + std::to_string(evid)
+                            + " " + network + "." + stationName + "." + phase
+                            + "; skipping...");
+            }
+        }
+        if (!exists)
+        {
+            arrivals.push_back(std::move(arrival));
+        }
     }   
     return origins;    
 }
@@ -303,7 +325,7 @@ struct ObjectiveFunction
         for (int iOrigin = 0;
              iOrigin < static_cast<int> (origins.size()); ++iOrigin)
         {
-            auto epicenter = origins[iOrigin].getEpicenter();
+            auto epicenter = origins.at(iOrigin).getEpicenter();
             auto depth = origins[iOrigin].getDepth();
             auto time = origins[iOrigin].getTime();
             const auto &arrivals = origins[iOrigin].getArrivalsReference();
@@ -369,35 +391,201 @@ struct ObjectiveFunction
     int nEvaluations{0};
 };
 
+struct ProgramOptions
+{
+    std::filesystem::path resultsDirectory{"/home/bbaker/Codes/uLocator/examples/uuss/ynpResults"};
+    std::filesystem::path catalogFile{"/home/bbaker/Codes/uLocator/examples/uuss/ynpResults/utah_catalog.csv"};
+    std::filesystem::path trainingFile{"/home/bbaker/Codes/uLocator/examples/uuss/ynpResults/utah_events_training.csv"};
+    std::string phase{"P"};
+    bool doUtah{true};
+    bool doHelp{false};
+};
+
+[[nodiscard]] ::ProgramOptions parseCommandLineOptions(int argc, char *argv[])
+{
+    ::ProgramOptions options;
+    boost::program_options::options_description desc(
+R"""(
+This utility will help to estimate a new starting model for Utah or Yellowstone.  Example usage:
+     estimateVelocities --results_directory=../examples/uuss/ynpResults --catalog_file=../examples/uuss/ynp_catalog.csv --training_file=../examples/uuss/ynp_events_training.csv --phase=P --do_ynp
+Allowed options)""");
+    desc.add_options()
+        ("help",         "Produces this help message")
+        ("results_directory", boost::program_options::value<std::string> ()->default_value(options.resultsDirectory),
+                          "The directory to which results will be written")
+        ("catalog_file",  boost::program_options::value<std::string> ()->default_value(options.catalogFile),
+                         "A CSV with the events and travel times")
+        ("training_file",  boost::program_options::value<std::string> ()->default_value(options.trainingFile),
+                         "A CSV file with the events identifiers in the training set")
+        ("phase", boost::program_options::value<std::string> ()->default_value(options.phase),
+                  "The phase velocity for which we are inverting e.g., P or S")
+        ("do_ynp", "If present then this will use the default Yellowstone models.  Otherwise, this will be for optimizing a Utah model.");
+    boost::program_options::variables_map vm;
+    boost::program_options::store(
+        boost::program_options::parse_command_line(argc, argv, desc), vm);
+    boost::program_options::notify(vm);
+    if (vm.count("help"))
+    {
+        std::cout << desc << std::endl;
+        options.doHelp = true;
+        return options;
+    }
+    if (vm.count("catalog_file"))
+    {   
+        auto catalogFile = vm["catalog_file"].as<std::string> (); 
+        if (!std::filesystem::exists(catalogFile))
+        {
+            throw std::runtime_error(catalogFile + " does not exist");
+        }
+        options.catalogFile = catalogFile;
+    }   
+    else 
+    {    
+        throw std::runtime_error("Catalog file not set");
+    }
+    if (vm.count("training_file"))
+    {   
+        auto trainingFile = vm["training_file"].as<std::string> (); 
+        if (!std::filesystem::exists(trainingFile))
+        {   
+            throw std::runtime_error(trainingFile + " does not exist");
+        }   
+        options.trainingFile = trainingFile;
+    }   
+    else 
+    {       
+        throw std::runtime_error("Training file not set");
+    }
+    if (vm.count("results_directory"))
+    {   
+        auto resultsDirectory = vm["results_directory"].as<std::string> ();
+        if (!std::filesystem::exists(resultsDirectory))
+        {
+            if (!std::filesystem::create_directories(resultsDirectory) &&
+                !resultsDirectory.empty())
+            {
+                throw std::runtime_error(resultsDirectory + " could not be made");
+            }
+        }
+        options.resultsDirectory = resultsDirectory;
+    }
+    if (vm.count("phase"))
+    {
+        auto phase = vm["phase"].as<std::string> ();
+        if (phase == "P" or phase == "S")
+        {
+            options.phase = phase;
+        }
+        else
+        {
+            throw std::invalid_argument("Unhandled phase " + phase);
+        }
+    }
+    options.doUtah = true;
+    if (vm.count("do_ynp")){options.doUtah = false;}
+    return options;
+}
+
 int main(int argc, char *argv[])
 {
+    ::ProgramOptions programOptions;
+    try
+    {
+        programOptions = ::parseCommandLineOptions(argc, argv);
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << e.what() << std::endl;
+        return EXIT_FAILURE;
+    }
+    if (programOptions.doHelp){return EXIT_SUCCESS;}
+
+
     auto logger = std::make_shared<UMPS::Logging::StandardOut> ();
 
-    std::string phase{"P"};
-    std::string initialResidualsFile{"initialResiduals." + phase + ".csv"};
-    std::string finalResidualsFile{"finalResiduals." + phase + ".csv"};
-    std::string catalogFile{"../examples/uuss/utah_catalog.csv"};
-    std::string trainingFile{"../examples/uuss/utah_events_training.csv"};
-    auto origins = loadCatalog(catalogFile, trainingFile);
+    auto phase = programOptions.phase;
+    auto initialResidualsFile = programOptions.resultsDirectory / std::filesystem::path{"initialResiduals." + phase + ".csv"};
+    auto finalResidualsFile  = programOptions.resultsDirectory / std::filesystem::path{"finalResiduals." + phase + ".csv"};
+    auto catalogFile = programOptions.catalogFile;
+    auto trainingFile = programOptions.trainingFile;
+    auto origins = ::loadCatalog(catalogFile, trainingFile, logger);
 
     // Make some baseline
-    std::vector<::Layer> initialModel{
-        ::Layer{-4500, 3400, 2000, 4500},
-        ::Layer{   40, 5900, 4500, 6000},
-        ::Layer{15600, 6400, 6000, 7000},
-        ::Layer{26500, 7500, 7000, 7800},
-        ::Layer{40500, 7900, 7800, 8400}};
-    if (phase == "S")
+    std::vector<::Layer> initialModel;
+    if (programOptions.doUtah)
     {
-        initialModel = std::vector<::Layer>
+        if (phase == "P")
         {
-            ::Layer{-4500, 1973, 1000, 2300},
-            ::Layer{   40, 3490, 2300, 3500},
-            ::Layer{15600, 3804, 3500, 4000},
-            ::Layer{26500, 4115, 4000, 4500},
-            ::Layer{40500, 5225, 4500, 5500}
-        };
+            logger->info("Creating initial Utah P model...");
+            initialModel = std::vector<::Layer>
+            {
+                ::Layer{-4500, 3400, 2000, 4500},
+                ::Layer{   40, 5950, 4500, 6000},
+                ::Layer{15600, 6450, 6000, 7000},
+                ::Layer{26500, 7550, 7000, 7800},
+                ::Layer{40500, 7900, 7800, 8400}
+            };
+        }
+        else if (phase == "S")
+        {
+            logger->info("Creating initial Utah S model...");
+            initialModel = std::vector<::Layer>
+            {
+                ::Layer{-4500, 1950, 1000, 2300},
+                ::Layer{   40, 3390, 2300, 3500},
+                ::Layer{15600, 3680, 3500, 4000},
+                ::Layer{26500, 4310, 4000, 4500},
+                ::Layer{40500, 4540, 4500, 5500}
+            };
+        }
+        else
+        {
+            throw std::runtime_error("Unhandled phase " + phase);
+        }
     }
+    else //if (!programOptions.doUtah)
+    {
+        if (phase == "P")
+        {
+            logger->info("Creating initial YNP P model...");
+            initialModel = std::vector<::Layer>
+            {
+                ::Layer{-4500,  2720, 1000, 2750},
+                ::Layer{-1000,  2790, 2750, 4000},
+                ::Layer{ 2000,  5210, 4000, 5350},
+                ::Layer{ 5000,  5560, 5350, 5600},
+                ::Layer{ 8000,  5770, 5600, 5850},
+                ::Layer{12000,  6070, 5850, 6150},
+                ::Layer{16000,  6330, 6150, 6450},
+                ::Layer{21000,  6630, 6450, 7200},
+                ::Layer{50000,  8000, 7200, 8400}
+            };
+        }
+        else if (phase == "S")
+        {
+            logger->info("Creating initial YNP S model...");
+            initialModel = std::vector<::Layer>
+            {
+
+                ::Layer{-4500,  1950,  500, 1975},
+                ::Layer{-1000,  2000, 1975, 2700},
+                ::Layer{ 2000,  3400, 2700, 3410},
+                ::Layer{ 5000,  3420, 3410, 3450},
+                ::Layer{ 8000,  3490, 3450, 3590},
+                ::Layer{12000,  3680, 3590, 3710},
+                ::Layer{16000,  3780, 3710, 3890},
+                ::Layer{21000,  4000, 3890, 4400},
+                ::Layer{50000,  4850, 4400, 5500}
+            };
+        }
+        else
+        {
+            throw std::runtime_error("Unhandled phase " + phase);
+        }
+    }
+#ifndef NDEBUG
+    assert(!initialModel.empty());
+#endif
 
     ::ObjectiveFunction objectiveFunction;
     objectiveFunction.logger = logger;
@@ -414,38 +602,72 @@ int main(int argc, char *argv[])
     logger->info("Initial objective function: " + std::to_string(f0));
     objectiveFunction.nEvaluations = 0;
 
-    std::vector<::Layer> layers{
-        ::Layer{-4500, 3695, 2000, 5000},
-        ::Layer{   40, 5975, 5000, 6200},
-        ::Layer{15600, 6565, 6200, 6800},
-        ::Layer{26500, 7010, 6800, 7600},
-        ::Layer{40500, 7690, 7600, 8400}};
-    if (phase == "S")
+    std::vector<::Layer> layers;
+    if (programOptions.doUtah)
     {
-        layers = std::vector<::Layer>
+        if (phase == "P")
         {
-            ::Layer{-4500, 2180, 1000, 2300},
-            ::Layer{   40, 3435, 2300, 3500},
-            ::Layer{15600, 3660, 3500, 4000},
-            ::Layer{26500, 4360, 4000, 4500},
-            ::Layer{40500, 5000, 4500, 5500}
-        };
+            logger->info("Creating starting Utah P model...");
+            layers = std::vector<::Layer>
+            {
+                ::Layer{-4500, 3695, 2000, 5000},
+                ::Layer{   40, 5975, 5000, 6200},
+                ::Layer{15600, 6565, 6200, 6800},
+                ::Layer{26500, 7010, 6800, 7600},
+                ::Layer{40500, 7690, 7600, 8400}
+            };
+        }
+        else if (phase == "S")
+        {
+            logger->info("Creating starting Utah S model...");
+            layers = std::vector<::Layer>
+            {
+                ::Layer{-4500, 2180, 1000, 2300},
+                ::Layer{   40, 3435, 2300, 3500},
+                ::Layer{15600, 3660, 3500, 4000},
+                ::Layer{26500, 4360, 4000, 4500},
+                ::Layer{40500, 5000, 4500, 5500}
+            };
+        }
     }
-/*
-{ 
-        ::Layer{-4500,  2000,  500, 2700},
-        ::Layer{-2500,  2800, 2700, 3100},
-        ::Layer{-1500,  3300, 3100, 3900},
-        ::Layer{ -500,  4000, 3900, 4800},
-        ::Layer{ -200,  5000, 4800, 5700},
-        ::Layer{   40,  5900, 5700, 6100},
-        ::Layer{10000,  6200, 6100, 6300},
-        ::Layer{15600,  6400, 6300, 6600},
-        ::Layer{20500,  6900, 6600, 7200},
-        ::Layer{26500,  7500, 7200, 7600},
-        ::Layer{36500,  7700, 7600, 7800},
-        ::Layer{40500,  7900, 7800, 8500}};
-*/
+    else //if (!programOptions.doUtah)
+    { 
+        if (phase == "P")
+        {
+            logger->info("Creating starting YNP P model...");
+            layers = std::vector<::Layer>
+            {
+                ::Layer{-4500,  2458, 1000, 2750},
+                ::Layer{-1000,  3375, 2750, 4000},
+                ::Layer{ 2000,  4675, 4000, 5000},
+                ::Layer{ 5000,  5475, 5000, 5600},
+                ::Layer{ 8000,  5725, 5600, 5900},
+                ::Layer{12000,  6133, 5900, 6250},
+                ::Layer{16000,  6400, 6250, 6450},
+                ::Layer{21000,  6575, 6450, 7200},
+                ::Layer{50000,  8200, 7200, 8400}
+            };
+        }
+        else if (phase == "S")
+        {
+            logger->info("Creating starting YNP S model...");
+            layers = std::vector<::Layer>
+            {
+                ::Layer{-4500,  1729,  500, 1975},
+                ::Layer{-1000,  2338, 1975, 2700},
+                ::Layer{ 2000,  3055, 2700, 3200},
+                ::Layer{ 5000,  3430, 3200, 3500},
+                ::Layer{ 8000,  3567, 3500, 3650},
+                ::Layer{12000,  3690, 3650, 3700},
+                ::Layer{16000,  3720, 3700, 3900},
+                ::Layer{21000,  3975, 3900, 4400},
+                ::Layer{50000,  4950, 4400, 5500}
+            };
+        }
+    }
+#ifndef NDEBUG
+    assert(!layers.empty());
+#endif
 
     auto n = static_cast<int> (layers.size());
     std::vector<double> x;

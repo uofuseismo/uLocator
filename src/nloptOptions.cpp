@@ -29,7 +29,7 @@ public:
     double mLatitudeRefinement{50000};
     double mLongitudeRefinement{50000};
     int mUTMZone{12};
-    int mInitialMaximumFunctionEvaluations{2500};
+    int mInitialMaximumFunctionEvaluations{750};
     int mMaximumFunctionEvaluations{1000};
     bool mNorth{true};
     bool mHaveLatitudeBoundaries{false};
@@ -55,6 +55,7 @@ NLOptOptions::NLOptOptions(const Region region) :
         setLongitudeBoundaries(std::array<double, 2> {-114.75, -108.25});
         setDepthBoundaries(std::array<double, 2> {-4500, 65000});
         pImpl->mQuarries = ::defaultUtahQuarries();
+        pImpl->mMaximumFunctionEvaluations = 1500;
     }   
     else if (region == Region::Yellowstone)
     {
@@ -62,6 +63,8 @@ NLOptOptions::NLOptOptions(const Region region) :
         setLatitudeBoundaries(std::array<double, 2> {  43.5,   45.5});
         setLongitudeBoundaries(std::array<double, 2> {-111.5, -110.0});
         setDepthBoundaries(std::array<double, 2> {-4500, 35000});
+        pImpl->mSearchDepths = std::vector<double> {-1000, 2000, 5000, 7000, 11000, 30000};
+        pImpl->mMaximumFunctionEvaluations = 1500;
     }
 }
 
@@ -338,3 +341,33 @@ std::vector<Quarry> NLOptOptions::getQuarries() const
     return pImpl->mQuarries;
 }
 
+/// Function evaluations
+void NLOptOptions::setMaximumNumberOfFunctionEvaluations(
+    const int nEvaluations)
+{
+    if (nEvaluations < 1)
+    {   
+        throw std::invalid_argument("Number of evaluations must be positive");
+    }   
+    pImpl->mMaximumFunctionEvaluations = nEvaluations;
+}
+
+int NLOptOptions::getMaximumNumberOfFunctionEvaluations() const noexcept
+{
+    return pImpl->mMaximumFunctionEvaluations;
+} 
+
+void NLOptOptions::setInitialMaximumNumberOfFunctionEvaluations(
+    const int nEvaluations)
+{
+    if (nEvaluations < 1)
+    {   
+        throw std::invalid_argument("Number of evaluations must be positive");
+    }   
+    pImpl->mInitialMaximumFunctionEvaluations = nEvaluations;
+}
+
+int NLOptOptions::getInitialMaximumNumberOfFunctionEvaluations() const noexcept
+{
+    return pImpl->mInitialMaximumFunctionEvaluations;
+}

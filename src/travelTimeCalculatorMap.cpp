@@ -94,6 +94,7 @@ void TravelTimeCalculatorMap::evaluate(
     {
         travelTimes->resize(stationPhases.size(), 0);
     }
+    if (stationPhases.empty()){return;}
 #ifdef USE_TBB
     oneapi::tbb::parallel_for
     (
@@ -152,6 +153,7 @@ void TravelTimeCalculatorMap::evaluate(
     {
         dtdz->resize(stationPhases.size(), 0);
     }
+    if (stationPhases.empty()){return;}
 #ifdef USE_TBB
     oneapi::tbb::parallel_for
     (   

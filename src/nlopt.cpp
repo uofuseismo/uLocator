@@ -295,7 +295,7 @@ public:
         // Initial optimization
         nlopt::opt initialOptimizer(nlopt::GN_DIRECT_L, nParameters2D);
         initialOptimizer.set_min_objective(nlOptObjectiveFunction);
-        initialOptimizer.set_maxeval(750); //pImpl->mOptions.getMaximumNumberOfFunctionEvaluations());
+        initialOptimizer.set_maxeval(mOptions.getInitialMaximumNumberOfFunctionEvaluations());
         initialOptimizer.set_lower_bounds(
             std::vector<double> {minimumUTMX, minimumUTMY});
         initialOptimizer.set_upper_bounds(
@@ -414,7 +414,7 @@ public:
                 std::vector<double> {refinedMinimumUTMX, refinedMinimumUTMY});
             optimizer.set_upper_bounds(
                 std::vector<double> {refinedMaximumUTMX, refinedMaximumUTMY});
-optimizer.set_maxeval(1500); //pImpl->mOptions.getMaximumNumberOfFunctionEvaluations());
+            optimizer.set_maxeval(mOptions.getMaximumNumberOfFunctionEvaluations());
             optimizer.set_xtol_abs(mOptions.getAbsoluteModelTolerance());
             std::vector<double> xLocation(nParameters2D);
             xLocation.at(0) = xInitialLocation.at(0);
@@ -454,13 +454,13 @@ optimizer.set_maxeval(1500); //pImpl->mOptions.getMaximumNumberOfFunctionEvaluat
             auto nParameters = mObjectiveFunction->getNumberOfModelParameters();
             nlopt::opt optimizer(nlopt::LD_MMA, nParameters);
             optimizer.set_min_objective(nlOptObjectiveFunction);
-optimizer.set_maxeval(1500); //pImpl->mOptions.getMaximumNumberOfFunctionEvaluations());
+            optimizer.set_maxeval(mOptions.getMaximumNumberOfFunctionEvaluations());
             optimizer.set_xtol_abs(mOptions.getAbsoluteModelTolerance());
             // Topographic constraint
             ::TopographyConstraintData
-                 topographyConstraintData{mLogger,
-                                          mTopographyCallbackFunction,
-                                          mDefaultElevation, mUTMZone, mNorth};
+                topographyConstraintData{mLogger,
+                                         mTopographyCallbackFunction,
+                                         mDefaultElevation, mUTMZone, mNorth};
             optimizer.set_lower_bounds(
                 std::vector<double> {refinedMinimumUTMX,
                                      refinedMinimumUTMY,

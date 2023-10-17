@@ -975,7 +975,7 @@ int main(int argc, char *argv[])
     ::ProgramOptions programOptions;
     try 
     {   
-        programOptions = parseCommandLineOptions(argc, argv);
+        programOptions = ::parseCommandLineOptions(argc, argv);
     }   
     catch (const std::exception &e) 
     {   
