@@ -89,7 +89,7 @@ target_include_directories(uLocator
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
                            PRIVATE ${UMPS_INCLUDE_DIR} ${MCMC_INCLUDE_DIR}
                                    ${NLOPT_INCLUDE_DIRS} ${EIKONALXX_INCLUDE_DIR}
-                                   ${oneDAL_INCLUDE_DIRS} hdf5::hdf5
+                                   ${oneDAL_INCLUDE_DIRS} hdf5::hdf5 NLopt::nlopt
                                    #ttimes
                            PUBLIC $<INSTALL_INTERFACE:${CMAKE_SOURCE_DIR}/include/umps>)
 
