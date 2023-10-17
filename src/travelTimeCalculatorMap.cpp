@@ -3,7 +3,8 @@
 #include <algorithm>
 #include <map>
 #ifdef USE_TBB
-#include <oneapi/tbb.h>
+#include <oneapi/tbb/parallel_for.h>
+//#include <oneapi/tbb.h>
 #endif
 #include "uLocator/travelTimeCalculatorMap.hpp"
 #include "uLocator/station.hpp"
