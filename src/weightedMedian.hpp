@@ -65,7 +65,6 @@ double weightedMedian(const std::vector<double> &x,
         }
     }
     // Locate index where cumulative weight passes 1/2
-    double tempWeight = 0;
     double wi2 = 0;
     int iHalf = nResiduals - 1; // Default is last
     for (int i = 0; i < nResiduals; ++i)

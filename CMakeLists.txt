@@ -10,7 +10,6 @@ option(USE_UMPS "Compile with the UMPS logging library" ON)
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 find_package(GTest REQUIRED)
-find_package(spdlog REQUIRED)
 find_package(Boost COMPONENTS program_options REQUIRED)
 find_package(Eigen3 3.3 REQUIRED Dense)
 find_package(GeographicLib REQUIRED)
@@ -32,6 +31,7 @@ if (${TBB_FOUND})
    add_compile_definitions(USE_TBB)
 endif()
 if (${USE_UMPS})
+   find_package(spdlog REQUIRED)
    message("Will compile with UMPS logging")
    add_compile_definitions(WITH_UMPS)
 endif()
@@ -79,7 +79,7 @@ set_target_properties(uLocator PROPERTIES
                       CXX_STANDARD_REQUIRED YES 
                       CXX_EXTENSIONS NO) 
 target_link_libraries(uLocator
-                      PRIVATE Threads::Threads spdlog::spdlog Eigen3::Eigen
+                      PRIVATE Threads::Threads Eigen3::Eigen
                               hdf5::hdf5 NLopt::nlopt TBB::tbb hdf5::hdf5
                               Boost::program_options 
                               #${MCMC_LIBRARY} ttimes
@@ -89,7 +89,7 @@ target_include_directories(uLocator
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
                            PRIVATE ${UMPS_INCLUDE_DIR} ${MCMC_INCLUDE_DIR}
                                    ${NLOPT_INCLUDE_DIRS} ${EIKONALXX_INCLUDE_DIR}
-                                   ${oneDAL_INCLUDE_DIRS} hdf5::hdf5 NLopt::nlopt
+                                   ${oneDAL_INCLUDE_DIRS} hdf5::hdf5 NLopt::nlopt spdlog::spdlog
                                    #ttimes
                            PUBLIC $<INSTALL_INTERFACE:${CMAKE_SOURCE_DIR}/include/umps>)
 
@@ -146,6 +146,7 @@ set_target_properties(computeCorrections PROPERTIES
 target_include_directories(computeCorrections
                            PRIVATE Boost::program_options ${oneDAL_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/include)
 message(" ${oneDAL_INCLUDE_DIRS}")
+message(" ${DAL_LIBRARIES}")
 message(" ${DAL_LIBS}")
 target_link_libraries(computeCorrections
                       ${DAL_LIBS} Boost::program_options uLocator)
