@@ -1,7 +1,7 @@
 #ifndef ULOCATOR_FIRST_ARRIVAL_RAY_TRACER_HPP
 #define ULOCATOR_FIRST_ARRIVAL_RAY_TRACER_HPP
 #include <memory>
-#include <umps/logging/log.hpp>
+//#include <umps/logging/log.hpp>
 #include "uLocator/travelTimeCalculator.hpp"
 namespace ULocator
 {
