@@ -7,7 +7,11 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 #include <boost/tokenizer.hpp>
+#ifdef WITH_UMPS
 #include <umps/logging/standardOut.hpp>
+#else
+#include "logging/standardOut.hpp"
+#endif
 #include "uLocator/arrival.hpp"
 #include "uLocator/origin.hpp"
 //#include "uLocator/direct.hpp"

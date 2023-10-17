@@ -6,7 +6,10 @@
 #include <vector>
 #include <functional>
 #include <Eigen/Dense>
-#include <umps/logging/log.hpp>
+namespace UMPS::Logging
+{
+ class ILog;
+}
 namespace ULocator
 {
  class Arrival;

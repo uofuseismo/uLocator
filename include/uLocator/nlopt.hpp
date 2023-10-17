@@ -1,8 +1,11 @@
 #ifndef ULOCATOR_NLOPT_HPP
 #define ULOCATOR_NLOPT_HPP
-#include <umps/logging/log.hpp>
 #include <vector>
 #include <memory>
+namespace UMPS::Logging
+{
+ class ILog;
+}
 namespace ULocator
 {
  class Arrival;

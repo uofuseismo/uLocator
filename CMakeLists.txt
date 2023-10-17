@@ -65,6 +65,9 @@ set(LIBRARY_SRC src/version.cpp
                 src/objectiveFunctions/leastSquares.cpp
                 src/objectiveFunctions/objectiveFunction.cpp
                 src/position/wgs84.cpp)
+if (NOT ${USE_UMPS})
+   set(LIBRARY_SRC ${LIBRARY_SRC} src/logging/standardOut.cpp)
+endif()
 if (${BUILD_UUSS})
 #    set(UUSS_SRC src/topography.cpp)
 endif()
@@ -113,6 +116,7 @@ target_link_libraries(unitTests PRIVATE uLocator ${GTEST_BOTH_LIBRARIES} ${UMPS_
 target_include_directories(unitTests
                            PRIVATE ${GTEST_INCLUDE_DIRS}
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+                           PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
                            PRIVATE $<BUILD_INTERFACE:${UMPS_INCLUDE_DIR}>)
 add_test(NAME unitTests 
          COMMAND unitTests)

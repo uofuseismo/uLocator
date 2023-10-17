@@ -15,6 +15,8 @@
 #include <eikonalxx/ray/point2d.hpp>
 #ifdef WITH_UMPS
 #include <umps/logging/standardOut.hpp>
+#else
+#include "logging/standardOut.hpp"
 #endif
 #include "uLocator/uussTravelTimeCalculator.hpp"
 #include "uLocator/station.hpp"
@@ -50,7 +52,6 @@ double interpolate(const double xi, const double yi,
 class UUSSTravelTimeCalculator::UUSSTravelTimeCalculatorImpl
 {
 public:
-#ifdef WITH_UMPS
     UUSSTravelTimeCalculatorImpl(
         std::shared_ptr<UMPS::Logging::ILog> logger = nullptr) :
         mLogger(logger)
@@ -60,7 +61,6 @@ public:
             mLogger = std::make_shared<UMPS::Logging::StandardOut> ();
         }
     }
-#endif
 /*
     void evaluateAK135(const double epicentralDistance, 
                        const double depthInKilometers,
@@ -184,13 +184,8 @@ public:
         }
         catch (const std::exception &e) 
         {
-#ifdef WITH_UMPS
             mLogger->warn("Failed to evaluate SSSC: " + std::string {e.what()}
                         + " - setting correction to 0");
-#else
-            std::cerr << "Failed to evaluate SSSC: " << e.what() 
-                      << " - setting correction to 0" << std::endl;
-#endif
         }
         return correction + time; 
     }
@@ -202,22 +197,15 @@ public:
         try
         {
             mStaticCorrection.load(fileName);
-#ifdef WITH_UMPS
             mLogger->debug("Loaded static correction: "
                          + std::to_string(mStaticCorrection.getCorrection())
                          + " from " + fileName);
-#endif
         }
         catch (const std::exception &e)
         {
-#ifdef WITH_UMPS
             mLogger->warn("Failed to load static correction:  "
                          + std::string {e.what()}
                          + " -  Setting correction to 0");
-#else
-            std::cerr << "Failed to load static correction: " 
-                      << e.what() << " - setting correction to 0" << std::endl;
-#endif
             mStaticCorrection.setCorrection(0);
         }
     }
@@ -229,21 +217,15 @@ public:
         try
         {
             mSourceSpecificStationCorrection.load(fileName);
-#ifdef WITH_UMPS
             mLogger->debug(
                 "Loaded source-specific station correction from "
               + fileName);
-#endif
         }
         catch (const std::exception &e)
         {
-#ifdef WITH_UMPS
             mLogger->warn(
                 "Failed to load source-specific station correction from "
               + fileName + " failed with: " + std::string(e.what()));
-#else
-            std::cerr << "Failed to load SSSC " << e.what() << std::endl;
-#endif
         }
     }
     void load(const std::string &fileName,
@@ -282,10 +264,8 @@ public:
             mGridSpacingInZ = scalar.at(0);
             ::readDataset(groupID, "station_elevation", &scalar);
             mStationDepth =-scalar.at(0);
-#ifdef WITH_UMPS
             mLogger->debug("Station depth: "
                          + std::to_string(mStationDepth));
-#endif
         }
         catch (const std::exception &e) 
         {
@@ -461,18 +441,14 @@ mWidthInX = 0;
             if (mPhase == "S")
             {
                 velocities = ynpSVelocities;
-#ifdef WITH_UMPS
                 mLogger->info("Initializing YNP S velocities for " + mName
                             + " at depth " + std::to_string(mStationDepth));
-#endif
             }
             else
             {
                 velocities = ynpPVelocities;
-#ifdef WITH_UMPS
                 mLogger->info("Initializing YNP P velocities for " + mName
                             + " at depth " + std::to_string(mStationDepth));
-#endif
             }
         }
         else
@@ -481,18 +457,14 @@ mWidthInX = 0;
             if (mPhase == "P")
             {
                 velocities = utahPVelocities;
-#ifdef WITH_UMPS
                 mLogger->info("Initializing Utah P velocities for " + mName
                             + " at depth " + std::to_string(mStationDepth));
-#endif
             }
             else
             {
                 velocities = utahSVelocities;
-#ifdef WITH_UMPS
                 mLogger->info("Initializing Utah S velocities for " + mName
                             + " at depth " + std::to_string(mStationDepth));
-#endif
             }
         }
 #ifndef NDEBUG
@@ -514,13 +486,9 @@ mWidthInX = 0;
             if (sourceDepth < mMinimumDepth)
             {
                 sourceDepthToUse = mMinimumDepth;
-#ifdef WITH_UMPS
                 mLogger->warn("Overriding source depth "
                             + std::to_string(sourceDepth)
                             + " to " + std::to_string(mMinimumDepth));
-#else
-                std::cerr << "Overriding source depth" << std::endl;
-#endif
             }
             //std::cout << offset << "," << mStationDepth << "," << sourceDepthToUse << std::endl;
             mLayerSolver.setStationOffsetAndDepth(offset, mStationDepth);
@@ -529,7 +497,6 @@ mWidthInX = 0;
         }
         catch (const std::exception &e)
         {
-#ifdef WITH_UMPS
             mLogger->error("Failed to compute ray paths for "
                          + mStation.getNetwork() + "." 
                          + mStation.getName() + "."
@@ -538,9 +505,6 @@ mWidthInX = 0;
                          + std::string {e.what()}
                          +  ".  Source depth is: " 
                          + std::to_string(sourceDepth));
-#else
-            std::cerr << "Failed to compute ray paths" << std::endl;
-#endif
             return travelTime;
         }
         const auto &rayPaths = mLayerSolver.getRayPaths(); 
@@ -559,9 +523,7 @@ mWidthInX = 0;
         } 
         return travelTime;
     }
-#ifdef WITH_UMPS
     std::shared_ptr<UMPS::Logging::ILog> mLogger{nullptr};
-#endif
     mutable EikonalXX::Ray::LayerSolver mLayerSolver;
     StaticCorrection mStaticCorrection;
     SourceSpecificStationCorrection mSourceSpecificStationCorrection;
@@ -599,13 +561,11 @@ UUSSTravelTimeCalculator::UUSSTravelTimeCalculator() :
 {
 }
 
-#ifdef WITH_UMPS
 UUSSTravelTimeCalculator::UUSSTravelTimeCalculator(
     std::shared_ptr<UMPS::Logging::ILog> &logger) :
     pImpl(std::make_unique<UUSSTravelTimeCalculatorImpl> (logger))
 {
 }
-#endif
 
 UUSSTravelTimeCalculator::~UUSSTravelTimeCalculator() = default;
 

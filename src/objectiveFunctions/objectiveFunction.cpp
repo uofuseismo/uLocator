@@ -8,7 +8,11 @@
 #include <cassert>
 #endif
 #include <Eigen/Dense>
+#ifdef WITH_UMPS
 #include <umps/logging/standardOut.hpp>
+#else
+#include "../logging/standardOut.hpp"
+#endif
 #include "uLocator/objectiveFunctions/objectiveFunction.hpp"
 #include "uLocator/travelTimeCalculatorMap.hpp"
 #include "uLocator/travelTimeCalculator.hpp"

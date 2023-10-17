@@ -8,7 +8,11 @@
 #endif
 #include <Eigen/Dense>
 #include <boost/math/tools/minima.hpp>
+#ifdef WITH_UMPS
 #include <umps/logging/standardOut.hpp>
+#else
+#include "../logging/standardOut.hpp"
+#endif
 #include "uLocator/objectiveFunctions/lp.hpp"
 #include "uLocator/travelTimeCalculatorMap.hpp"
 #include "uLocator/position/wgs84.hpp"

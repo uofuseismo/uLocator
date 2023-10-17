@@ -2,7 +2,10 @@
 #define ULOCATOR_UUSS_TRAVEL_TIME_CALCULATOR_HPP
 #include <memory>
 #include <uLocator/travelTimeCalculator.hpp>
-#include <umps/logging/log.hpp>
+namespace UMPS::Logging
+{
+ class ILog;
+}
 namespace ULocator
 {
  class Station;

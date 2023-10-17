@@ -1,7 +1,11 @@
 #include <iostream>
 #include <iomanip>
 #include <string>
+#ifdef WITH_UMPS
 #include <umps/logging/standardOut.hpp>
+#else
+#include "logging/standardOut.hpp"
+#endif
 #include <nlopt.hpp>
 #include "uLocator/nlopt.hpp"
 #include "uLocator/nloptOptions.hpp"

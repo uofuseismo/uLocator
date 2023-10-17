@@ -1,6 +1,10 @@
 #include <vector>
 #include <string>
+#ifdef WITH_UMPS
 #include <umps/logging/standardOut.hpp>
+#else
+#include "logging/standardOut.hpp"
+#endif
 #include "uLocator/nlopt.hpp"
 #include "uLocator/nloptOptions.hpp"
 #include "uLocator/origin.hpp"
