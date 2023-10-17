@@ -79,7 +79,7 @@ set_target_properties(uLocator PROPERTIES
                       CXX_STANDARD_REQUIRED YES 
                       CXX_EXTENSIONS NO) 
 target_link_libraries(uLocator
-                      PRIVATE Threads::Threads Eigen3::Eigen
+                      PRIVATE Eigen3::Eigen
                               hdf5::hdf5 NLopt::nlopt TBB::tbb hdf5::hdf5
                               Boost::program_options 
                               #${MCMC_LIBRARY} ttimes
