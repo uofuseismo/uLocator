@@ -1,6 +1,5 @@
 #include <iostream>
 #include <string>
-#include <execution>
 #include <algorithm>
 #include <map>
 #ifdef USE_TBB
