@@ -3,6 +3,10 @@
 #include <memory>
 //#include <umps/logging/log.hpp>
 #include "uLocator/travelTimeCalculator.hpp"
+namespace UMPS::Logging
+{
+ class ILog;
+}
 namespace ULocator
 {
 class FirstArrivalRayTracer : public ITravelTimeCalculator
