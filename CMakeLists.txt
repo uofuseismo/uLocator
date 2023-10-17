@@ -5,6 +5,7 @@ enable_testing()
 # Some options
 option(WRAP_PYTHON "Compile the Python bindings" OFF)
 option(BUILD_UUSS "Compile the UUSS examples" OFF)
+option(USE_UMPS "Compile with the UMPS logging library" ON)
 
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
@@ -29,6 +30,9 @@ endif()
 if (TBB_FOUND)
    message("Using TBB")
    add_compile_definitions(USE_TBB)
+endif()
+if (USE_UMPS)
+   add_compile_definitions(WITH_UMPS)
 endif()
 
 # Versioning information

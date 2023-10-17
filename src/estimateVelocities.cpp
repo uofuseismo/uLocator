@@ -13,7 +13,9 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 #include <boost/tokenizer.hpp>
+#ifdef WITH_UMPS
 #include <umps/logging/standardOut.hpp>
+#endif
 #include "uLocator/travelTimeCalculatorMap.hpp"
 #include "uLocator/firstArrivalRayTracer.hpp"
 #include "uLocator/station.hpp"
@@ -375,7 +377,9 @@ struct ObjectiveFunction
         }
         of.close();
     }
+#ifdef WITH_UMPS
     std::shared_ptr<UMPS::Logging::ILog> logger{nullptr};
+#endif
     std::vector<ULocator::Station> uniqueStations;
     std::vector<ULocator::Origin> origins;
     std::vector< std::vector<std::pair<ULocator::Station, std::string>> >
@@ -500,15 +504,20 @@ int main(int argc, char *argv[])
     }
     if (programOptions.doHelp){return EXIT_SUCCESS;}
 
-
+#ifdef WITH_UMPS
     auto logger = std::make_shared<UMPS::Logging::StandardOut> ();
+#endif
 
     auto phase = programOptions.phase;
     auto initialResidualsFile = programOptions.resultsDirectory / std::filesystem::path{"initialResiduals." + phase + ".csv"};
     auto finalResidualsFile  = programOptions.resultsDirectory / std::filesystem::path{"finalResiduals." + phase + ".csv"};
     auto catalogFile = programOptions.catalogFile;
     auto trainingFile = programOptions.trainingFile;
+#ifdef WITH_UMPS
     auto origins = ::loadCatalog(catalogFile, trainingFile, logger);
+#else
+    auto origins = ::loadCatalog(catalogFile, trainingFile);
+#endif
 
     // Make some baseline
     std::vector<::Layer> initialModel;
@@ -516,7 +525,11 @@ int main(int argc, char *argv[])
     {
         if (phase == "P")
         {
+#ifdef WITH_UMPS
             logger->info("Creating initial Utah P model...");
+#else
+            std::cout << "Creating initial Utah P model..." << std::endl;
+#endif
             initialModel = std::vector<::Layer>
             {
                 ::Layer{-4500, 3400, 2000, 4500},
@@ -528,7 +541,11 @@ int main(int argc, char *argv[])
         }
         else if (phase == "S")
         {
+#ifdef WITH_UMPS
             logger->info("Creating initial Utah S model...");
+#else
+            std::cout << "Creating initial Utah S model..." << std::endl;
+#endif
             initialModel = std::vector<::Layer>
             {
                 ::Layer{-4500, 1950, 1000, 2300},
@@ -547,7 +564,11 @@ int main(int argc, char *argv[])
     {
         if (phase == "P")
         {
+#ifdef WITH_UMPS
             logger->info("Creating initial YNP P model...");
+#else
+            std::cout << "Creating initial YNP P model..." << std::endl;
+#endif
             initialModel = std::vector<::Layer>
             {
                 ::Layer{-4500,  2720, 1000, 2750},
@@ -563,7 +584,11 @@ int main(int argc, char *argv[])
         }
         else if (phase == "S")
         {
+#ifdef WITH_UMPS
             logger->info("Creating initial YNP S model...");
+#else
+            std::cout << "Creating initial YNP S model..." << std::endl;
+#endif
             initialModel = std::vector<::Layer>
             {
 
@@ -588,7 +613,9 @@ int main(int argc, char *argv[])
 #endif
 
     ::ObjectiveFunction objectiveFunction;
+#ifdef WITH_UMPS
     objectiveFunction.logger = logger;
+#endif
     objectiveFunction.phase = phase;
     objectiveFunction.setOrigins(origins);
     std::vector<double> xInitial;
@@ -599,7 +626,11 @@ int main(int argc, char *argv[])
     }
     auto f0 = objectiveFunction.f(xInitial.size(), xInitial.data());
     objectiveFunction.writeToCSV(initialResidualsFile);
+#ifdef WITH_UMPS
     logger->info("Initial objective function: " + std::to_string(f0));
+#else
+    std::cout << "Initial objective function: " << f0 << std::endl;
+#endif
     objectiveFunction.nEvaluations = 0;
 
     std::vector<::Layer> layers;
@@ -607,7 +638,11 @@ int main(int argc, char *argv[])
     {
         if (phase == "P")
         {
+#ifdef WITH_UMPS
             logger->info("Creating starting Utah P model...");
+#else
+            std::cout << "Creating starting Utah P model..." << std::endl;
+#endif
             layers = std::vector<::Layer>
             {
                 ::Layer{-4500, 3695, 2000, 5000},
@@ -619,7 +654,11 @@ int main(int argc, char *argv[])
         }
         else if (phase == "S")
         {
+#ifdef WITH_UMPS
             logger->info("Creating starting Utah S model...");
+#else
+            std::cout << "Creating start Utah S model..." << std::endl;
+#endif
             layers = std::vector<::Layer>
             {
                 ::Layer{-4500, 2180, 1000, 2300},
@@ -634,7 +673,11 @@ int main(int argc, char *argv[])
     { 
         if (phase == "P")
         {
+#ifdef WITH_UMPS
             logger->info("Creating starting YNP P model...");
+#else
+            std::cout << "Creating starting YNP P model..." << std::endl;
+#endif
             layers = std::vector<::Layer>
             {
                 ::Layer{-4500,  2458, 1000, 2750},
@@ -650,7 +693,11 @@ int main(int argc, char *argv[])
         }
         else if (phase == "S")
         {
+#ifdef WITH_UMPS
             logger->info("Creating starting YNP S model...");
+#else
+            std::cout << "Creating starting YNP S model..." << std::endl;
+#endif
             layers = std::vector<::Layer>
             {
                 ::Layer{-4500,  1729,  500, 1975},
@@ -704,9 +751,17 @@ int main(int argc, char *argv[])
     }
     catch (const std::exception &e)
     {
+#ifdef WITH_UMPS
         logger->error(e.what());
+#else
+        std::cerr << e.what() << std::endl;
+#endif
     }
+#ifdef WITH_UMPS
+    logger->info("Final loss: " + std::to_string(loss));
+#else
     std::cout << "Final loss: " << loss << std::endl;
+#endif
     for (int i = 0; i < objectiveFunction.interfaces.size(); ++i)
     {
         std::cout << objectiveFunction.interfaces[i] << " "
@@ -714,8 +769,14 @@ int main(int argc, char *argv[])
     }
     objectiveFunction.nEvaluations = 0;
     auto fFinal = objectiveFunction.f(x.size(), x.data());
+#ifdef WITH_UMPS
+    logger->info("Evaluating final loss: " + std::to_string(fFinal)
+               + " ; " 
+               + std::to_string( (f0 - fFinal)/f0*100 ) + " pct reduction");
+#else
     std::cout << "Evaluating final loss: " << fFinal << "; "
               << (f0 - fFinal)/f0*100 <<  " pct reduction" << std::endl;
+#endif 
     objectiveFunction.writeToCSV(finalResidualsFile);
     return EXIT_SUCCESS;
 }

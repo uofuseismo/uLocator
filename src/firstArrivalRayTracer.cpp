@@ -6,7 +6,9 @@
 #include <eikonalxx/ray/path2d.hpp>
 #include <eikonalxx/ray/segment2d.hpp>
 #include <eikonalxx/ray/point2d.hpp>
+#ifdef WITH_UMPS
 #include <umps/logging/standardOut.hpp>
+#endif
 #include "uLocator/firstArrivalRayTracer.hpp"
 #include "uLocator/station.hpp"
 #include "uLocator/staticCorrection.hpp"
@@ -18,6 +20,7 @@ using namespace ULocator;
 class FirstArrivalRayTracer::FirstArrivalRayTracerImpl
 {
 public:
+#ifdef WITH_UMPS
     FirstArrivalRayTracerImpl(
         std::shared_ptr<UMPS::Logging::ILog> logger = nullptr) :
         mLogger(logger)
@@ -27,6 +30,7 @@ public:
             mLogger = std::make_shared<UMPS::Logging::StandardOut> ();
         }
     }
+#endif
     double evaluateLayerSolver(const double sourceDepth, const double offset,
                                double *dtdx, double *dtdz) const
     { 
@@ -40,9 +44,14 @@ public:
             if (sourceDepth < mMinimumDepth)
             {
                 sourceDepthToUse = mMinimumDepth;
+#ifdef WITH_UMPS
                 mLogger->warn("Overriding source depth "
                             + std::to_string(sourceDepth)
                             + " to " + std::to_string(mMinimumDepth));
+#else
+                std::cerr << "Overriding source dpeth " << sourceDepth
+                          << " to " << mMinimumDepth << std::endl;
+#endif
             }
             mSolver.setStationOffsetAndDepth(offset, mStationDepth);
             mSolver.setSourceDepth(sourceDepthToUse);
@@ -50,6 +59,7 @@ public:
         }
         catch (const std::exception &e) 
         {
+#ifdef WITH_UMPS
             mLogger->error("Failed to compute ray paths for "
                          + mStation.getNetwork() + "." 
                          + mStation.getName() + "." 
@@ -58,6 +68,15 @@ public:
                          + std::string {e.what()}
                          +  ".  Source depth is: " 
                          + std::to_string(sourceDepth));
+#else
+            std::cerr << "Failed to compute ray paths for "
+                      << mStation.getNetwork() << "."
+                      << mStation.getName() << "."
+                      << mPhase
+                      << ". Failed with: " << e.what()
+                      << ".  Source depth is: " 
+                      << sourceDepth << std::endl;
+#endif
             return travelTime;
         }
         const auto &rayPaths = mSolver.getRayPaths(); 
@@ -76,7 +95,9 @@ public:
         }
         return travelTime;
     }
+#ifdef WITH_UMPS
     std::shared_ptr<UMPS::Logging::ILog> mLogger{nullptr};
+#endif
     std::unique_ptr<SourceSpecificStationCorrection>
         mSourceSpecificStationCorrection{nullptr};
     StaticCorrection mStaticCorrection;
@@ -97,11 +118,13 @@ FirstArrivalRayTracer::FirstArrivalRayTracer() :
 }
 
 /// Constructor with logger
+#ifdef WITH_UMPS
 FirstArrivalRayTracer::FirstArrivalRayTracer(
     std::shared_ptr<UMPS::Logging::ILog> &logger) :
     pImpl(std::make_unique<FirstArrivalRayTracerImpl> (logger))
 {
 }
+#endif
 
 /// Move constructor
 FirstArrivalRayTracer::FirstArrivalRayTracer(
