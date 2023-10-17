@@ -114,7 +114,7 @@ set_target_properties(unitTests PROPERTIES
                       CXX_STANDARD 20
                       CXX_STANDARD_REQUIRED YES
                       CXX_EXTENSIONS NO)
-target_link_libraries(unitTests PRIVATE uLocator ${GTEST_BOTH_LIBRARIES} ${UMPS_LIBRARY} Threads::Threads)
+target_link_libraries(unitTests PRIVATE uLocator ${GTEST_BOTH_LIBRARIES} ${UMPS_LIBRARY} Threads::Threads nlohmann_json::nlohmann_json)
 target_include_directories(unitTests
                            PRIVATE ${GTEST_INCLUDE_DIRS}
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
