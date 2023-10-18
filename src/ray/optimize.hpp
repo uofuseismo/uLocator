@@ -11,7 +11,7 @@
 #include <boost/math/tools/roots.hpp>
 #include <boost/math/tools/minima.hpp>
 #include "layerTracer.hpp"
-#include "eikonalxx/ray/path2d.hpp"
+#include "path2d.hpp"
 namespace
 {
 
