@@ -88,8 +88,7 @@ public:
         return travelTime;
     }
     std::shared_ptr<UMPS::Logging::ILog> mLogger{nullptr};
-    std::unique_ptr<SourceSpecificStationCorrection>
-        mSourceSpecificStationCorrection{nullptr};
+    SourceSpecificStationCorrection mSourceSpecificStationCorrection;
     StaticCorrection mStaticCorrection;
     mutable EikonalXX::Ray::LayerSolver mSolver;
     Station mStation;
@@ -180,19 +179,16 @@ double FirstArrivalRayTracer::evaluate(
         {
             travelTime = pImpl->mStaticCorrection.evaluate(travelTime);
         }
-        if (pImpl->mSourceSpecificStationCorrection)
+        if (pImpl->mSourceSpecificStationCorrection.haveModel())
         {
-            if (pImpl->mSourceSpecificStationCorrection)
-            {
-                auto correction
-                    = pImpl->mSourceSpecificStationCorrection->evaluate(
-                         epicenter.getLatitude(),
-                         epicenter.getLongitude(),
-                         depth,
-                         SourceSpecificStationCorrection::
-                            EvaluationMethod::InverseDistanceWeighted);
-                travelTime = travelTime + correction;
-            }
+            auto correction
+                = pImpl->mSourceSpecificStationCorrection.evaluate(
+                     epicenter.getLatitude(),
+                     epicenter.getLongitude(),
+                     depth,
+                     SourceSpecificStationCorrection::
+                        EvaluationMethod::InverseDistanceWeighted);
+            travelTime = travelTime + correction;
         }
     }
     return travelTime;
@@ -257,27 +253,24 @@ double FirstArrivalRayTracer::evaluate(
     double dtdr;
     auto travelTime = pImpl->evaluateLayerSolver(depth, distance, &dtdr, dtdz);
     constexpr double degreesToRadians{M_PI/180.};
-    *dtdx = dtdr*std::sin(azimuth*degreesToRadians);
-    *dtdy = dtdr*std::cos(azimuth*degreesToRadians);
+    if (dtdx != nullptr){*dtdx = dtdr*std::sin(azimuth*degreesToRadians);}
+    if (dtdy != nullptr){*dtdy = dtdr*std::cos(azimuth*degreesToRadians);}
     if (applyCorrection)
     {
         if (pImpl->mStaticCorrection.haveCorrection())
         {
             travelTime = pImpl->mStaticCorrection.evaluate(travelTime);
         }
-        if (pImpl->mSourceSpecificStationCorrection)
+        if (pImpl->mSourceSpecificStationCorrection.haveModel())
         {
-            if (pImpl->mSourceSpecificStationCorrection)
-            {
-                auto correction
-                    = pImpl->mSourceSpecificStationCorrection->evaluate(
-                         epicenter.getLatitude(),
-                         epicenter.getLongitude(),
-                         depth,
-                         SourceSpecificStationCorrection::
-                            EvaluationMethod::InverseDistanceWeighted);
-                travelTime = travelTime + correction;
-            }
+            auto correction
+                = pImpl->mSourceSpecificStationCorrection.evaluate(
+                     epicenter.getLatitude(),
+                     epicenter.getLongitude(),
+                     depth,
+                     SourceSpecificStationCorrection::
+                        EvaluationMethod::InverseDistanceWeighted);
+            travelTime = travelTime + correction;
         }
     }
     return travelTime;
@@ -312,6 +305,55 @@ void FirstArrivalRayTracer::initialize(
     pImpl->mInitialized = true;
 }
 
+void FirstArrivalRayTracer::initialize(
+    const Station &station,
+    const std::string &phase,
+    const std::vector<double> &interfaces,
+    const std::vector<double> &velocities,
+    const StaticCorrection &staticCorrection)
+{
+    initialize(station, phase, interfaces, velocities);
+    if (staticCorrection.haveCorrection())
+    {
+        pImpl->mStaticCorrection = staticCorrection;
+    }
+}
+
+void FirstArrivalRayTracer::initialize(
+    const Station &station,
+    const std::string &phase,
+    const std::vector<double> &interfaces,
+    const std::vector<double> &velocities,
+    const SourceSpecificStationCorrection &sssc)
+{
+    initialize(station, phase, interfaces, velocities);
+    if (sssc.haveModel())
+    {   
+        pImpl->mSourceSpecificStationCorrection = sssc;
+    }   
+}
+
+
+void FirstArrivalRayTracer::initialize(
+    const Station &station,
+    const std::string &phase,
+    const std::vector<double> &interfaces,
+    const std::vector<double> &velocities,
+    const StaticCorrection &staticCorrection,
+    const SourceSpecificStationCorrection &sssc)
+{
+    initialize(station, phase, interfaces, velocities);
+    if (staticCorrection.haveCorrection())
+    {   
+        pImpl->mStaticCorrection = staticCorrection;
+    }
+    if (sssc.haveModel())
+    {   
+        pImpl->mSourceSpecificStationCorrection = sssc;
+    }   
+}
+
+
 void FirstArrivalRayTracer::initializeUtahP(const Station &station,
                                             const bool useAlternateModel)
 {
@@ -319,7 +361,8 @@ void FirstArrivalRayTracer::initializeUtahP(const Station &station,
     std::vector<double> velocities{       3400, 5900,  6400,  7500,  7900};
     if (useAlternateModel)
     {
-        velocities = std::vector<double> {3400, 5950, 6450,  7550,  7900};
+        //velocities = std::vector<double> {3400, 5950, 6450,  7550,  7900};
+        velocities = std::vector<double> {3685, 5972, 6553, 7106, 7672};
     }
     initialize(station, "P", interfaces, velocities);
 }
@@ -331,26 +374,39 @@ void FirstArrivalRayTracer::initializeUtahS(const Station &station,
     std::vector<double> velocities{1950, 3390, 3680,   4310,  4540};
     if (useAlternateModel)
     {
-        velocities = std::vector<double> {2000, 3425, 3700,   4400,  4550};
+        //velocities = std::vector<double> {2000, 3425, 3700,   4400,  4550};
+        velocities = std::vector<double> {2169, 3443, 3653, 4486, 5022};
     }
     initialize(station, "S", interfaces, velocities);
 }
 
-void FirstArrivalRayTracer::initializeYellowstoneP(const Station &station)
+void FirstArrivalRayTracer::initializeYellowstoneP(const Station &station,
+                                                   const bool useAlternateModel)
 {
     const std::vector<double> interfaces{-4500, -1000,  2000,  5000,  8000,
                                          12000, 16000, 21000, 50000};
-    const std::vector<double> velocities{2720, 2790, 5210, 5560, 5770,
-                                         6070, 6330, 6630, 8000};
+    std::vector<double> velocities{2720, 2790, 5210, 5560, 5770,
+                                   6070, 6330, 6630, 8000};
+    if (useAlternateModel)
+    {
+        velocities = std::vector<double> {2512, 3398, 4689, 5456, 5674,
+                                          6250, 6398, 6574, 8200};
+    }
     initialize(station, "P", interfaces, velocities);
 }
 
-void FirstArrivalRayTracer::initializeYellowstoneS(const Station &station)
+void FirstArrivalRayTracer::initializeYellowstoneS(const Station &station,
+                                                   const bool useAlternateModel)
 {
     const std::vector<double> interfaces{-4500, -1000,  2000,  5000,  8000,
                                          12000, 16000, 21000, 50000};
-    const std::vector<double> velocities{1950, 2000, 3400, 3420, 3490,
-                                         3680, 3780, 4000, 4850};
+    std::vector<double> velocities{1950, 2000, 3400, 3420, 3490,
+                                   3680, 3780, 4000, 4850};
+    if (useAlternateModel)
+    {   
+        velocities = std::vector<double> {1725, 2343, 3064, 3425, 3569,
+                                          3690, 3705, 3975, 4950};
+    }
     initialize(station, "S", interfaces, velocities);
 }
 

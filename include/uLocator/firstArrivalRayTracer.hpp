@@ -9,6 +9,11 @@ namespace UMPS::Logging
 }
 namespace ULocator
 {
+ class StaticCorrection;
+ class SourceSpecificStationCorrection;
+}
+namespace ULocator
+{
 class FirstArrivalRayTracer : public ITravelTimeCalculator
 {
 public:
@@ -20,12 +25,29 @@ public:
                     const std::string &phase,
                     const std::vector<double> &interfaces,
                     const std::vector<double> &velocities);
+    void initialize(const Station &station,
+                    const std::string &phase,
+                    const std::vector<double> &interfaces,
+                    const std::vector<double> &velocities,
+                    const StaticCorrection &correction);
+    void initialize(const Station &station,
+                    const std::string &phase,
+                    const std::vector<double> &interfaces,
+                    const std::vector<double> &velocities,
+                    const SourceSpecificStationCorrection &correction);
+    void initialize(const Station &station,
+                    const std::string &phase,
+                    const std::vector<double> &interfaces,
+                    const std::vector<double> &velocities,
+                    const StaticCorrection &staticCorrection,
+                    const SourceSpecificStationCorrection &sssc);
 
-    void initializeUtahP(const Station &station, const bool useAlternateModel = true);
-    void initializeUtahS(const Station &station, const bool useAlternateModel = true);
 
-    void initializeYellowstoneP(const Station &station);
-    void initializeYellowstoneS(const Station &station);
+    void initializeUtahP(const Station &station, bool useAlternateModel = true);
+    void initializeUtahS(const Station &station, bool useAlternateModel = true);
+
+    void initializeYellowstoneP(const Station &station, bool useAlternateModel = true);
+    void initializeYellowstoneS(const Station &station, bool useAlternateModel = true);
     [[nodiscard]] bool isInitialized() const noexcept;
 
 

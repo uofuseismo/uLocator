@@ -569,6 +569,13 @@ SourceSpecificStationCorrection::SourceSpecificStationCorrection() :
 {
 }
 
+/// Copy constructor
+SourceSpecificStationCorrection::SourceSpecificStationCorrection(
+    const SourceSpecificStationCorrection &correction)
+{
+    *this = correction;
+}
+
 /// Move constructor
 SourceSpecificStationCorrection::SourceSpecificStationCorrection(
     SourceSpecificStationCorrection &&correction) noexcept
@@ -582,6 +589,38 @@ SourceSpecificStationCorrection& SourceSpecificStationCorrection::operator=(
 {
     if (&correction == this){return *this;}
     pImpl = std::move(correction.pImpl);
+    return *this;
+}
+
+/// Copy assignment
+SourceSpecificStationCorrection& SourceSpecificStationCorrection::operator=(
+    const SourceSpecificStationCorrection &correction)
+{
+    if (&correction == this){return *this;}
+    pImpl = std::make_unique<SourceSpecificStationCorrectionImpl> ();
+    if (correction.pImpl->mInitialized)
+    {
+        pImpl->mNetwork = correction.pImpl->mNetwork;
+        pImpl->mStation = correction.pImpl->mStation;
+        pImpl->mPhase   = correction.pImpl->mPhase;
+        pImpl->mTrainingFeaturesMatrix = correction.pImpl->mTrainingFeaturesMatrix;
+        pImpl->mFeaturesMatrix = correction.pImpl->mFeaturesMatrix;;
+        pImpl->mTrainingTargetsMatrix = correction.pImpl->mTrainingTargetsMatrix;
+        pImpl->mMaximumDistance = correction.pImpl->mMaximumDistance;
+        pImpl->mUTMZone = correction.pImpl->mUTMZone;
+        pImpl->mFeatures = correction.pImpl->mFeatures;
+        pImpl->mNeighbors = correction.pImpl->mNeighbors;
+        pImpl->mInitialized = correction.pImpl->mInitialized;
+        pImpl->mHaveModel = correction.pImpl->mHaveModel;
+        if (correction.pImpl->mDescriptor != nullptr)
+        {
+            pImpl->makeDescriptor(pImpl->mNeighbors);
+        }
+        if (pImpl->mInitialized)
+        {
+            pImpl->mKNNModel = correction.pImpl->mKNNModel; 
+        }
+    }
     return *this;
 }
 

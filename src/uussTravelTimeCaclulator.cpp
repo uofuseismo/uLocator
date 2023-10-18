@@ -9,10 +9,17 @@
 #endif
 //#include <ttimes/ak135.hpp>
 //#include <ttimes/phase.hpp>
+#ifdef WITH_EIKONALXX
 #include <eikonalxx/ray/layerSolver.hpp>
 #include <eikonalxx/ray/path2d.hpp>
 #include <eikonalxx/ray/segment2d.hpp>
 #include <eikonalxx/ray/point2d.hpp>
+#else
+#include "ray/layerSolver.hpp"
+#include "ray/path2d.hpp"
+#include "ray/segment2d.hpp"
+#include "ray/point2d.hpp"
+#endif
 #ifdef WITH_UMPS
 #include <umps/logging/standardOut.hpp>
 #else
@@ -23,7 +30,7 @@
 #include "uLocator/position/wgs84.hpp"
 #include "uLocator/staticCorrection.hpp"
 #include "uLocator/sourceSpecificStationCorrection.hpp"
-#include "uLocator/firstArrivalRayTracer.hpp"
+//#include "uLocator/firstArrivalRayTracer.hpp"
 #include "h5io.hpp"
 
 using namespace ULocator;
@@ -60,6 +67,7 @@ public:
         {
             mLogger = std::make_shared<UMPS::Logging::StandardOut> ();
         }
+        //mRayTracer = std::make_unique<FirstArrivalRayTracer> (mLogger);
     }
 /*
     void evaluateAK135(const double epicentralDistance, 
@@ -473,6 +481,7 @@ mWidthInX = 0;
 #endif
         mMinimumDepth = interfaces.at(0);
         mLayerSolver.setVelocityModel(interfaces, velocities);
+        //mRayTracer->initialize(mName, mPhase, interfaces, velocities);
     }
     double evaluateLayerSolver(const double sourceDepth, const double offset,
                                double *dtdx, double *dtdz) const
@@ -524,6 +533,7 @@ mWidthInX = 0;
         return travelTime;
     }
     std::shared_ptr<UMPS::Logging::ILog> mLogger{nullptr};
+    //std::unique_ptr<FirstArrivalRayTracer> mRayTracer{nullptr};
     mutable EikonalXX::Ray::LayerSolver mLayerSolver;
     StaticCorrection mStaticCorrection;
     SourceSpecificStationCorrection mSourceSpecificStationCorrection;

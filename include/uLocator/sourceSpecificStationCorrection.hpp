@@ -79,8 +79,8 @@ public:
 
     ~SourceSpecificStationCorrection();
 
-    SourceSpecificStationCorrection& operator=(const SourceSpecificStationCorrection &) = delete;
-    SourceSpecificStationCorrection(const SourceSpecificStationCorrection &) = delete;
+    SourceSpecificStationCorrection& operator=(const SourceSpecificStationCorrection &);// = delete;
+    SourceSpecificStationCorrection(const SourceSpecificStationCorrection &);// = delete;
 private:
     class SourceSpecificStationCorrectionImpl;
     std::unique_ptr<SourceSpecificStationCorrectionImpl> pImpl;
