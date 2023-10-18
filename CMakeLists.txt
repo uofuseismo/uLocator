@@ -147,7 +147,7 @@ set_target_properties(ulocate PROPERTIES
                       CXX_EXTENSIONS NO) 
 target_link_libraries(ulocate
                       PRIVATE uLocator Threads::Threads
-                      Boost::program_options TBB::tbb
+                      nlohmann_json::nlohmann_json Boost::program_options TBB::tbb
                       ${UMPS_LIBRARY})
 target_include_directories(ulocate
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>

@@ -153,7 +153,7 @@ public:
         Origin stationOrigin;
         stationOrigin.setEpicenter(
             Position::WGS84 {xInitial[0], xInitial[1], mUTMZone} ); 
-        stationOrigin.setDepth(fixedDepthCallback());
+        stationOrigin.setDepth(depth);
         double maximumObjectiveFunction
              = mObjectiveFunction->evaluateLoss(stationOrigin);
         auto latitudeBoundaries  = mOptions.getLatitudeBoundaries();
