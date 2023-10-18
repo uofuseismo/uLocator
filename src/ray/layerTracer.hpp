@@ -9,9 +9,9 @@
 #ifndef NDEBUG
 #include <cassert>
 #endif
-#include "eikonalxx/ray/path2d.hpp"
-#include "eikonalxx/ray/segment2d.hpp"
-#include "eikonalxx/ray/point2d.hpp"
+#include "path2d.hpp"
+#include "segment2d.hpp"
+#include "point2d.hpp"
 
 namespace
 {
