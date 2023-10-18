@@ -83,9 +83,6 @@ if (NOT ${USE_EIKONALXX})
        src/ray/segment2d.cpp
        src/ray/path2d.cpp)
 endif()
-if (${BUILD_UUSS})
-#    set(UUSS_SRC src/topography.cpp)
-endif()
 set(BUILD_SHARED_LIBS YES)
 add_library(uLocator ${LIBRARY_SRC} ${UUSS_SRC})
 
@@ -147,7 +144,7 @@ set_target_properties(ulocate PROPERTIES
                       CXX_EXTENSIONS NO) 
 target_link_libraries(ulocate
                       PRIVATE uLocator Threads::Threads
-                      nlohmann_json::nlohmann_json Boost::program_options TBB::tbb
+                      Boost::program_options TBB::tbb
                       ${UMPS_LIBRARY})
 target_include_directories(ulocate
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>

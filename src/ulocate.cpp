@@ -2,7 +2,6 @@
 #include <iostream>
 #include <string>
 #include <filesystem>
-#include <nlohmann/json.hpp>
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
@@ -214,6 +213,7 @@ std::vector<Station> uniqueStationsFromOrigins(
     return uniqueStations;
 }
 
+/*
 std::vector<ULocator::Arrival> 
     loadJSON(const std::filesystem::path &jsonFileName)
 {
@@ -254,6 +254,7 @@ std::vector<ULocator::Arrival>
     }
     return arrivals;
 }
+*/
 
 std::shared_ptr<UMPS::Logging::ILog> makeLogger()
 {
