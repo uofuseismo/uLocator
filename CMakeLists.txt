@@ -6,6 +6,7 @@ enable_testing()
 option(WRAP_PYTHON "Compile the Python bindings" OFF)
 option(BUILD_UUSS "Compile the UUSS examples" OFF)
 option(USE_UMPS "Compile with the UMPS logging library" ON)
+option(USE_EIKONALXX "Link against the ray tracer in the eikonal-solver software" ON)
 
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
@@ -13,7 +14,6 @@ find_package(GTest REQUIRED)
 find_package(Boost COMPONENTS program_options REQUIRED)
 find_package(Eigen3 3.3 REQUIRED Dense)
 find_package(GeographicLib REQUIRED)
-#find_package(TTimes REQUIRED)
 find_package(HDF5 COMPONENTS C REQUIRED)
 find_package(Threads REQUIRED)
 #find_package(MCMC REQUIRED)
@@ -69,6 +69,13 @@ set(LIBRARY_SRC src/version.cpp
                 src/position/wgs84.cpp)
 if (NOT ${USE_UMPS})
    set(LIBRARY_SRC ${LIBRARY_SRC} src/logging/standardOut.cpp)
+endif()
+if (NOT ${USE_EIKONALXX})
+   set(LIBRARY_SRC ${LIBRARY_SRC}
+       src/ray/layerSolver.cpp
+       src/ray/point2d.cpp
+       src/ray/segment2d.cpp
+       src/ray/path2d.cpp)
 endif()
 if (${BUILD_UUSS})
 #    set(UUSS_SRC src/topography.cpp)
