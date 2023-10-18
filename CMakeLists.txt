@@ -37,6 +37,12 @@ if (${USE_UMPS})
 else()
    find_package(spdlog REQUIRED)
 endif()
+if (${USE_EIKONALXX})
+   message("Will compile with EikonalXX ray tracer")
+   add_compile_definitions(WITH_EIKONALXX)
+else()
+   message("Will compile internal ray tracer")
+endif()
 
 # Versioning information
 configure_file(${CMAKE_SOURCE_DIR}/include/private/version.hpp.in

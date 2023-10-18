@@ -2,10 +2,17 @@
 #include <string>
 #include <cmath>
 #include <vector>
+#ifdef WITH_EIKONALXX
 #include <eikonalxx/ray/layerSolver.hpp>
 #include <eikonalxx/ray/path2d.hpp>
 #include <eikonalxx/ray/segment2d.hpp>
 #include <eikonalxx/ray/point2d.hpp>
+#else
+#include "ray/layerSolver.hpp"
+#include "ray/path2d.hpp"
+#include "ray/segment2d.hpp"
+#include "ray/point2d.hpp"
+#endif
 #ifdef WITH_UMPS
 #include <umps/logging/standardOut.hpp>
 #else
