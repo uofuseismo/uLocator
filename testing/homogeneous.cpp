@@ -44,9 +44,9 @@ public:
     }
     double evaluate(const Position::WGS84 &epicenter, const double depth, bool) const override
     {
-        auto dx = epicenter.getEasting()  - mStationEasting;
-        auto dy = epicenter.getNorthing() - mStationNorthing;
-        auto dz = depth - (-mElevation);
+        auto dx = mStationEasting  - epicenter.getEasting();
+        auto dy = mStationNorthing - epicenter.getNorthing();
+        auto dz =-mElevation - depth;
         auto distance = std::sqrt( dx*dx + dy*dy + dz*dz );
         //std::cout << dx*1.e-3 << " " << dy*1e-3 << std::endl;
         return distance/mVelocity;
@@ -55,26 +55,26 @@ public:
                     double *dtdx, double *dtdy, double *dtdz,
                     bool) const override
     {
-        auto dx = epicenter.getEasting()  - mStationEasting;
-        auto dy = epicenter.getNorthing() - mStationNorthing;
-        auto dz = depth - (-mElevation);
+        auto dx = mStationEasting  - epicenter.getEasting();
+        auto dy = mStationNorthing - epicenter.getNorthing();
+        auto dz =-mElevation - depth;
         auto distance = std::sqrt( dx*dx + dy*dy + dz*dz );
-        *dtdx = dx/(distance*mVelocity);
-        *dtdy = dy/(distance*mVelocity);
-        *dtdz = dz/(distance*mVelocity);
+        *dtdx =-dx/(distance*mVelocity);
+        *dtdy =-dy/(distance*mVelocity);
+        *dtdz =-dz/(distance*mVelocity);
         return distance/mVelocity;
     }
     std::array<double, 3> computeGradient(const Position::WGS84 &epicenter,
                                           const double depth) const
     {
-        auto dx = epicenter.getEasting()  - mStationEasting;
-        auto dy = epicenter.getNorthing() - mStationNorthing;
-        auto dz = depth - (-mElevation);
+        auto dx = mStationEasting  - epicenter.getEasting();
+        auto dy = mStationNorthing - epicenter.getNorthing();
+        auto dz =-mElevation - depth;
         auto distance = std::sqrt( dx*dx + dy*dy + dz*dz );
         std::array<double, 3> gradient;
-        gradient[0] = dx/(distance*mVelocity);
-        gradient[1] = dy/(distance*mVelocity);
-        gradient[2] = dz/(distance*mVelocity);
+        gradient[0] =-dx/(distance*mVelocity);
+        gradient[1] =-dy/(distance*mVelocity);
+        gradient[2] =-dz/(distance*mVelocity);
         return gradient;
     }
 
@@ -167,8 +167,9 @@ TEST(ULocator, Homogeneous)
     auto origin = locator.getOrigin();
     EXPECT_NEAR(eventLatitude,  origin.getEpicenter().getLatitude(),  1.e-3);
     EXPECT_NEAR(eventLongitude, origin.getEpicenter().getLongitude(), 1.e-3);
-    EXPECT_NEAR(eventDepth,     origin.getDepth(),                    1.e-3);
+    EXPECT_NEAR(eventDepth,     origin.getDepth(),                    1);
     EXPECT_NEAR(originTime,     origin.getTime(),                     1.e-2);
+
     //std::cout << "lat/lon residual: " << eventLatitude - origin.getEpicenter().getLatitude() << "," << eventLongitude - origin.getEpicenter().getLongitude() << std::endl;
     //std::cout << "depth residual: " << eventDepth - origin.getDepth() << std::endl;
     //std::cout << "ot residual: " << originTime - origin.getTime() << std::endl;

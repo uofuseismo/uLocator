@@ -668,6 +668,7 @@ double IObjectiveFunction::g(const int n, const double x[], double g[]) const
         pImpl->mLogger->error(errorMessage);
         throw std::runtime_error(errorMessage);
     }
+//std::cout << std::setprecision(16) << x[0] << " " << x[1] << " " << x[2] << std::endl;
     for (int i = 0; i < n; ++i)
     {
         g[i] = pImpl->mGradient[i];
@@ -676,6 +677,7 @@ double IObjectiveFunction::g(const int n, const double x[], double g[]) const
     double evidence = pImpl->mLikelihoodFunction(pImpl->mEstimates);
     double prior{0};
     double f0 = evidence + prior;
+//std::cout << "f0: " << f0 << std::endl;
     if (pImpl->mUseFiniteDifference)
     {
         auto h = pImpl->mFiniteDifferenceStep;
@@ -684,11 +686,11 @@ double IObjectiveFunction::g(const int n, const double x[], double g[]) const
         {
             std::copy(x, x + n, xWork.data());
             xWork[i] = xWork[i] + h;
-std::cout << g[i] << " ";
+//std::cout << g[i] << " ";
             g[i] = (f(xWork.size(), xWork.data()) - f0)/h;
-std::cout << g[i] << std::endl;
+//std::cout << g[i] << std::endl;
         }
-getchar();
+//getchar();
     }
     return f0;
 }

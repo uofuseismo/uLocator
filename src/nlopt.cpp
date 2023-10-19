@@ -183,7 +183,6 @@ public:
                 = mObjectiveFunction->evaluateLoss(quarryOrigin);
             if (objectiveFunction < maximumObjectiveFunction)
             {
-                //std::cout << quarry.getName() << std::endl;
                 maximumObjectiveFunction = objectiveFunction;
                 xInitial[0] = latitude;
                 xInitial[1] = longitude;

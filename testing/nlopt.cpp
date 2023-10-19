@@ -201,7 +201,6 @@ std::unique_ptr<ULocator::TravelTimeCalculatorMap>
 
 //----------------------------------------------------------------------------//
 
-/*
 TEST(NLOpt, LeastSquaresEarthquake)
 {
     constexpr bool north{true};
@@ -353,7 +352,7 @@ TEST(NLOpt, DoubleDifferenceL1Earthquake)
     auto oldLoss = solver.evaluateLoss(origin);
     std::cout << "new, old loss " << newLoss << " " << oldLoss << std::endl;
 }
-*/
+
 TEST(NLOpt, LpEarthquake)
 {
     constexpr bool north{true};

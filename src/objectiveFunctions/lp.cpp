@@ -32,13 +32,14 @@ struct SourceTimeObjectiveFunction
         double pNorm{0};
         for (int i = 0; i < mResiduals.size(); ++i)
         {
+            // 1/sigma | t_obs_i - (t_est_i + t_0) }
+            // weights | residual - t_0 |
             double residual = mWeights[i]*std::abs(mResiduals[i] - x);
             //std::cout << std::setprecision(16) << x << " " << residual << std::endl;
             pNorm = pNorm + std::pow(residual, mP); 
         }
 //std::cout << "------" << pNorm << "-----" << std::endl;
-        return 1./mP*pNorm;
-        //return std::pow(pNorm, 1./mP);
+        return std::pow(pNorm, 1./mP);
     }
     std::vector<double> mResiduals;
     std::vector<double> mWeights;
@@ -71,22 +72,22 @@ public:
         {
             throw std::runtime_error("No idea what to do here");
         }
+        double sumOfResiduals{0};
         for (int i = 0; i < mData.rows(); ++i)
         {
             auto weightedAbsResidual
                 = mDiagonalDataPrecisionMatrix[i]
                  *std::abs(mData[i] - estimates[i]);
             mResiduals[i] = std::pow(weightedAbsResidual, mP);
+            sumOfResiduals = sumOfResiduals + mResiduals[i];
         }
         if (mUseDiagonalDataPrecisionMatrix)
         {
-            return 1./mP*mResiduals.sum();
-            //return 1./mP*std::pow(mResiduals.sum(), 1./mP);
+            return std::pow(sumOfResiduals, 1./mP);
         }
 #ifndef NDEBUG
         assert(false);
 #endif
-        return (mDataPrecisionMatrix*mResiduals).sum();
     }
     [[nodiscard]] double evaluatePrior(
         const Eigen::VectorXd &model)
@@ -100,8 +101,7 @@ public:
     {
         return 0;
     }
-    [[nodiscard]] double computeSourceTime(
-        const Eigen::VectorXd &estimates)
+    [[nodiscard]] double computeSourceTime(const Eigen::VectorXd &estimates)
     {
         // Create some `ballpark' estimate
 #ifndef NDEBUG
@@ -113,19 +113,31 @@ public:
             mResidualsSourceTime[i] = mData[i] - reductionTime - estimates[i]; 
         }
         auto sumOfWeights = std::accumulate(mWeightsSourceTime.begin(), mWeightsSourceTime.end(), 0.0);
-        auto t0 = ::optimizeSourceTimeLeastSquares(mResidualsSourceTime, mWeightsSourceTime, sumOfWeights);
-
-        int nBits = std::numeric_limits<double>::digits;
-        std::uintmax_t maxIterations{5000};
-        struct SourceTimeObjectiveFunction
-             objectiveFunction{mResidualsSourceTime, mWeightsSourceTime, mP};
-        std::pair<double, double> result
-            = boost::math::tools::brent_find_minima(
-                  objectiveFunction, t0 - 20, t0 + 20, nBits, maxIterations);
-//std::cout << std::setprecision(16) << t0 + reductionTime << " " << result.first + reductionTime << " " << result.second << std::endl;
-//getchar();
-        return result.first + reductionTime;
-        //return ::weightedMedian(mResidualsSourceTime, mWeightsSourceTime, mSourceTimeWork);
+        double t0{0};
+        if (std::abs(mP - 2) < 1.e-10)
+        {
+            t0 = ::optimizeSourceTimeLeastSquares(mResidualsSourceTime,
+                                                  mWeightsSourceTime,
+                                                  sumOfWeights);
+        }
+        else if (std::abs(mP - 1) < 1.e-10)
+        {
+            t0 = ::optimizeSourceTimeL1(mResidualsSourceTime,
+                                        mWeightsSourceTime);
+        }
+        else
+        {
+            int nBits = std::numeric_limits<double>::digits;
+            std::uintmax_t maxIterations{5000};
+            struct SourceTimeObjectiveFunction
+                 objectiveFunction{mResidualsSourceTime, mWeightsSourceTime, mP};
+            std::pair<double, double> result
+                = boost::math::tools::brent_find_minima(
+                      objectiveFunction, t0 - 100, t0 + 100, nBits, maxIterations);
+            t0 = result.first; 
+            //std::cout << std::setprecision(16) << t0 + reductionTime << " " << result.first + reductionTime << " " << result.second << std::endl;
+        }
+        return t0 + reductionTime;
     }
     void computeJacobian(const std::map<std::string, std::vector<double>> &sensitivities,
                          Eigen::MatrixXd &jacobian)
@@ -194,9 +206,9 @@ public:
             auto weightedAbsResidual
                 = mDiagonalDataPrecisionMatrix[i]
                  *std::abs(mData[i] - estimates[i]);
-            mSgnResiduals[i] = mDiagonalDataPrecisionMatrix[i]
-                             *::sgn(weightedAbsResidual)
-                             *std::pow(weightedAbsResidual, mP - 1);
+            mSgnResiduals[i] = (mP*mDiagonalDataPrecisionMatrix[i])
+                             *(::sgn(weightedAbsResidual)
+                               *std::pow(weightedAbsResidual, mP - 1));
         }
         if (mUseDiagonalDataPrecisionMatrix)
         {
