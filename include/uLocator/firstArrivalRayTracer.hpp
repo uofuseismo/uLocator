@@ -41,13 +41,37 @@ public:
                     const std::vector<double> &velocities,
                     const StaticCorrection &staticCorrection,
                     const SourceSpecificStationCorrection &sssc);
+    void initialize(const Station &station,
+                    const std::string &phase,
+                    const std::vector<double> &interfaces,
+                    const std::vector<double> &velocities,
+                    StaticCorrection &&staticCorrection,
+                    SourceSpecificStationCorrection &&sssc);
 
 
     void initializeUtahP(const Station &station, bool useAlternateModel = true);
     void initializeUtahS(const Station &station, bool useAlternateModel = true);
+    void initializeUtahP(const Station &station,
+                         StaticCorrection &&staticCorrection,
+                         SourceSpecificStationCorrection &&sssc,
+                         bool useAlternateModel = true);
+    void initializeUtahS(const Station &station,
+                         StaticCorrection &&staticCorrection,
+                         SourceSpecificStationCorrection &&sssc,
+                         bool useAlternateModel = true);
 
-    void initializeYellowstoneP(const Station &station, bool useAlternateModel = true);
-    void initializeYellowstoneS(const Station &station, bool useAlternateModel = true);
+    void initializeYellowstoneP(const Station &station,
+                                bool useAlternateModel = true);
+    void initializeYellowstoneS(const Station &station,
+                                bool useAlternateModel = true);
+    void initializeYellowstoneP(const Station &station, 
+                                StaticCorrection &&staticCorrection,
+                                SourceSpecificStationCorrection &&sssc,
+                                bool useAlternateModel = true);
+    void initializeYellowstoneS(const Station &station,
+                                StaticCorrection &&staticCorrection,
+                                SourceSpecificStationCorrection &&sssc,
+                                bool useAlternateModel = true);
     [[nodiscard]] bool isInitialized() const noexcept;
 
 

@@ -353,6 +353,25 @@ void FirstArrivalRayTracer::initialize(
     }   
 }
 
+void FirstArrivalRayTracer::initialize(
+    const Station &station,
+    const std::string &phase,
+    const std::vector<double> &interfaces,
+    const std::vector<double> &velocities,
+    StaticCorrection &&staticCorrection,
+    SourceSpecificStationCorrection &&sssc)
+{
+    initialize(station, phase, interfaces, velocities);
+    if (staticCorrection.haveCorrection())
+    {   
+        pImpl->mStaticCorrection = std::move(staticCorrection);
+    }   
+    if (sssc.haveModel())
+    {   
+        pImpl->mSourceSpecificStationCorrection = std::move(sssc);
+    }   
+}
+
 
 void FirstArrivalRayTracer::initializeUtahP(const Station &station,
                                             const bool useAlternateModel)
@@ -367,6 +386,24 @@ void FirstArrivalRayTracer::initializeUtahP(const Station &station,
     initialize(station, "P", interfaces, velocities);
 }
 
+void FirstArrivalRayTracer::initializeUtahP(
+    const Station &station,
+    StaticCorrection &&staticCorrection,
+    SourceSpecificStationCorrection &&sssc,
+    const bool useAlternateModel)
+{
+    initializeUtahP(station, useAlternateModel);
+    if (staticCorrection.haveCorrection())
+    {
+        pImpl->mStaticCorrection = std::move(staticCorrection);
+    }   
+    if (sssc.haveModel())
+    {
+        pImpl->mSourceSpecificStationCorrection = std::move(sssc);
+    }
+}
+
+
 void FirstArrivalRayTracer::initializeUtahS(const Station &station,
                                             const bool useAlternateModel)
 {
@@ -378,6 +415,23 @@ void FirstArrivalRayTracer::initializeUtahS(const Station &station,
         velocities = std::vector<double> {2169, 3443, 3653, 4486, 5022};
     }
     initialize(station, "S", interfaces, velocities);
+}
+
+void FirstArrivalRayTracer::initializeUtahS(
+    const Station &station,
+    StaticCorrection &&staticCorrection,
+    SourceSpecificStationCorrection &&sssc,
+    const bool useAlternateModel)
+{
+    initializeUtahS(station, useAlternateModel);
+    if (staticCorrection.haveCorrection())
+    {   
+        pImpl->mStaticCorrection = std::move(staticCorrection);
+    }   
+    if (sssc.haveModel())
+    {   
+        pImpl->mSourceSpecificStationCorrection = std::move(sssc);
+    }   
 }
 
 void FirstArrivalRayTracer::initializeYellowstoneP(const Station &station,
@@ -395,6 +449,23 @@ void FirstArrivalRayTracer::initializeYellowstoneP(const Station &station,
     initialize(station, "P", interfaces, velocities);
 }
 
+void FirstArrivalRayTracer::initializeYellowstoneP(
+    const Station &station,
+    StaticCorrection &&staticCorrection,
+    SourceSpecificStationCorrection &&sssc,
+    const bool useAlternateModel)
+{
+    initializeYellowstoneP(station, useAlternateModel);
+    if (staticCorrection.haveCorrection())
+    {   
+        pImpl->mStaticCorrection = std::move(staticCorrection);
+    }   
+    if (sssc.haveModel())
+    {   
+        pImpl->mSourceSpecificStationCorrection = std::move(sssc);
+    }   
+}
+
 void FirstArrivalRayTracer::initializeYellowstoneS(const Station &station,
                                                    const bool useAlternateModel)
 {
@@ -410,3 +481,19 @@ void FirstArrivalRayTracer::initializeYellowstoneS(const Station &station,
     initialize(station, "S", interfaces, velocities);
 }
 
+void FirstArrivalRayTracer::initializeYellowstoneS(
+    const Station &station,
+    StaticCorrection &&staticCorrection,
+    SourceSpecificStationCorrection &&sssc,
+    const bool useAlternateModel)
+{
+    initializeYellowstoneS(station, useAlternateModel);
+    if (staticCorrection.haveCorrection())
+    {
+        pImpl->mStaticCorrection = std::move(staticCorrection);
+    }
+    if (sssc.haveModel())
+    {
+        pImpl->mSourceSpecificStationCorrection = std::move(sssc);
+    }
+}
