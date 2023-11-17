@@ -93,6 +93,8 @@ public:
     mutable EikonalXX::Ray::LayerSolver mSolver;
     Station mStation;
     std::string mPhase;
+    std::vector<double> mInterfaces;
+    std::vector<double> mVelocities;
     double mStationUTMX{0};
     double mStationUTMY{0};
     double mStationDepth{0};
@@ -126,6 +128,8 @@ void FirstArrivalRayTracer::clear() noexcept
     pImpl->mSolver.clear();
     pImpl->mStation.clear();
     pImpl->mPhase.clear();
+    pImpl->mInterfaces.clear();
+    pImpl->mVelocities.clear();
     pImpl->mStationDepth = 0;
     pImpl->mMinimumDepth = 0;
     pImpl->mInitialized = false;
@@ -302,6 +306,8 @@ void FirstArrivalRayTracer::initialize(
     pImpl->mStationUTMX = station.getGeographicPosition().getEasting();
     pImpl->mStationUTMY = station.getGeographicPosition().getNorthing();
     pImpl->mPhase = phase;
+    pImpl->mInterfaces = interfaces;
+    pImpl->mVelocities = velocities;
     pImpl->mInitialized = true;
 }
 
@@ -497,3 +503,21 @@ void FirstArrivalRayTracer::initializeYellowstoneS(
         pImpl->mSourceSpecificStationCorrection = std::move(sssc);
     }
 }
+
+std::vector<double> FirstArrivalRayTracer::getVelocites() const
+{
+    if (!isInitialized())
+    {
+        throw std::runtime_error("Ray tracer not initialized");
+    }
+    return pImpl->mVelocities;
+}
+
+std::vector<double> FirstArrivalRayTracer::getInterfaces() const
+{
+    if (!isInitialized())
+    {
+        throw std::runtime_error("Ray tracer not initialized");
+    }
+    return pImpl->mInterfaces;
+} 

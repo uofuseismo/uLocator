@@ -1,6 +1,7 @@
 #ifndef ULOCATOR_FIRST_ARRIVAL_RAY_TRACER_HPP
 #define ULOCATOR_FIRST_ARRIVAL_RAY_TRACER_HPP
 #include <memory>
+#include <vector>
 //#include <umps/logging/log.hpp>
 #include "uLocator/travelTimeCalculator.hpp"
 namespace UMPS::Logging
@@ -75,6 +76,10 @@ public:
     [[nodiscard]] bool isInitialized() const noexcept;
 
 
+    /// @result The layer interfaces of the model in meters relative to sea-level.
+    [[nodiscard]] std::vector<double> getInterfaces() const;
+    /// @result The velocities in each layer in m/s.
+    [[nodiscard]] std::vector<double> getVelocites() const;
 /*
     [[nodiscard]] double evaluate(double utmX, double utmY, double depth, bool applyCorrection = true) const override;
     [[nodiscard]] double evaluate(double utmX, double utmY, double depth, 
