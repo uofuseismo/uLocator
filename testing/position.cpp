@@ -1,4 +1,6 @@
 #include "uLocator/position/wgs84.hpp"
+#include "uLocator/position/utah.hpp"
+#include "uLocator/position/ynp.hpp"
 #include <gtest/gtest.h>
 
 using namespace ULocator;
@@ -53,6 +55,50 @@ TEST(ULocatorPosition, DistanceAzimuthBackAzimuth)
     EXPECT_NEAR(distance, distanceRef, 1.e-7);
     EXPECT_NEAR(azimuth, azimuthRef, 1.e-10);
     EXPECT_NEAR(backAzimuth, backAzimuthRef, 1.e-10);
+}
+
+TEST(ULocatorPosition, Utah)
+{
+    Position::Utah utah;
+    const double centerLatitude{39.625};
+    const double centerLongitude{-111.5};
+    auto localCoordinates
+        = utah.geodeticToLocalCoordinates(centerLatitude, centerLongitude);
+    EXPECT_NEAR(localCoordinates.first,  0, 1.e-10);
+    EXPECT_NEAR(localCoordinates.second, 0, 1.e-10);
+    auto geographicCoordinates
+        = utah.localToGeodeticCoordinates(localCoordinates.first,
+                                          localCoordinates.second); 
+    EXPECT_NEAR(geographicCoordinates.first,  centerLatitude,  1.e-10);
+    EXPECT_NEAR(geographicCoordinates.second, centerLongitude, 1.e-10);
+    auto minMaxX = utah.getExtentInX();
+    auto minMaxY = utah.getExtentInY();
+    EXPECT_NEAR(minMaxX.first,  -264866.0565037383, 1.e-3);
+    EXPECT_NEAR(minMaxX.second,  264866.0565037381, 1.e-3);
+    EXPECT_NEAR(minMaxY.first,  -369110.6893637062, 1.e-3);
+    EXPECT_NEAR(minMaxY.second,  379402.8900178153, 1.e-3);
+}
+
+TEST(ULocatorPosition, YNP)
+{
+    Position::YNP ynp;
+    const double centerLatitude{44.5};
+    const double centerLongitude{-110.75};
+    auto localCoordinates
+        = ynp.geodeticToLocalCoordinates(centerLatitude, centerLongitude);
+    EXPECT_NEAR(localCoordinates.first,  0, 1.e-10);
+    EXPECT_NEAR(localCoordinates.second, 0, 1.e-10);
+    auto geographicCoordinates
+        = ynp.localToGeodeticCoordinates(localCoordinates.first,
+                                         localCoordinates.second); 
+    EXPECT_NEAR(geographicCoordinates.first,  centerLatitude,  1.e-10);
+    EXPECT_NEAR(geographicCoordinates.second, centerLongitude, 1.e-10);
+    auto minMaxX = ynp.getExtentInX();
+    auto minMaxY = ynp.getExtentInY();
+    EXPECT_NEAR(minMaxX.first,  -78154.09571331975, 1.e-3);
+    EXPECT_NEAR(minMaxX.second,  78154.09571331974, 1.e-3);
+    EXPECT_NEAR(minMaxY.first,  -110611.925792941,  1.e-3);
+    EXPECT_NEAR(minMaxY.second,  111604.1838556079, 1.e-3);
 }
 
 }
