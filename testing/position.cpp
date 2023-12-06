@@ -63,12 +63,12 @@ TEST(ULocatorPosition, Utah)
     const double centerLatitude{39.625};
     const double centerLongitude{-111.5};
     auto localCoordinates
-        = utah.geodeticToLocalCoordinates(centerLatitude, centerLongitude);
+        = utah.geographicToLocalCoordinates(centerLatitude, centerLongitude);
     EXPECT_NEAR(localCoordinates.first,  0, 1.e-10);
     EXPECT_NEAR(localCoordinates.second, 0, 1.e-10);
     auto geographicCoordinates
-        = utah.localToGeodeticCoordinates(localCoordinates.first,
-                                          localCoordinates.second); 
+        = utah.localToGeographicCoordinates(localCoordinates.first,
+                                            localCoordinates.second); 
     EXPECT_NEAR(geographicCoordinates.first,  centerLatitude,  1.e-10);
     EXPECT_NEAR(geographicCoordinates.second, centerLongitude, 1.e-10);
     auto minMaxX = utah.getExtentInX();
@@ -85,12 +85,12 @@ TEST(ULocatorPosition, YNP)
     const double centerLatitude{44.5};
     const double centerLongitude{-110.75};
     auto localCoordinates
-        = ynp.geodeticToLocalCoordinates(centerLatitude, centerLongitude);
+        = ynp.geographicToLocalCoordinates(centerLatitude, centerLongitude);
     EXPECT_NEAR(localCoordinates.first,  0, 1.e-10);
     EXPECT_NEAR(localCoordinates.second, 0, 1.e-10);
     auto geographicCoordinates
-        = ynp.localToGeodeticCoordinates(localCoordinates.first,
-                                         localCoordinates.second); 
+        = ynp.localToGeographicCoordinates(localCoordinates.first,
+                                           localCoordinates.second); 
     EXPECT_NEAR(geographicCoordinates.first,  centerLatitude,  1.e-10);
     EXPECT_NEAR(geographicCoordinates.second, centerLongitude, 1.e-10);
     auto minMaxX = ynp.getExtentInX();

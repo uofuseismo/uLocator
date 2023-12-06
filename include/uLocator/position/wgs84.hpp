@@ -3,6 +3,9 @@
 #include <memory>
 namespace ULocator::Position
 {
+/// @class WGS84 "wgs84.hpp" "uLocator/position/wgs84.hpp"
+/// @brief Defines a geographic position in the WGS84 projection.
+/// @copyright Ben Baker (University of Utah) distributed under the MIT license.
 class WGS84
 {
 public:

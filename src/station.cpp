@@ -2,6 +2,7 @@
 #include <algorithm>
 #include "uLocator/station.hpp"
 #include "uLocator/position/wgs84.hpp"
+#include "uLocator/position/geographicRegion.hpp"
 
 using namespace ULocator;
 
@@ -20,13 +21,39 @@ namespace
 class Station::StationImpl
 {
 public:
+    StationImpl() = default;
     void updateHash()
     {
-        mHash = std::hash<std::string> {}(mNetwork + "." + mStation);
+        mHash = std::hash<std::string> {}(mNetwork + "." + mName);
+    }
+    StationImpl(const StationImpl &impl)
+    {
+        *this = impl;
+    }
+    StationImpl &operator=(const StationImpl &impl)
+    {
+        mNetwork = impl.mNetwork;
+        mName = impl.mName;
+        mGeographicPosition = impl.mGeographicPosition;
+        if (impl.mGeographicRegion != nullptr)
+        {
+            mGeographicRegion = impl.mGeographicRegion->clone();
+        }
+        else
+        { 
+            mGeographicRegion = nullptr;
+        }
+        mLocalCoordinates = impl.mLocalCoordinates;
+        mHash = impl.mHash;
+        mElevation = impl.mElevation;
+        mHaveElevation = impl.mHaveElevation;
+        return *this;
     }
     std::string mNetwork;
-    std::string mStation;
+    std::string mName;
     Position::WGS84 mGeographicPosition; 
+    std::unique_ptr<Position::IGeographicRegion> mGeographicRegion{nullptr};
+    std::pair<double, double> mLocalCoordinates{0, 0};
     size_t mHash{0};
     double mElevation{0};
     bool mHaveElevation{false};
@@ -100,19 +127,19 @@ void Station::setName(const std::string &nameIn)
 {
     auto name = ::removeBlanksAndCapitalize(nameIn);
     if (name.empty()){throw std::invalid_argument("Name is empty");}
-    pImpl->mStation = name;
+    pImpl->mName = name;
     pImpl->updateHash();
 }
 
 std::string Station::getName() const
 {
     if (!haveName()){throw std::runtime_error("Station name not set");}
-    return pImpl->mStation;
+    return pImpl->mName;
 }
 
 bool Station::haveName() const noexcept
 {
-    return !pImpl->mStation.empty();
+    return !pImpl->mName.empty();
 }
 
 /// Hash
@@ -123,13 +150,20 @@ size_t Station::getHash() const
 }
 
 /// Station position
-void Station::setGeographicPosition(const Position::WGS84 &position)
+void Station::setGeographicPosition(const Position::WGS84 &position,
+                                    const Position::IGeographicRegion &region)
 {
     if (!position.havePosition())
     {
         throw std::invalid_argument("Position not set");
     }
     pImpl->mGeographicPosition = position;
+    pImpl->mGeographicRegion = region.clone();
+    auto latitude = pImpl->mGeographicPosition.getLatitude();
+    auto longitude = pImpl->mGeographicPosition.getLongitude();
+    pImpl->mLocalCoordinates 
+        = pImpl->mGeographicRegion->geographicToLocalCoordinates(latitude,
+                                                                 longitude);
 }
 
 Position::WGS84 Station::getGeographicPosition() const
@@ -142,6 +176,12 @@ const Position::WGS84& Station::getGeographicPositionReference() const
 {
     if (!haveGeographicPosition()){std::runtime_error("Position not set");}
     return *&pImpl->mGeographicPosition;
+}
+
+std::pair<double, double> Station::getLocalCoordinates() const
+{
+    if (!haveGeographicPosition()){std::runtime_error("Position not set");}
+    return pImpl->mLocalCoordinates;
 }
 
 bool Station::haveGeographicPosition() const noexcept

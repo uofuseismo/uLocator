@@ -78,6 +78,7 @@ set(LIBRARY_SRC src/version.cpp
                 #src/objectiveFunctions/objectiveFunction.cpp
                 src/position/wgs84.cpp
                 src/position/utah.cpp
+                src/position/ynp.cpp
                 )
 if (NOT ${USE_UMPS})
    set(LIBRARY_SRC ${LIBRARY_SRC} src/logging/standardOut.cpp)
@@ -119,6 +120,7 @@ target_include_directories(uLocator
 set(TEST_SRC
     testing/main.cpp
     testing/position.cpp
+    testing/station.cpp
     testing/arrival.cpp
     #testing/topography.cpp
     #testing/nlopt.cpp

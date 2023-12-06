@@ -33,9 +33,9 @@ public:
     /// @}
 
     /// @result Converts the given latitude, longitude pair to a local x, y coordinate in meters.
-    [[nodiscard]] std::pair<double, double> geodeticToLocalCoordinates(double latitude, double longitude) const final;
+    [[nodiscard]] std::pair<double, double> geographicToLocalCoordinates(double latitude, double longitude) const final;
     /// @result Converts the given local (x, y) coordinates in metres to latitude and longitude in degrees.
-    [[nodiscard]] std::pair<double, double> localToGeodeticCoordinates(double x, double y) const final;
+    [[nodiscard]] std::pair<double, double> localToGeographicCoordinates(double x, double y) const final;
 
     /// @result The minimum and maximum x extent of the Utah search region in 
     ///         meters in the local coordinate system.
@@ -56,6 +56,8 @@ public:
     ///                      On exit, utah's behavior is undefined.
     /// @result The memory from the Utah boundaries moved to this.
     Utah& operator=(Utah &&utah) noexcept;
+    /// @result A copy of the Utah region.
+    [[nodiscard]] std::unique_ptr<IGeographicRegion> clone() const final; 
     /// @}
 private:
     class UtahImpl;

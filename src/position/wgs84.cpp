@@ -286,6 +286,4 @@ void ULocator::Position::computeDistanceAzimuth(
         }
         *mBackAzimuth = backAzimuth;
     }
-
- 
 }
