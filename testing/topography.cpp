@@ -1,13 +1,24 @@
 #include <vector>
-#include "uLocator/topography.hpp"
+#include "uLocator/topography/constant.hpp"
+#include "uLocator/topography/gridded.hpp"
 #include <gtest/gtest.h>
 
-using namespace ULocator;
+using namespace ULocator::Topography;
 
 namespace
 {
 
-TEST(ULocator, Topography)
+TEST(ULocatorTopography, Constant)
+{
+    constexpr double elevation{2500};
+    Constant topography;
+    topography.set(elevation);
+    EXPECT_NEAR(topography(41, -111), elevation, 1.e-10);
+    topography.clear();
+    EXPECT_FALSE(topography.haveTopography());
+}
+
+TEST(ULocatorTopography, Gridded)
 {
     std::vector<double> latitudes{2, 3, 4};
     std::vector<double> longitudes{5, 6, 7, 8};
@@ -25,7 +36,7 @@ TEST(ULocator, Topography)
             elevations.at(indx) = elev;
         }
     }
-    Topography topography;
+    Gridded topography;
     EXPECT_NO_THROW(topography.set(latitudes.size(), latitudes.data(),
                                    longitudes.size(), longitudes.data(),
                                    elevations.size(), elevations.data()));

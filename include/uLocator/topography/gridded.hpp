@@ -1,22 +1,29 @@
-#ifndef ULOCATOR_TOPOGRAPHY_HPP
-#define ULOCATOR_TOPOGRAPHY_HPP
+#ifndef ULOCATOR_TOPOGRAPHY_GRIDDED_HPP
+#define ULOCATOR_TOPOGRAPHY_GRIDDED_HPP
 #include <memory>
-namespace ULocator
+#include "uLocator/topography/topography.hpp"
+namespace ULocator::Topography
 {
-class Topography
+/// @class Gridded "topgraphy.hpp" "uLocator/topography.hpp"
+/// @brief This is a topography function interpolator that operates on
+///        a regular grid.  Effectively, it takes a latitude, longitude pair
+///        and returns the linearly interpolated elevation e.g.,
+///        elevation = topograhy(latitude, longitude)
+/// @copyright Ben Baker (University of Utah) distributed under the MIT license.
+class Gridded : public ITopography
 {
 public:
     /// @name Constructors
     /// @{
 
     /// @brief Constructor.
-    Topography();
+    Gridded();
     /// @brief Copy constructor.
     /// @param[in] topography   The class from which to initialize this class.
-    Topography(const Topography &topography);
+    Gridded(const Gridded &topography);
     /// @brief Move constructor.
     /// @brief
-    Topography(Topography &&topography) noexcept;
+    Gridded(Gridded &&topography) noexcept;
     /// @}
 
     /// @brief Loads the topography model from an HDF5 file.
@@ -41,9 +48,14 @@ public:
              int nLongitudes, const U longitudes[],
              int nGrid, const U elevation[]);
     /// @result True indicates the topography is set.
-    [[nodiscard]] bool haveTopography() const noexcept;
-    /// @result The elevation
-    [[nodiscard]] double evaluate(double latitude, double longitude) const;
+    [[nodiscard]] bool haveTopography() const noexcept final;
+    /// @result The elevation with respect to sea-level in meters.  Note,
+    /// @param[in] latitude   The latitude in degrees.
+    /// @param[in] longitude  The longitude in degrees.
+    /// @throws std::invalid_argument if the latitude is not in the
+    ///         range [-90,90].
+    /// @throws std::runtime_error if \c haveGridded() is false.
+    [[nodiscard]] double evaluate(double latitude, double longitude) const final;
 
     /// @name Operators
     /// @{
@@ -51,13 +63,13 @@ public:
     /// @brief Copy assignment.
     /// @param[in] topography  The topography to copy to this.
     /// @result A deep copy of the topography.
-    Topography& operator=(const Topography &topography);
+    Gridded& operator=(const Gridded &topography);
     /// @brief Move assignment.
     /// @param[in,out] topography  The topography whose memory will be moved 
     ///                            to this.  On exit, topography's behavior
     ///                            is undefined.
     /// @result The memory from topography moved to this.
-    Topography& operator=(Topography &&topography) noexcept;
+    Gridded& operator=(Gridded &&topography) noexcept;
     /// @}
 
     /// @name Destructors
@@ -66,11 +78,11 @@ public:
     /// @brief Resets the class and releases memory.
     void clear() noexcept;
     /// @brief Destructor.
-    ~Topography();
+    virtual ~Gridded();
     /// @}
 private:
-    class TopographyImpl; 
-    std::unique_ptr<TopographyImpl> pImpl;
+    class GriddedImpl; 
+    std::unique_ptr<GriddedImpl> pImpl;
 };
 }
 #endif

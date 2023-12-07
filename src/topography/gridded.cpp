@@ -4,65 +4,14 @@
 #include <string>
 #include <vector>
 #include <filesystem>
-#include "uLocator/topography.hpp"
+#include "uLocator/topography/gridded.hpp"
 #include "position/lonTo180.hpp"
 #include "h5io.hpp"
 
-using namespace ULocator;
+using namespace ULocator::Topography;
 
 namespace 
 {
-/*
-herr_t h5read(hid_t dataSet, hid_t memSpace, hid_t dataSpace,
-              std::vector<float> *result)
-{
-    return H5Dread(dataSet, H5T_NATIVE_FLOAT, memSpace, dataSpace,
-                   H5P_DEFAULT, result->data());
-}
-herr_t h5read(hid_t dataSet, hid_t memSpace, hid_t dataSpace,
-              std::vector<double> *result)
-{
-    return H5Dread(dataSet, H5T_NATIVE_DOUBLE, memSpace, dataSpace,
-                   H5P_DEFAULT, result->data());
-}
-template<typename T>
-void readDataset(const hid_t mGroup,
-                 const std::string &dataSetName,
-                 std::vector<T> *result)
-{
-    auto dataSet = H5Dopen2(mGroup, dataSetName.c_str(), H5P_DEFAULT); 
-    auto dataSpace = H5Dget_space(dataSet);
-    auto rank = H5Sget_simple_extent_ndims(dataSpace);
-    std::vector<hsize_t> dims(rank); 
-    H5Sget_simple_extent_dims(dataSpace, dims.data(), nullptr);
-    hsize_t length = 1;
-    for (const auto &di : dims)
-    {
-        length = length*di;
-    }
-    try
-    {
-        result->resize(length, 0);
-    }
-    catch (...)
-    {
-        H5Sclose(dataSpace);
-        H5Dclose(dataSet);
-        throw std::runtime_error("Failed to resize result");
-    }
-    // Read the data
-    auto memSpace = H5Screate_simple(rank, dims.data(), nullptr);
-    auto status = ::h5read(dataSet, memSpace, dataSpace, result);
-    H5Sclose(memSpace);
-    H5Sclose(dataSpace);
-    H5Dclose(dataSet);
-    if (status != 0)
-    {
-        result->clear();
-        throw std::runtime_error("Failed to read dataset: " + dataSetName);
-    }
-}
-*/
 template<typename T>
 void checkLatitudes(const int n, const T *x)
 {
@@ -96,18 +45,19 @@ void checkLongitudes(const int n, const T *x)
         }
     }
 }
+template<typename T>
+void fixLongitudes(std::vector<T> &longitudes)
+{
+    for (int i = 0; i < static_cast<int> (longitudes.size()); ++i)
+    {
+        longitudes[i] = ::lonTo180(longitudes[i]);
+    } 
+}
 }
 
-class Topography::TopographyImpl
+class Gridded::GriddedImpl
 {
 public:
-    void fixLongitudes()
-    {
-        for (int i = 0; i < static_cast<int> (mLongitudes.size()); ++i)
-        {
-            mLongitudes[i] = ::lonTo180(mLongitudes[i]);
-        }
-    }
     std::vector<double> mElevations;
     std::vector<double> mLatitudes;
     std::vector<float> mLongitudes;
@@ -121,44 +71,50 @@ public:
 };
 
 /// Constructor 
-Topography::Topography() :
-    pImpl(std::make_unique<TopographyImpl> ())
+Gridded::Gridded() :
+    pImpl(std::make_unique<GriddedImpl> ())
 {
 }
 
 /// Copy constructor
-Topography::Topography(const Topography &topography)
+Gridded::Gridded(const Gridded &topography)
 {
     *this = topography;
 }
 
 /// Move constructor
-Topography::Topography(Topography &&topography) noexcept
+Gridded::Gridded(Gridded &&topography) noexcept
 {
     *this = std::move(topography);
 }
 
 /// Destructor
-Topography::~Topography() = default;
+Gridded::~Gridded() = default;
 
 /// Copy assignment
-Topography& Topography::operator=(const Topography &topography)
+Gridded& Gridded::operator=(const Gridded &topography)
 {
     if (&topography == this){return *this;}
-    pImpl = std::make_unique<TopographyImpl> (*topography.pImpl);
+    pImpl = std::make_unique<GriddedImpl> (*topography.pImpl);
     return *this;
 }
 
 /// Move assignment
-Topography& Topography::operator=(Topography &&topography) noexcept
+Gridded& Gridded::operator=(Gridded &&topography) noexcept
 {
     if (&topography == this){return *this;}
     pImpl = std::move(topography.pImpl);
     return *this;
 }
 
+/// Reset class and release memory
+void Gridded::clear() noexcept
+{
+    pImpl = std::make_unique<GriddedImpl> ();
+}
+
 /// Load a model from HDF5
-void Topography::load(const std::string &fileName)
+void Gridded::load(const std::string &fileName)
 {
 #ifdef WITH_HDF5
     if (!std::filesystem::exists(fileName))
@@ -191,7 +147,7 @@ void Topography::load(const std::string &fileName)
         ::readDataset(mFile, "Longitude", &pImpl->mLongitudes);
         ::checkLongitudes(pImpl->mLongitudes.size(), pImpl->mLongitudes.data());
         ::readDataset(mFile, "Elevation", &pImpl->mElevations);
-        pImpl->fixLongitudes();
+        ::fixLongitudes(pImpl->mLongitudes);
     }
     catch (const std::exception &e)
     {
@@ -210,16 +166,16 @@ void Topography::load(const std::string &fileName)
 }
 
 /// Have topography?
-bool Topography::haveTopography() const noexcept
+bool Gridded::haveTopography() const noexcept
 {
     return pImpl->mHaveTopography;
 }
 
 /// Set the topography
 template<typename U>
-void Topography::set(const int nLatitudes, const U *latitudes,
-                     const int nLongitudes, const U *longitudes,
-                     const int nGrid, const U *elevation)
+void Gridded::set(const int nLatitudes, const U *latitudes,
+                  const int nLongitudes, const U *longitudes,
+                  const int nGrid, const U *elevation)
 {
     if (nLatitudes*nLongitudes != nGrid)
     {
@@ -238,13 +194,12 @@ void Topography::set(const int nLatitudes, const U *latitudes,
     std::copy(longitudes, longitudes + nLongitudes, pImpl->mLongitudes.data());
     pImpl->mElevations.resize(nGrid);
     std::copy(elevation, elevation + nGrid, pImpl->mElevations.data());
-    pImpl->fixLongitudes();
+    ::fixLongitudes(pImpl->mLongitudes);
     pImpl->mHaveTopography = true;
 }
 
 /// Interpolate
-double Topography::evaluate(const double latitude,
-                            const double longitudeIn) const
+double Gridded::evaluate(const double latitude, const double longitudeIn) const
 {
     if (latitude < -90 || latitude > 90)
     {
@@ -311,9 +266,9 @@ double Topography::evaluate(const double latitude,
 ///--------------------------------------------------------------------------///
 ///                            Template Instantiation                        ///
 ///--------------------------------------------------------------------------///
-template void ULocator::Topography::set(int, const double *,
-                                        int, const double *,
-                                        int, const double *);
-template void ULocator::Topography::set(int, const float *,
-                                        int, const float *,
-                                        int, const float *); 
+template void ULocator::Topography::Gridded::set(int, const double *,
+                                                 int, const double *,
+                                                 int, const double *);
+template void ULocator::Topography::Gridded::set(int, const float *,
+                                                 int, const float *,
+                                                 int, const float *); 

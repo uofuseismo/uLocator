@@ -11,9 +11,13 @@ option(USE_EIKONALXX "Link against the ray tracer in the eikonal-solver software
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 find_package(GTest REQUIRED)
+find_package(GeographicLib REQUIRED)
+
+find_package(prima)
+find_package(pagmo)
+
 find_package(Boost COMPONENTS program_options REQUIRED)
 find_package(Eigen3 3.3 REQUIRED Dense)
-find_package(GeographicLib REQUIRED)
 find_package(Threads REQUIRED)
 find_package(NLopt REQUIRED)
 find_package(TBB)
@@ -40,6 +44,14 @@ if (${USE_UMPS})
    add_compile_definitions(WITH_UMPS)
 else()
    find_package(spdlog REQUIRED)
+endif()
+if (${prima_FOUND})
+   message("Found prima")
+   add_compile_definitions(WITH_PRIMA)
+endif()
+if (${pagmo_FOUND})
+   message("Found pagmo")
+   add_compile_definitions(WITH_PAGMO)
 endif()
 if (${USE_EIKONALXX})
    message("Will compile with EikonalXX ray tracer")
@@ -68,7 +80,11 @@ set(LIBRARY_SRC src/version.cpp
                 #src/staticCorrection.cpp
                 #src/sourceSpecificStationCorrection.cpp
                 src/station.cpp
-                #src/topography.cpp
+                src/travelTimeCalculator.cpp
+                src/travelTimeCalculatorMap.cpp
+                src/uussRayTracer.cpp
+                src/topography/constant.cpp
+                src/topography/gridded.cpp
                 #src/travelTimeCalculatorMap.cpp
                 #src/uussTravelTimeCaclulator.cpp
                 #src/objectiveFunctions/l1.cpp
@@ -80,6 +96,10 @@ set(LIBRARY_SRC src/version.cpp
                 src/position/utah.cpp
                 src/position/ynp.cpp
                 )
+if (${pagmo_FOUND})
+   set(LIBRARY_SRC ${LIBRARY_SRC}
+       src/optimizers/pagmo/particleSwarm.cpp)
+endif()
 if (NOT ${USE_UMPS})
    set(LIBRARY_SRC ${LIBRARY_SRC} src/logging/standardOut.cpp)
 endif()
@@ -99,16 +119,20 @@ set_target_properties(uLocator PROPERTIES
                       CXX_EXTENSIONS NO) 
 target_link_libraries(uLocator
                       PRIVATE Eigen3::Eigen
-                              hdf5::hdf5 NLopt::nlopt TBB::tbb
+                              hdf5::hdf5
+                              NLopt::nlopt
+                              TBB::tbb
                               Boost::program_options 
+                              prima::primac
                               #${MCMC_LIBRARY} ttimes
                               GeographicLib::GeographicLib ${UMPS_LIBRARY}
                               ${EIKONALXX_LIBRARY} ${DAL_LIBS})
 target_include_directories(uLocator
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-                           PRIVATE ${UMPS_INCLUDE_DIR} ${MCMC_INCLUDE_DIR}
+                           PRIVATE ${CMAKE_SOURCE_DIR}/src
+                                   ${UMPS_INCLUDE_DIR} ${MCMC_INCLUDE_DIR}
                                    ${NLOPT_INCLUDE_DIRS} ${EIKONALXX_INCLUDE_DIR}
-                                   ${oneDAL_INCLUDE_DIRS} hdf5::hdf5 NLopt::nlopt spdlog::spdlog
+                                   ${oneDAL_INCLUDE_DIRS} hdf5::hdf5 NLopt::nlopt spdlog::spdlog prima::primac
                                    #ttimes
                            PUBLIC $<INSTALL_INTERFACE:${CMAKE_SOURCE_DIR}/include/umps>)
 
@@ -122,7 +146,8 @@ set(TEST_SRC
     testing/position.cpp
     testing/station.cpp
     testing/arrival.cpp
-    #testing/topography.cpp
+    testing/topography.cpp
+    testing/halfSpace.cpp
     #testing/nlopt.cpp
     #testing/homogeneous.cpp
     #testing/example.cpp
