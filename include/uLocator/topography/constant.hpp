@@ -32,10 +32,15 @@ public:
     /// @result True indicates the topography is set.
     [[nodiscard]] bool haveTopography() const noexcept final;
     /// @result The elevation with respect to sea-level in meters.  Note,
-    /// @param[in] latitude   The latitude in degrees.
-    /// @param[in] longitude  The longitude in degrees.
     /// @throws std::runtime_error if \c haveTopography() is false.
-    [[nodiscard]] double evaluate(double latitude, double longitude) const final;
+    [[nodiscard]] double evaluate(double, double) const final;
+    /// @result The elevation with respect to sea-level in meters.  Note,
+    /// @throws std::runtime_error if \c haveTopography() is false.
+    [[nodiscard]] double evaluate(double, double,
+                                  double *dElevationDx, double *dElevationDy) const final;
+    /// @result The minimum and maximum elevation with respect to sea-level
+    ///         in meters.
+    [[nodiscard]] std::pair<double, double> getMinimumAndMaximumElevation() const final;
 
     /// @name Operators
     /// @{

@@ -79,6 +79,7 @@ set(LIBRARY_SRC src/version.cpp
                 #src/quarry.cpp
                 #src/staticCorrection.cpp
                 #src/sourceSpecificStationCorrection.cpp
+                src/optimizers/optimizer.cpp
                 src/station.cpp
                 src/travelTimeCalculator.cpp
                 src/travelTimeCalculatorMap.cpp
@@ -92,6 +93,7 @@ set(LIBRARY_SRC src/version.cpp
                 #src/objectiveFunctions/doubleDifferenceL1.cpp
                 #src/objectiveFunctions/leastSquares.cpp
                 #src/objectiveFunctions/objectiveFunction.cpp
+                src/position/geographicPoint.cpp
                 src/position/wgs84.cpp
                 src/position/utah.cpp
                 src/position/ynp.cpp
@@ -124,6 +126,7 @@ target_link_libraries(uLocator
                               TBB::tbb
                               Boost::program_options 
                               prima::primac
+                              Pagmo::pagmo
                               #${MCMC_LIBRARY} ttimes
                               GeographicLib::GeographicLib ${UMPS_LIBRARY}
                               ${EIKONALXX_LIBRARY} ${DAL_LIBS})
@@ -132,7 +135,7 @@ target_include_directories(uLocator
                            PRIVATE ${CMAKE_SOURCE_DIR}/src
                                    ${UMPS_INCLUDE_DIR} ${MCMC_INCLUDE_DIR}
                                    ${NLOPT_INCLUDE_DIRS} ${EIKONALXX_INCLUDE_DIR}
-                                   ${oneDAL_INCLUDE_DIRS} hdf5::hdf5 NLopt::nlopt spdlog::spdlog prima::primac
+                                   ${oneDAL_INCLUDE_DIRS} hdf5::hdf5 NLopt::nlopt spdlog::spdlog prima::primac Pagmo::pagmo
                                    #ttimes
                            PUBLIC $<INSTALL_INTERFACE:${CMAKE_SOURCE_DIR}/include/umps>)
 
@@ -147,6 +150,7 @@ set(TEST_SRC
     testing/station.cpp
     testing/arrival.cpp
     testing/topography.cpp
+    testing/objectiveFunctions.cpp
     testing/halfSpace.cpp
     #testing/nlopt.cpp
     #testing/homogeneous.cpp

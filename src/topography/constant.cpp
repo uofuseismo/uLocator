@@ -6,6 +6,8 @@ class Constant::ConstantImpl
 {
 public:
     double mElevation{0};
+    double mMinimumElevation{0};
+    double mMaximumElevation{0};
     bool mHaveTopography{false};
 };
 
@@ -56,6 +58,8 @@ void Constant::clear() noexcept
 void Constant::set(const double elevation) noexcept
 {
     pImpl->mElevation = elevation;
+    pImpl->mMinimumElevation = elevation;
+    pImpl->mMaximumElevation = elevation;
     pImpl->mHaveTopography = true;
 }
 
@@ -68,6 +72,22 @@ bool Constant::haveTopography() const noexcept
 /// Evaluate
 double Constant::evaluate(const double, const double) const
 {
-    if (!haveTopography()){throw std::runtime_error("Topography not set");}
-    return pImpl->mElevation;
+    return evaluate(0, 0, nullptr, nullptr);
 } 
+
+/// Evaluate with derivatives
+double Constant::evaluate(const double, const double,
+                          double *dElevationDx, double *dElevationDy) const
+{
+    if (!haveTopography()){throw std::runtime_error("Topography not set");}
+    if (dElevationDx != nullptr){*dElevationDx = 0;}
+    if (dElevationDy != nullptr){*dElevationDy = 0;}
+    return pImpl->mElevation;
+}
+
+/// Min/max elevation
+std::pair<double, double> Constant::getMinimumAndMaximumElevation() const
+{
+    if (!haveTopography()){throw std::runtime_error("Topography not set");}
+    return std::pair {pImpl->mMinimumElevation, pImpl->mMaximumElevation};
+}

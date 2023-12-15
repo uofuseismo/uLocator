@@ -7,13 +7,14 @@ namespace ULocator
 {
 class Station;
 class ITravelTimeCalculator;
-namespace Position
-{
- class WGS84;
-}
 }
 namespace ULocator
 {
+/// @class TravelTimeCalculatorMap "travelTimeCalculatorMap.hpp" "uLocator/travelTimeCalculatorMap.hpp"
+/// @brief A travel time calculator map is a collection of travel time
+///        calculators that takes a (station, phase) pair and  evaluates
+///        the corresponding travel time for a source at a given position.
+/// @copyright Ben Baker (University of Utah) distributed under the MIT license.
 class TravelTimeCalculatorMap
 {
 public:
@@ -23,6 +24,9 @@ public:
     /// @brief Constructor.
     TravelTimeCalculatorMap();
     /// @brief Move constructor.
+    /// @param[in,out] calculators  The calculator map from which to initialize
+    ///                             this class.  On exit, the behavior is of
+    ///                             calculators is undefined.
     TravelTimeCalculatorMap(TravelTimeCalculatorMap &&calculators) noexcept;
     /// @}
 
@@ -48,21 +52,23 @@ public:
     /// @}
 
     [[nodiscard]] double evaluate(const Station &station, const std::string &phase,
-                                  const Position::WGS84 &epicenter, double depth,
+                                  double originTime, double xSource, double ySource, double zSource,
                                   bool applyCorrection = true) const;
     [[nodiscard]] double evaluate(const Station &station, const std::string &phase,
-                                  const Position::WGS84 &epicenter, double depth,
-                                  double *dtdx, double *dtdy, double *dtdz,
+                                  double originTime, double xSource, double ySource, double zSource,
+                                  double *dtdt0, double *dtdx, double *dtdy, double *dtdz,
                                   bool applyCorrection = true) const;
-
     void evaluate(const std::vector<std::pair<Station, std::string>> &stationPhase,
-                  const Position::WGS84 &epicenter, double depth,
+                  double originTime, double xSource, double ySource, double zSource,
                   std::vector<double> *travelTimes,
                   bool applyCorrection = true) const;
     void evaluate(const std::vector<std::pair<Station, std::string>> &stationPhase,
-                  const Position::WGS84 &epicenter, double depth,
+                  double originTime, double xSource, double ySource, double zSource,
                   std::vector<double> *travelTimes,
-                  std::vector<double> *dtdx, std::vector<double> *dtdy, std::vector<double> *dtdz,
+                  std::vector<double> *dtdt0,
+                  std::vector<double> *dtdx,
+                  std::vector<double> *dtdy,
+                  std::vector<double> *dtdz,
                   bool applyCorrection = true) const;
 
     /// @name Destructors

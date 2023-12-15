@@ -2,6 +2,10 @@
 #define ULOCATOR_TOPOGRAPHY_GRIDDED_HPP
 #include <memory>
 #include "uLocator/topography/topography.hpp"
+namespace ULocator::Position
+{
+ class IGeographicRegion;
+}
 namespace ULocator::Topography
 {
 /// @class Gridded "topgraphy.hpp" "uLocator/topography.hpp"
@@ -26,36 +30,47 @@ public:
     Gridded(Gridded &&topography) noexcept;
     /// @}
 
-    /// @brief Loads the topography model from an HDF5 file.
+    /// @brief Loads the topography model from an HDF5 file.  Since the
+    ///        topography comes from Etopo we get (lat, lon, elevation) 
+    ///        tuples so this routine will convert the topographic model
+    ///        to (x, y, elevation).
     /// @param[in] hdf5FileName  The name of the HDF5 file with the topogrpahy.
+    /// @param[in] region        The geographic region to transform 
+    ///                          from (lat, lon) to local (x, y) coordinates.
     /// @throws std::invalid_argument if the file does not exist or is not
     ///         properly defined.
     /// @throws std::runtime_error the code was not compiled with HDF5. 
-    void load(const std::string &hdf5FileName);
+    void load(const std::string &hdf5FileName, const ULocator::Position::IGeographicRegion &region);
     /// @brief Sets the topography.
-    /// @param[in] nLatitudes   The number of latitudes in the grid.
-    /// @param[in] latitudes    The latitudes in degrees in the grid.  This
-    ///                         is an array whose dimension is [nLatitudes].
-    /// @param[in] nLongitudes  The number of longitudes in teh grid.  This
-    ///                         is an array whose dimension is [nLongitudes].
-    /// @param[in] elevation    The elevation in meters with respect to
-    ///                         sea-level at the specified (latitude,longitude).
-    ///                         This is an array whose dimension is
-    ///                         [nLatitudes x nLongitudes] with leading
-    ///                         dimension nLongitudes.
+    /// @param[in] nx          The number of x grid points.
+    /// @param[in] x           The positions of the x grid points in meters.
+    /// @param[in] ny          The number of y grid points.
+    /// @param[in] y           The positions of the y grid points in meters.
+    /// @param[in] elevation   The elevation in meters with respect to
+    ///                        sea-level at the specified (x, y).
+    ///                        This is an array whose dimension is
+    ///                        [nx x ny] with leading nx.
     template<typename U>
-    void set(int nLatitudes,  const U latitudes[],
-             int nLongitudes, const U longitudes[],
+    void set(int nx, const U x[],
+             int ny, const U y[],
              int nGrid, const U elevation[]);
     /// @result True indicates the topography is set.
     [[nodiscard]] bool haveTopography() const noexcept final;
     /// @result The elevation with respect to sea-level in meters.  Note,
-    /// @param[in] latitude   The latitude in degrees.
-    /// @param[in] longitude  The longitude in degrees.
-    /// @throws std::invalid_argument if the latitude is not in the
-    ///         range [-90,90].
-    /// @throws std::runtime_error if \c haveGridded() is false.
-    [[nodiscard]] double evaluate(double latitude, double longitude) const final;
+    /// @param[in] x    The x position in meters.
+    /// @param[in] y    The y position in meters.
+    /// @throws std::runtime_error if \c haveTopography() is false.
+    [[nodiscard]] double evaluate(double x, double y) const final;
+    /// @result The elevation with respect to sea-level in meters.  Note,
+    /// @param[in] x    The x position in meters.
+    /// @param[in] y    The y position in meters.
+    /// @param[out] dElevationDx  The change in elevation with respect to x.
+    /// @param[out] dElevationDy  The change in elevation with respect to y. 
+    /// @throws std::runtime_error if \c haveTopography() is false.
+    [[nodiscard]] double evaluate(double x, double y, double *dElevationDx, double *dElevationDy) const final;
+    /// @result The minimum and maximum elevation with respect to sea-level
+    ///         in meters.
+    [[nodiscard]] std::pair<double, double> getMinimumAndMaximumElevation() const final;
 
     /// @name Operators
     /// @{
