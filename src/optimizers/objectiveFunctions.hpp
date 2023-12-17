@@ -1,6 +1,7 @@
 #ifndef ULOCATOR_OPTIMIZERS_OBJECTIVE_FUNCTIONS_HPP
 #define ULOCATOR_OPTIMIZERS_OBJECTIVE_FUNCTIONS_HPP
 #include <iostream>
+#include <cmath>
 #include <array>
 #include <string>
 #include <vector>
@@ -18,7 +19,14 @@ namespace
 enum class Norm
 {
     L1,
-    L2
+    LeastSquares,
+    Lp
+};
+
+enum class Measurement
+{
+    Standard,
+    DoubleDifference
 };
 
 template<typename T>
@@ -40,19 +48,39 @@ template<typename T>
 [[nodiscard]] 
 T leastSquares(const std::vector<T> &weights,
                const std::vector<T> &observations,
-               const std::vector<T> &estimates)
+               const std::vector<T> &estimates,
+               const Measurement measurement)
 {
      const T *__restrict__ weightsPtr = weights.data();
      const T *__restrict__ observationsPtr = observations.data();
      const T *__restrict__ estimatesPtr = estimates.data();
      auto n = static_cast<int> (weights.size());
      double sumSquaredOfResiduals{0};
-     for (int i = 0; i < n; ++i)
+     if (measurement == Measurement::Standard)
      {
-         double weightedResidual
-            = weightsPtr[i]*(observationsPtr[i] - estimatesPtr[i]);
-         sumSquaredOfResiduals = sumSquaredOfResiduals
-                               + weightedResidual*weightedResidual;
+         for (int i = 0; i < n; ++i)
+         {
+             double weightedResidual
+                = weightsPtr[i]*(observationsPtr[i] - estimatesPtr[i]);
+             sumSquaredOfResiduals = sumSquaredOfResiduals
+                                   + weightedResidual*weightedResidual;
+         }
+     }
+     else if (measurement == Measurement::DoubleDifference)
+     {   
+         for (int i = 0; i < n; ++i)
+         {
+             for (int j = i + 1; j < n; ++j)
+             {
+                 double doubleDifferenceResidual
+                    = (observationsPtr[i] - observationsPtr[j])
+                    - (estimatesPtr[i]    - estimatesPtr[j]);
+                 double weight = std::sqrt(weightsPtr[i]*weightsPtr[j]);
+                 double weightedResidual = weight*doubleDifferenceResidual;
+                 sumSquaredOfResiduals = sumSquaredOfResiduals
+                                       + weightedResidual*weightedResidual;
+             }
+         }
      }
      return static_cast<T> (sumSquaredOfResiduals);
 }
@@ -61,19 +89,101 @@ template<typename T>
 [[nodiscard]]
 T l1(const std::vector<T> &weights,
      const std::vector<T> &observations,
-     const std::vector<T> &estimates)
+     const std::vector<T> &estimates,
+     const Measurement measurement)
 {
      const T *__restrict__ weightsPtr = weights.data();
      const T *__restrict__ observationsPtr = observations.data();
      const T *__restrict__ estimatesPtr = estimates.data();
+     auto n = static_cast<int> (weights.size());
      double sumAbsoluteResiduals{0};
-     for (size_t i = 0; i < observations.size(); ++i)
+     if (measurement == Measurement::Standard)
      {
-         double weightedResidual
-            = weightsPtr[i]*std::abs(observationsPtr[i] - estimatesPtr[i]);
-         sumAbsoluteResiduals = sumAbsoluteResiduals + weightedResidual;
+         for (int i = 0; i < n; ++i)
+         {
+             double weightedAbsoluteResidual
+                = weightsPtr[i]*std::abs(observationsPtr[i] - estimatesPtr[i]);
+             sumAbsoluteResiduals = sumAbsoluteResiduals
+                                  + weightedAbsoluteResidual;
+         }
      }
+     else if (measurement == Measurement::DoubleDifference)
+     {
+         for (int i = 0; i < n; ++i)
+         {
+             for (int j = i + 1; j < n; ++j)
+             {
+                 double doubleDifference 
+                    = (observationsPtr[i] - observationsPtr[j])
+                    - (estimatesPtr[i]    - estimatesPtr[j]);
+                 double weight = std::sqrt(weightsPtr[i]*weightsPtr[j]);
+                 double weightedAbsoluteResidual
+                    = weight*std::abs(doubleDifference);
+                 sumAbsoluteResiduals = sumAbsoluteResiduals
+                                      + weightedAbsoluteResidual;
+             }
+         }
+     }
+#ifndef NDEBUG
+     else
+     {
+         assert(false);
+     }
+#endif
      return static_cast<T> (sumAbsoluteResiduals);
+}
+
+template<typename T>
+[[nodiscard]] 
+T lp(const std::vector<T> &weights,
+     const std::vector<T> &observations,
+     const std::vector<T> &estimates,
+     const double p,
+     const Measurement measurement)
+{
+#ifndef NDEBUG
+     assert(p >= 1);
+#endif
+     const T *__restrict__ weightsPtr = weights.data();
+     const T *__restrict__ observationsPtr = observations.data();
+     const T *__restrict__ estimatesPtr = estimates.data();
+     auto n = static_cast<int> (weights.size());
+     double sumAbsoluteResidualsToP{0};
+     if (measurement == Measurement::Standard)
+     { 
+         for (int i = 0; i < n; ++i)
+         {
+             double weightedAbsoluteResidual
+                = weightsPtr[i]*std::abs(observationsPtr[i] - estimatesPtr[i]);
+             sumAbsoluteResidualsToP = sumAbsoluteResidualsToP
+                                     + std::pow(weightedAbsoluteResidual, p);
+         }
+     }
+     else if (measurement == Measurement::DoubleDifference)
+     {
+         for (int i = 0; i < n; ++i)
+         {
+             for (int j = i + 1; j < n; ++j)
+             {
+                 double doubleDifference 
+                     = (observationsPtr[i] - observationsPtr[j])
+                     - (estimatesPtr[i]    - estimatesPtr[j]);
+                 double weight = std::sqrt(weightsPtr[i]*weightsPtr[j]);
+                 double weightedAbsoluteResidual
+                     = weight*std::abs(doubleDifference);
+                 sumAbsoluteResidualsToP
+                     = sumAbsoluteResidualsToP
+                     + std::pow(weightedAbsoluteResidual, p);
+             }
+         }
+     }
+#ifndef NDEBUG
+     else
+     {
+         assert(false);
+     }
+#endif
+     return std::pow(sumAbsoluteResidualsToP, 1./p);;
 }
 
 //----------------------------------------------------------------------------//
@@ -140,33 +250,38 @@ struct LeastSquaresProblem3DAndTime
         if (doGradient)
         {
             std::fill(gradient, gradient + n, 0);
-            std::vector<double> dtdt0s(mStationPhases.size());
-            std::vector<double> dtdxs(mStationPhases.size());
-            std::vector<double> dtdys(mStationPhases.size());
-            std::vector<double> dtdzs(mStationPhases.size());
+            auto nArrivals = static_cast<int> (mStationPhases.size());
+            std::vector<double> dtdt0s(nArrivals);
+            std::vector<double> dtdxs(nArrivals);
+            std::vector<double> dtdys(nArrivals);
+            std::vector<double> dtdzs(nArrivals);
             mTravelTimeCalculatorMap->evaluate(mStationPhases,
                                                originTime,
                                                xSource, ySource, zSource,
                                                &arrivalTimes,
                                                &dtdt0s, &dtdxs, &dtdys, &dtdzs,
                                                mApplyCorrection);
-            if (mNorm == Norm::L2)
+            if (mNorm == Norm::LeastSquares)
             {
                 constexpr double two{2};
-                for (int i = 0; i < static_cast<int> (arrivalTimes.size()); ++i)
+                for (int i = 0; i < nArrivals; ++i)
                 {
                     double residual = mObservations[i] - arrivalTimes[i];
                     double twoWeightSquared = two*(mWeights[i]*mWeights[i]);
                     double twoWeightSquaredResidual = twoWeightSquared*residual;
-                    gradient[0] = gradient[0] - twoWeightSquaredResidual*dtdt0s[i];
-                    gradient[1] = gradient[1] - twoWeightSquaredResidual*dtdxs[i];
-                    gradient[2] = gradient[2] - twoWeightSquaredResidual*dtdys[i];
-                    gradient[3] = gradient[3] - twoWeightSquaredResidual*dtdzs[i];
+                    gradient[0] = gradient[0]
+                                - twoWeightSquaredResidual*dtdt0s[i];
+                    gradient[1] = gradient[1]
+                                - twoWeightSquaredResidual*dtdxs[i];
+                    gradient[2] = gradient[2]
+                                - twoWeightSquaredResidual*dtdys[i];
+                    gradient[3] = gradient[3]
+                                - twoWeightSquaredResidual*dtdzs[i];
                 }
             }
             else if (mNorm == Norm::L1)
             {
-                for (int i = 0; i < static_cast<int> (arrivalTimes.size()); ++i)
+                for (int i = 0; i < nArrivals; ++i)
                 {
                     double weightedResidual
                         = mWeights[i]*(mObservations[i] - arrivalTimes[i]);
@@ -181,6 +296,42 @@ struct LeastSquaresProblem3DAndTime
                                 - weightedSgnWeightedResidual*dtdys[i];
                     gradient[3] = gradient[3]
                                 - weightedSgnWeightedResidual*dtdzs[i];
+                }
+            }
+            else if (mNorm == Norm::Lp)
+            {
+                // p-norm: ||w*(T - T(x))||_p
+                //       = ( sum_i |w_i*(T_i - T_i(x))|^p )^(1/p)
+                // Chain rule:
+                //       = 1/p (( sum_i |w_i*(T_i - T_i(x))|^p )^(-(p - 1)/p)
+                //        *p*sum_j | w_j*(T_j - T_j(x))|^(p - 1) delta_{i,j}
+                //        *sgn(w_i*(T_i - T_i(x)))
+                //        *-w_i dT/dx
+                //       =-(|w_i*(T_i - T_i(x))|/||w*(T - T(x))||_p))^(p - 1)
+                //        w_i*sgn(w_i*(T_i - T_i(x)))*dT_i/dx
+                // I need the cost function as a normalization term
+                double costFunctionInverse
+                    = ::lp(mWeights, mObservations, arrivalTimes,
+                           mPNorm, Measurement::Standard);
+                if (costFunctionInverse > 0)
+                {
+                    costFunctionInverse = 1./costFunctionInverse;
+                } 
+                for (int i = 0; i < nArrivals; ++i)
+                {
+                    double weightedResidual
+                        = mWeights[i]*(mObservations[i] - arrivalTimes[i]);
+                    double weightedAbsoluteResidual
+                        = std::abs(weightedResidual);
+                    double argument
+                        = weightedAbsoluteResidual*costFunctionInverse; 
+                    double scalar
+                        =-(mWeights[i]*std::pow(argument, mPNorm - 1))
+                         *::sgn(weightedResidual);
+                    gradient[0] = gradient[0] + scalar*dtdt0s[i];
+                    gradient[1] = gradient[1] + scalar*dtdxs[i];
+                    gradient[2] = gradient[2] + scalar*dtdys[i];
+                    gradient[3] = gradient[3] + scalar*dtdzs[i];
                 }
             }
 #ifndef NDEBUG
@@ -198,15 +349,23 @@ struct LeastSquaresProblem3DAndTime
                                                &arrivalTimes,
                                                mApplyCorrection);
         }
-        if (mNorm == Norm::L2)
+        if (mNorm == Norm::LeastSquares)
         {
             costFunction
-                 = ::leastSquares(mWeights, mObservations, arrivalTimes);
+                = ::leastSquares(mWeights, mObservations, arrivalTimes,
+                                 Measurement::Standard);
         }
         else if (mNorm == Norm::L1)
         {
             costFunction
-                 = ::l1(mWeights, mObservations, arrivalTimes);
+                = ::l1(mWeights, mObservations, arrivalTimes,
+                       Measurement::Standard);
+        }
+        else if (mNorm == Norm::Lp)
+        {
+            costFunction
+                = ::lp(mWeights, mObservations, arrivalTimes,
+                       mPNorm, Measurement::Standard);
         }
 #ifndef NDEBUG
         else
@@ -280,7 +439,8 @@ struct LeastSquaresProblem3DAndTime
     std::vector<double> mWeights;
     std::vector<double> mLowerBounds;
     std::vector<double> mUpperBounds;
-    Norm mNorm{Norm::L2};
+    Norm mNorm{Norm::LeastSquares};
+    double mPNorm{1.5};
     double mPenaltyCoefficient{1};
     bool mApplyCorrection{true};
 };
