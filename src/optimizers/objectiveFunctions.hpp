@@ -187,8 +187,11 @@ T lp(const std::vector<T> &weights,
 }
 
 //----------------------------------------------------------------------------//
-
-struct LeastSquaresProblem3DAndTime
+//                                 3D + Time                                  //
+//----------------------------------------------------------------------------//
+/// @brief Cost function for the general problem of an unknown hypocenter
+///        and origin time.
+struct Problem3DAndTime
 {
     /// @result The log-likelihood function for maximizing something of
     ///         the form: LL = -C(observed, estimates) - penalty
@@ -204,6 +207,7 @@ struct LeastSquaresProblem3DAndTime
                             double gradient[])
     {
 #ifndef NDEBUG
+        assert(n == 4);
         assert(gradient != nullptr);
 #endif
         std::array<double, 4> xCopy;
@@ -261,7 +265,7 @@ struct LeastSquaresProblem3DAndTime
                                                &arrivalTimes,
                                                &dtdt0s, &dtdxs, &dtdys, &dtdzs,
                                                mApplyCorrection);
-            if (mNorm == Norm::LeastSquares)
+            if (mNorm == ::Norm::LeastSquares)
             {
                 constexpr double two{2};
                 for (int i = 0; i < nArrivals; ++i)
@@ -279,7 +283,7 @@ struct LeastSquaresProblem3DAndTime
                                 - twoWeightSquaredResidual*dtdzs[i];
                 }
             }
-            else if (mNorm == Norm::L1)
+            else if (mNorm == ::Norm::L1)
             {
                 for (int i = 0; i < nArrivals; ++i)
                 {
@@ -298,7 +302,7 @@ struct LeastSquaresProblem3DAndTime
                                 - weightedSgnWeightedResidual*dtdzs[i];
                 }
             }
-            else if (mNorm == Norm::Lp)
+            else if (mNorm == ::Norm::Lp)
             {
                 // p-norm: ||w*(T - T(x))||_p
                 //       = ( sum_i |w_i*(T_i - T_i(x))|^p )^(1/p)
@@ -349,19 +353,19 @@ struct LeastSquaresProblem3DAndTime
                                                &arrivalTimes,
                                                mApplyCorrection);
         }
-        if (mNorm == Norm::LeastSquares)
+        if (mNorm == ::Norm::LeastSquares)
         {
             costFunction
                 = ::leastSquares(mWeights, mObservations, arrivalTimes,
                                  Measurement::Standard);
         }
-        else if (mNorm == Norm::L1)
+        else if (mNorm == ::Norm::L1)
         {
             costFunction
                 = ::l1(mWeights, mObservations, arrivalTimes,
                        Measurement::Standard);
         }
-        else if (mNorm == Norm::Lp)
+        else if (mNorm == ::Norm::Lp)
         {
             costFunction
                 = ::lp(mWeights, mObservations, arrivalTimes,
@@ -439,45 +443,178 @@ struct LeastSquaresProblem3DAndTime
     std::vector<double> mWeights;
     std::vector<double> mLowerBounds;
     std::vector<double> mUpperBounds;
-    Norm mNorm{Norm::LeastSquares};
+    ::Norm mNorm{Norm::LeastSquares};
     double mPNorm{1.5};
     double mPenaltyCoefficient{1};
     bool mApplyCorrection{true};
 };
 
 //----------------------------------------------------------------------------//
-
-/*
-struct LeastSquaresProblem2DAndTimeAfixToFreeSurface
+//                            Fixed Depth + Time                              //
+//----------------------------------------------------------------------------//
+/// @brief Cost function for the problem of a an unknown epicenter and origin
+///        time but specified depth.
+struct Problem2DAndTimeAndFixedDepth
 {
-    pagmo::vector_double fitness(const pagmo::vector_double &dv) const
-    {   
+    /// @result The log-likelihood function for maximizing something of
+    ///         the form: LL = -C(observed, estimates)
+    /// @param[in]
+    double logLikelihood(const int n, const double x[]) const
+    {
+        return logLikelihoodAndGradient(n, x, nullptr);
+    }
+    /// @param[out] gradient  A finite difference approximation of the gradient.
+    /// @result The log-likelihood function evaluated at x.
+    /// @note This is for testing purposes only.
+    double finiteDifference(const int n, const double x[],
+                            double gradient[])
+    {
 #ifndef NDEBUG
-        assert(dv.size() == 3); 
+        assert(n == 3);
+        assert(gradient != nullptr);
 #endif
-        double originTime = dv[0];
-        double xSource = dv[1];
-        double ySource = dv[2];
-        auto [latitude, longitude]
-            = mRegion->localToGeographicCoordinates(xSource, ySource);
-        auto elevation = mTopography->evaluate(latitude, longitude);
-        double zSource =-elevation; // Elevation increases +up; make it +down
-        std::vector<double> arrivalTimes(mStationPhases.size());
-        mTravelTimeCalculatorMap->evaluate(mStationPhases,
-                                           originTime,
-                                           xSource, ySource, zSource,
-                                           &arrivalTimes,
-                                           mApplyCorrection);
-        double fitnessScore{0};
-        if (mNorm == Norm::L2)
+        std::array<double, 3> xCopy;
+        std::array<double, 3> perturbation{0.0001,  // Origin time
+                                           0.001,   // This is 1 mm
+                                           0.001    // This is 1 mm
+                                           };
+        auto f = logLikelihood(n, x);
+        for (int i = 0; i < n; ++i)
         {
-            fitnessScore
-                 = ::leastSquares(mWeights, mObservations, arrivalTimes);
+            std::copy(x, x + n, xCopy.data());
+            xCopy[i] = xCopy[i] + perturbation[i];
+            auto fPert = logLikelihood(xCopy.size(), xCopy.data());
+            gradient[i] = (fPert - f)/perturbation[i];
         }
-        else if (mNorm == Norm::L1)
+        return f;
+    }
+    /// @brief The actual workhorse that computes the log-likelihood function
+    ///        and, optionally, the gradient.
+    /// @param[in] n   The number of parameters to optimize.
+    /// @param[in] x   The current position of the solution vector.  This
+    ///                is an array with dimension [n].
+    /// @param[in,out] gradient  If not a nullptr then this 
+    /// @result The objective function and the inequality constraint that 
+    ///         requires the source be below the topography. 
+    double logLikelihoodAndGradient(
+        const int n, const double x[], double gradient[]) const
+    {
+#ifndef NDEBUG
+        assert(n == 3);
+        assert(x != nullptr);
+#endif
+        bool doGradient{false};
+        if (gradient != nullptr){doGradient = true;}
+        double originTime = x[0];
+        double xSource = x[1];
+        double ySource = x[2];
+        double zSource = mDepth;
+        std::vector<double> arrivalTimes(mStationPhases.size());
+        double costFunction{0};
+        if (doGradient)
         {
-            fitnessScore
-                 = ::l1(mWeights, mObservations, arrivalTimes);
+            std::fill(gradient, gradient + n, 0); 
+            auto nArrivals = static_cast<int> (mStationPhases.size());
+            std::vector<double> dtdt0s(nArrivals);
+            std::vector<double> dtdxs(nArrivals);
+            std::vector<double> dtdys(nArrivals);
+            std::vector<double> dtdzs(nArrivals);
+            mTravelTimeCalculatorMap->evaluate(mStationPhases,
+                                               originTime,
+                                               xSource, ySource, zSource,
+                                               &arrivalTimes,
+                                               &dtdt0s, &dtdxs, &dtdys, &dtdzs,
+                                               mApplyCorrection);
+            if (mNorm == ::Norm::LeastSquares)
+            {
+                constexpr double two{2};
+                for (int i = 0; i < nArrivals; ++i)
+                {
+                    double residual = mObservations[i] - arrivalTimes[i];
+                    double twoWeightSquared = two*(mWeights[i]*mWeights[i]);
+                    double twoWeightSquaredResidual = twoWeightSquared*residual;
+                    gradient[0] = gradient[0]
+                                - twoWeightSquaredResidual*dtdt0s[i];
+                    gradient[1] = gradient[1]
+                                - twoWeightSquaredResidual*dtdxs[i];
+                    gradient[2] = gradient[2]
+                                - twoWeightSquaredResidual*dtdys[i];
+                }
+            }
+            else if (mNorm == ::Norm::L1)
+            {
+                for (int i = 0; i < nArrivals; ++i)
+                {
+                    double weightedResidual
+                        = mWeights[i]*(mObservations[i] - arrivalTimes[i]);
+                    auto sgnWeightedResidual = ::sgn(weightedResidual);
+                    double weightedSgnWeightedResidual
+                        = mWeights[i]*sgnWeightedResidual;
+                    gradient[0] = gradient[0]
+                                - weightedSgnWeightedResidual*dtdt0s[i];
+                    gradient[1] = gradient[1]
+                                - weightedSgnWeightedResidual*dtdxs[i];
+                    gradient[2] = gradient[2]
+                                - weightedSgnWeightedResidual*dtdys[i];
+                }
+            }
+            else if (mNorm == ::Norm::Lp)
+            {
+                double costFunctionInverse
+                    = ::lp(mWeights, mObservations, arrivalTimes,
+                           mPNorm, Measurement::Standard);
+                if (costFunctionInverse > 0)
+                {
+                    costFunctionInverse = 1./costFunctionInverse;
+                }
+                for (int i = 0; i < nArrivals; ++i)
+                {
+                    double weightedResidual
+                        = mWeights[i]*(mObservations[i] - arrivalTimes[i]);
+                    double weightedAbsoluteResidual
+                        = std::abs(weightedResidual);
+                    double argument
+                        = weightedAbsoluteResidual*costFunctionInverse;
+                    double scalar
+                        =-(mWeights[i]*std::pow(argument, mPNorm - 1))
+                         *::sgn(weightedResidual);
+                    gradient[0] = gradient[0] + scalar*dtdt0s[i];
+                    gradient[1] = gradient[1] + scalar*dtdxs[i];
+                    gradient[2] = gradient[2] + scalar*dtdys[i];
+                }
+            }
+#ifndef NDEBUG
+            else
+            {
+                assert(false);
+            }
+#endif
+        }
+        else
+        {
+            mTravelTimeCalculatorMap->evaluate(mStationPhases,
+                                               originTime,
+                                               xSource, ySource, zSource,
+                                               &arrivalTimes,
+                                               mApplyCorrection);
+        }
+        if (mNorm == ::Norm::LeastSquares)
+        {
+            costFunction
+                = ::leastSquares(mWeights, mObservations, arrivalTimes,
+                                 Measurement::Standard);
+        }
+        else if (mNorm == ::Norm::L1)
+        {
+            costFunction
+                = ::l1(mWeights, mObservations, arrivalTimes,
+                       Measurement::Standard);
+        }
+        else if (mNorm == ::Norm::Lp)
+        {
+            costFunction
+                = ::lp(mWeights, mObservations, arrivalTimes,
+                       mPNorm, Measurement::Standard);
         }
 #ifndef NDEBUG
         else
@@ -485,51 +622,224 @@ struct LeastSquaresProblem2DAndTimeAfixToFreeSurface
             assert(false);
         }
 #endif
-        return pagmo::vector_double {fitnessScore};
+        double logLikelihood =-costFunction;
+        if (doGradient)
+        {
+            std::transform(gradient, gradient + n, gradient,
+                           [](const auto &gi)
+                           {
+                               return -gi;
+                           });
+        }
+        return logLikelihood;
     }
-    std::pair<pagmo::vector_double, pagmo::vector_double> get_bounds() const
+    /// @result The hard bounds on the search region.  Most optimization tools
+    ///         can handle linear constraints.
+    std::pair<std::vector<double>, std::vector<double>> getLinearBounds() const
     {
         return std::pair {mLowerBounds, mUpperBounds};
     }
     const ULocator::TravelTimeCalculatorMap *mTravelTimeCalculatorMap{nullptr};
-    std::shared_ptr<ULocator::Topography::ITopography> mTopography{nullptr};
-    std::unique_ptr<ULocator::Position::IGeographicRegion> mRegion{nullptr};
     std::vector<std::pair<ULocator::Station, std::string>> mStationPhases;
     std::vector<double> mObservations;
     std::vector<double> mWeights;
-    pagmo::vector_double mLowerBounds;
-    pagmo::vector_double mUpperBounds;
-    Norm mNorm{Norm::L2};
+    std::vector<double> mLowerBounds;
+    std::vector<double> mUpperBounds;
+    ::Norm mNorm{Norm::LeastSquares};
+    double mDepth{6000};
+    double mPNorm{1.5};
+    double mPenaltyCoefficient{1};
     bool mApplyCorrection{true};
 };
 
 //----------------------------------------------------------------------------//
-
-struct LeastSquaresProblem2DAndTimeFixedDepth
+//                   2D + Time + Depth at Free Surface                        //
+//----------------------------------------------------------------------------//
+/// @brief Cost function for the problem of unknown epicenter and origin time
+///        but with the depth fixed to free surface.
+struct Problem2DAndTimeAndDepthAtFreeSurface
 {
-    pagmo::vector_double fitness(const pagmo::vector_double &dv) const
-    {   
+    /// @result The log-likelihood function for maximizing something of
+    ///         the form: LL = -C(observed, estimates) - penalty
+    /// @param[in]
+    double logLikelihood(const int n, const double x[]) const
+    {
+        return logLikelihoodAndGradient(n, x, nullptr);
+    }
+    /// @param[out] gradient  A finite difference approximation of the gradient.
+    /// @result The log-likelihood function evaluated at x.
+    /// @note This is for testing purposes only.
+    double finiteDifference(const int n, const double x[],
+                            double gradient[])
+    {
 #ifndef NDEBUG
-        assert(dv.size() == 3); 
+        assert(n == 3);
+        assert(gradient != nullptr);
 #endif
-        double originTime = dv[0];
-        double xSource = dv[1];
-        double ySource = dv[2];
-        std::vector<double> arrivalTimes(mStationPhases.size());
-        mTravelTimeCalculatorMap->evaluate(mStationPhases,
-                       originTime, xSource, ySource, mSourceDepth,
-                       &arrivalTimes,
-                       mApplyCorrection);
-        double fitnessScore{0};
-        if (mNorm == Norm::L2)
+        std::array<double, 3> xCopy;
+        std::array<double, 3> perturbation{0.0001,  // This is 0.1 millisec
+                                           0.001,   // This is 1 mm
+                                           0.001    // This is 1 mm
+                                           };
+        auto f = logLikelihood(n, x);
+        for (int i = 0; i < n; ++i)
         {
-            fitnessScore
-                 = ::leastSquares(mWeights, mObservations, arrivalTimes);
+            std::copy(x, x + n, xCopy.data());
+            xCopy[i] = xCopy[i] + perturbation[i];
+            auto fPert = logLikelihood(xCopy.size(), xCopy.data());
+            gradient[i] = (fPert - f)/perturbation[i];
+        }
+        return f;
+    }
+    /// @brief The actual workhorse that computes the log-likelihood function
+    ///        and, optionally, the gradient.
+    /// @param[in] n   The number of parameters to optimize.
+    /// @param[in] x   The current position of the solution vector.  This
+    ///                is an array with dimension [n].
+    /// @param[in,out] gradient  If not a nullptr then this 
+    /// @result The objective function and the inequality constraint that 
+    ///         requires the source be below the topography. 
+    double logLikelihoodAndGradient(
+        const int n, const double x[], double gradient[]) const
+    {
+#ifndef NDEBUG
+        assert(n == 3);
+        assert(x != nullptr);
+#endif
+        bool doGradient{false};
+        if (gradient != nullptr){doGradient = true;}
+        double originTime = x[0];
+        double xSource = x[1];
+        double ySource = x[2];
+        // Source is fixed to elevation.  Note, sign convention for
+        // elevation is +up whereas solver is +down hence the minus signs.
+        double zSource{0};
+        double dEdx{0}, dEdy{0};
+        if (doGradient)
+        {
+            zSource =-mTopography->evaluate(xSource, ySource, &dEdx, &dEdy);
+            dEdx =-dEdx;
+            dEdy =-dEdy;
+        }
+        else
+        {
+            zSource =-mTopography->evaluate(xSource, ySource);
+        }
+        std::vector<double> arrivalTimes(mStationPhases.size());
+        double costFunction{0};
+        if (doGradient)
+        {
+            std::fill(gradient, gradient + n, 0);
+            auto nArrivals = static_cast<int> (mStationPhases.size());
+            std::vector<double> dtdt0s(nArrivals);
+            std::vector<double> dtdxs(nArrivals);
+            std::vector<double> dtdys(nArrivals);
+            std::vector<double> dtdzs(nArrivals);
+            mTravelTimeCalculatorMap->evaluate(mStationPhases,
+                                               originTime,
+                                               xSource, ySource, zSource,
+                                               &arrivalTimes,
+                                               &dtdt0s, &dtdxs, &dtdys, &dtdzs,
+                                               mApplyCorrection);
+            // In the following we leverage implicit partial derivatives:
+            //  d f(x, y, z = E(x,y))/dx = df/dx + df/dE dE/dx
+            //  d f(x, y, z = E(x,y))/dy = df/dy + df/dE dE/dy
+            if (mNorm == ::Norm::LeastSquares)
+            {
+                constexpr double two{2};
+                for (int i = 0; i < nArrivals; ++i)
+                {
+                    double residual = mObservations[i] - arrivalTimes[i];
+                    double twoWeightSquared = two*(mWeights[i]*mWeights[i]);
+                    double twoWeightSquaredResidual = twoWeightSquared*residual;
+                    gradient[0] = gradient[0]
+                                - twoWeightSquaredResidual*dtdt0s[i];
+                    gradient[1] = gradient[1]
+                                - twoWeightSquaredResidual
+                                 *(dtdxs[i] + dtdzs[i]*dEdx);
+                    gradient[2] = gradient[2]
+                                - twoWeightSquaredResidual
+                                 *(dtdys[i] + dtdzs[i]*dEdy);
+                }
+            }
+            else if (mNorm == Norm::L1)
+            {
+                for (int i = 0; i < nArrivals; ++i)
+                {
+                    double weightedResidual
+                        = mWeights[i]*(mObservations[i] - arrivalTimes[i]);
+                    auto sgnWeightedResidual = ::sgn(weightedResidual);
+                    double weightedSgnWeightedResidual
+                        = mWeights[i]*sgnWeightedResidual;
+                    gradient[0] = gradient[0]
+                                - weightedSgnWeightedResidual*dtdt0s[i];
+                    gradient[1] = gradient[1]
+                                - weightedSgnWeightedResidual
+                                 *(dtdxs[i] + dtdzs[i]*dEdx);
+                    gradient[2] = gradient[2]
+                                - weightedSgnWeightedResidual
+                                 *(dtdys[i] + dtdzs[i]*dEdy);
+                }
+            }
+            else if (mNorm == Norm::Lp)
+            {
+                double costFunctionInverse
+                    = ::lp(mWeights, mObservations, arrivalTimes,
+                           mPNorm, Measurement::Standard);
+                if (costFunctionInverse > 0)
+                {
+                    costFunctionInverse = 1./costFunctionInverse;
+                } 
+                for (int i = 0; i < nArrivals; ++i)
+                {
+                    double weightedResidual
+                        = mWeights[i]*(mObservations[i] - arrivalTimes[i]);
+                    double weightedAbsoluteResidual
+                        = std::abs(weightedResidual);
+                    double argument
+                        = weightedAbsoluteResidual*costFunctionInverse; 
+                    double scalar
+                        =-(mWeights[i]*std::pow(argument, mPNorm - 1))
+                         *::sgn(weightedResidual);
+                    gradient[0] = gradient[0] + scalar*dtdt0s[i];
+                    gradient[1] = gradient[1]
+                                + scalar*(dtdxs[i] + dtdzs[i]*dEdx);
+                    gradient[2] = gradient[2]
+                                + scalar*(dtdys[i] + dtdzs[i]*dEdy);
+                }
+            }
+#ifndef NDEBUG
+            else
+            {
+                assert(false);
+            }
+#endif
+        }
+        else
+        {
+            mTravelTimeCalculatorMap->evaluate(mStationPhases,
+                                               originTime,
+                                               xSource, ySource, zSource,
+                                               &arrivalTimes,
+                                               mApplyCorrection);
+        }
+        if (mNorm == Norm::LeastSquares)
+        {
+            costFunction
+                = ::leastSquares(mWeights, mObservations, arrivalTimes,
+                                 Measurement::Standard);
         }
         else if (mNorm == Norm::L1)
         {
-            fitnessScore
-                 = ::l1(mWeights, mObservations, arrivalTimes);
+            costFunction
+                = ::l1(mWeights, mObservations, arrivalTimes,
+                       Measurement::Standard);
+        }
+        else if (mNorm == Norm::Lp)
+        {
+            costFunction
+                = ::lp(mWeights, mObservations, arrivalTimes,
+                       mPNorm, Measurement::Standard);
         }
 #ifndef NDEBUG
         else
@@ -537,22 +847,37 @@ struct LeastSquaresProblem2DAndTimeFixedDepth
             assert(false);
         }
 #endif
-        return pagmo::vector_double {fitnessScore};
-    }   
-    std::pair<pagmo::vector_double, pagmo::vector_double> get_bounds() const
-    {   
+        double logLikelihood =-costFunction;
+        if (doGradient)
+        {
+            std::transform(gradient, gradient + n, gradient,
+                           [](const auto &gi)
+                           {
+                               return -gi;
+                           });
+        } 
+        return logLikelihood;
+    }
+    /// @result The hard bounds on the search region.  Most optimization tools
+    ///         can handle linear constraints.  Otherwise, I could add a penalty 
+    ///         to the objective function that requires the origin time be
+    ///         less than the first arrival time.
+    std::pair<std::vector<double>, std::vector<double>> getLinearBounds() const
+    {
         return std::pair {mLowerBounds, mUpperBounds};
-    }   
+    }
     const ULocator::TravelTimeCalculatorMap *mTravelTimeCalculatorMap{nullptr};
+    const ULocator::Topography::ITopography *mTopography{nullptr};
     std::vector<std::pair<ULocator::Station, std::string>> mStationPhases;
     std::vector<double> mObservations;
     std::vector<double> mWeights;
-    pagmo::vector_double mLowerBounds;
-    pagmo::vector_double mUpperBounds;
-    double mSourceDepth{0};
-    Norm mNorm{Norm::L2};
+    std::vector<double> mLowerBounds;
+    std::vector<double> mUpperBounds;
+    Norm mNorm{::Norm::LeastSquares};
+    double mPNorm{1.5};
+    double mPenaltyCoefficient{1};
     bool mApplyCorrection{true};
 };
-*/
+
 }
 #endif

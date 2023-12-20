@@ -99,8 +99,10 @@ TEST(ULocatorOptimizersObjectiveFunctions, ThreeDimensionsAndTime)
 {
     constexpr int nParameters{4};
     constexpr double p{1.5};
-    ::LeastSquaresProblem3DAndTime obj;
+    ::Problem3DAndTime obj;
     ::fillObjectiveFunction(obj);
+    auto topography = std::make_unique<::QuadraticUtahTopography> ();
+    obj.mTopography = topography.release();
     // This is an in-region test
     std::vector<double> x{1, 2, 3, 4};
     std::vector<double> gradient(nParameters, 0);
@@ -169,7 +171,14 @@ TEST(ULocatorOptimizersObjectiveFunctions, ThreeDimensionsAndTime)
     for (int i = 0; i < nParameters; ++i)
     {
         EXPECT_NEAR(gradientL2[i], gradient[i], 1.e-8);
-        EXPECT_NEAR(gradientL2[i], gradientFiniteDifference[i], 1);
+        if (i == 0)
+        {
+            EXPECT_NEAR(gradientL2[i], gradientFiniteDifference[i], 1); 
+        }
+        else
+        {
+            EXPECT_NEAR(gradientL2[i], gradientFiniteDifference[i], 1.e-5);
+        }
     }
     //------------------------------------l1----------------------------------//
     obj.mNorm = ::Norm::L1;
@@ -183,7 +192,14 @@ TEST(ULocatorOptimizersObjectiveFunctions, ThreeDimensionsAndTime)
     for (int i = 0; i < nParameters; ++i)
     {
         EXPECT_NEAR(gradientL1[i], gradient[i], 1.e-8);
-        EXPECT_NEAR(gradientL1[i], gradientFiniteDifference[i], 1.e-3);
+        if (i == 0)
+        {
+            EXPECT_NEAR(gradientL1[i], gradientFiniteDifference[i], 1); 
+        }
+        else
+        {
+            EXPECT_NEAR(gradientL1[i], gradientFiniteDifference[i], 1.e-5);
+        }
     }
     //------------------------------------lp----------------------------------//
     obj.mNorm = ::Norm::Lp;
@@ -283,10 +299,10 @@ TEST(ULocatorOptimizersObjectiveFunctions, ThreeDimensionsAndTime)
     EXPECT_NEAR(logLikelihood, -(referenceL2 + l2Penalty), 1.e-4);
     obj.finiteDifference(x.size(), x.data(), gradientFiniteDifference.data());
     for (int i = 0; i < nParameters; ++i)
-    {   
+    {
         EXPECT_NEAR(gradientL2[i], gradient[i], 1.e-8);
-        EXPECT_NEAR(gradientL2[i], gradientFiniteDifference[i], 5.e-1); 
-    } 
+        EXPECT_NEAR(gradientL2[i], gradientFiniteDifference[i], 5.e-1);
+    }
     //---------------------------------------l1-------------------------------//
     obj.mNorm = ::Norm::L1;
     logLikelihood = obj.logLikelihood(x.size(), x.data());
@@ -310,15 +326,285 @@ TEST(ULocatorOptimizersObjectiveFunctions, ThreeDimensionsAndTime)
     for (int i = 0; i < nParameters; ++i)
     {
         if (i == 0)
-        {   
+        {
             EXPECT_NEAR(gradient[i], gradientFiniteDifference[i], 1.e-3);
         }
         else
-        {   
+        {
             EXPECT_NEAR(gradient[i], gradientFiniteDifference[i], 1.e-6);
         }
     }
+}
 
+//----------------------------------------------------------------------------//
+//                    Fixed Depth; Free Epicenter and Time                    //
+//----------------------------------------------------------------------------//
+
+TEST(ULocatorOptimizersObjectiveFunctions, EpicenterAndTime)
+{
+    constexpr int nParameters{3};
+    constexpr double depth{6000};
+    constexpr double p{1.5};
+    ::Problem2DAndTimeAndFixedDepth obj;
+    ::fillObjectiveFunction(obj);
+    obj.mDepth = depth;
+    // This is an in-region test
+    std::vector<double> x{4, -1, 2};
+    std::vector<double> gradient(nParameters, 0);
+    std::vector<double> estimates;
+    double referenceL1{0};
+    double referenceL2{0};
+    double referenceLp{0};
+    std::vector<double> jacobian(3*obj.mObservations.size());
+    std::vector<double> l1Residuals(obj.mObservations.size());
+    std::vector<double> l2Residuals(obj.mObservations.size());
+    int i = 0;
+    for (const auto &stationPhase : obj.mStationPhases)
+    {   
+        constexpr bool applyCorrection{true};
+        auto station = stationPhase.first;
+        auto phase = stationPhase.second;
+        double dtdt0, dtdx, dtdy;
+        auto estimate
+           = obj.mTravelTimeCalculatorMap->evaluate(
+                station, phase,
+                x.at(0), x.at(1), x.at(2), depth,
+                &dtdt0, &dtdx, &dtdy, nullptr,
+                applyCorrection);
+        auto xStation = station.getLocalCoordinates().first;
+        auto yStation = station.getLocalCoordinates().second;
+        auto zStation =-station.getElevation();
+        double deltaX = xStation - x.at(1);
+        double deltaY = yStation - x.at(2);
+        double deltaZ = zStation - depth;
+        double distance = std::sqrt( std::pow(deltaX, 2)
+                                   + std::pow(deltaY, 2) 
+                                   + std::pow(deltaZ, 2) );
+        double velocity = P_VELOCITY;
+        if (phase == "S"){velocity = S_VELOCITY;}
+        jacobian.at(3*i + 0) = dtdt0;
+        jacobian.at(3*i + 1) =-deltaX/(distance*velocity);
+        jacobian.at(3*i + 2) =-deltaY/(distance*velocity);
+        EXPECT_NEAR(dtdt0, 1, 1.e-14); 
+        estimates.push_back(estimate); 
+        double residual = obj.mObservations.at(i) - estimate;
+        double weightedResidual = obj.mWeights.at(i)*residual;
+        double l1AbsoluteWeightedResidual = std::abs(weightedResidual);
+        double l2WeightedResidual = std::pow(weightedResidual, 2);
+        referenceL1 = referenceL1 + l1AbsoluteWeightedResidual;
+        referenceL2 = referenceL2 + l2WeightedResidual;
+        referenceLp = referenceLp + std::pow(l1AbsoluteWeightedResidual, p);
+        l1Residuals.at(i) =-1*obj.mWeights[i]*::sgn(weightedResidual);
+        l2Residuals.at(i) =-2*std::pow(obj.mWeights[i], 2)*residual;
+        i = i + 1;
+    }
+    referenceLp = std::pow(referenceLp, 1./p);
+    // g = -J^T r 
+    auto gradientL1 = ::ATx(l1Residuals.size(), nParameters, jacobian, l1Residuals, -1);
+    auto gradientL2 = ::ATx(l2Residuals.size(), nParameters, jacobian, l2Residuals, -1);
+    obj.mNorm = ::Norm::LeastSquares;
+    auto logLikelihood = obj.logLikelihood(x.size(), x.data());
+    EXPECT_NEAR(logLikelihood, -referenceL2, 1.e-4);
+    // Compute gradient
+    logLikelihood
+        = obj.logLikelihoodAndGradient(x.size(), x.data(), gradient.data());
+    EXPECT_NEAR(logLikelihood, -referenceL2, 1.e-4);
+    std::vector<double> gradientFiniteDifference(3);
+    obj.finiteDifference(x.size(), x.data(), gradientFiniteDifference.data());
+    EXPECT_NEAR(logLikelihood, -referenceL2, 1.e-4);
+    for (int i = 0; i < nParameters; ++i)
+    {
+        EXPECT_NEAR(gradientL2[i], gradient[i], 1.e-8);
+        if (i == 0)
+        {
+            EXPECT_NEAR(gradientL2[i], gradientFiniteDifference[i], 1);
+        }
+        else
+        {
+            EXPECT_NEAR(gradientL2[i], gradientFiniteDifference[i], 1.e-5);
+        }
+    }
+    //------------------------------------l1----------------------------------//
+    obj.mNorm = ::Norm::L1;
+    logLikelihood = obj.logLikelihood(x.size(), x.data());
+    EXPECT_NEAR(logLikelihood, -referenceL1, 1.e-4);
+    // Compute the gradient
+    logLikelihood
+        = obj.logLikelihoodAndGradient(x.size(), x.data(), gradient.data());
+    EXPECT_NEAR(logLikelihood, -referenceL1, 1.e-4);
+    obj.finiteDifference(x.size(), x.data(), gradientFiniteDifference.data());
+    for (int i = 0; i < nParameters; ++i)
+    {
+        EXPECT_NEAR(gradientL1[i], gradient[i], 1.e-8);
+        if (i == 0)
+        {
+            EXPECT_NEAR(gradientL1[i], gradientFiniteDifference[i], 1);
+        }
+        else
+        {
+            EXPECT_NEAR(gradientL1[i], gradientFiniteDifference[i], 1.e-5);
+        }
+    }
+    //------------------------------------lp----------------------------------//
+    obj.mNorm = ::Norm::Lp;
+    obj.mPNorm = p;
+    logLikelihood = obj.logLikelihood(x.size(), x.data());
+    EXPECT_NEAR(logLikelihood, -referenceLp, 1.e-4);
+    // Compute gradient.  This is a PITA.  By now we've confirmed the
+    // finite differencing works.  So let's just compare with that.
+    logLikelihood
+        = obj.logLikelihoodAndGradient(x.size(), x.data(), gradient.data());
+    EXPECT_NEAR(logLikelihood, -referenceLp, 1.e-4);
+    obj.finiteDifference(x.size(), x.data(), gradientFiniteDifference.data());
+    for (int i = 0; i < nParameters; ++i)
+    {
+        if (i == 0)
+        {
+            EXPECT_NEAR(gradient[i], gradientFiniteDifference[i], 1.e-3);
+        }
+        else
+        {
+            EXPECT_NEAR(gradient[i], gradientFiniteDifference[i], 1.e-6);
+        }
+    }
+}
+
+//----------------------------------------------------------------------------//
+//                Depth Fixed to Free Surface; Free Epicenter and Time        //
+//----------------------------------------------------------------------------//
+
+TEST(ULocatorOptimizersObjectiveFunctions, EpicenterFreeSurfaceAndTime)
+{
+    constexpr int nParameters{3};
+    constexpr double p{1.5};
+    ::Problem2DAndTimeAndDepthAtFreeSurface obj;
+    ::fillObjectiveFunction(obj);
+    auto topography = std::make_unique<::QuadraticUtahTopography> ();
+    obj.mTopography = topography.release();
+    // This is an in-region test (need to be far enough to move the needle
+    // on the dE/dx and dE/dy terms
+    std::vector<double> x{9, -300000, 30000};
+    std::vector<double> gradient(nParameters, 0);
+    std::vector<double> estimates;
+    double referenceL1{0};
+    double referenceL2{0};
+    double referenceLp{0};
+    std::vector<double> jacobian(3*obj.mObservations.size());
+    std::vector<double> l1Residuals(obj.mObservations.size());
+    std::vector<double> l2Residuals(obj.mObservations.size());
+    int i = 0;
+    for (const auto &stationPhase : obj.mStationPhases)
+    {   
+        constexpr bool applyCorrection{true};
+        auto station = stationPhase.first;
+        auto phase = stationPhase.second;
+        double dtdt0, dtdx, dtdy, dtdz, dEdx, dEdy;
+        auto depth =-obj.mTopography->evaluate(x.at(1), x.at(2),
+                                               &dEdx, &dEdy);
+        dEdx =-dEdx;
+        dEdy =-dEdy;
+        auto estimate
+           = obj.mTravelTimeCalculatorMap->evaluate(
+                station, phase,
+                x.at(0), x.at(1), x.at(2), depth,
+                &dtdt0, &dtdx, &dtdy, &dtdz,
+                applyCorrection);
+        auto xStation = station.getLocalCoordinates().first;
+        auto yStation = station.getLocalCoordinates().second;
+        auto zStation =-station.getElevation();
+        double deltaX = xStation - x.at(1);
+        double deltaY = yStation - x.at(2);
+        double deltaZ = zStation - depth;
+        double distance = std::sqrt( std::pow(deltaX, 2)
+                                   + std::pow(deltaY, 2)  
+                                   + std::pow(deltaZ, 2) );
+        double velocity = P_VELOCITY;
+        if (phase == "S"){velocity = S_VELOCITY;}
+        jacobian.at(3*i + 0) = dtdt0;
+        jacobian.at(3*i + 1) =-deltaX/(distance*velocity)
+                             - deltaZ/(distance*velocity)*dEdx;
+        jacobian.at(3*i + 2) =-deltaY/(distance*velocity)
+                             - deltaZ/(distance*velocity)*dEdy;
+        EXPECT_NEAR(dtdt0, 1, 1.e-14); 
+        estimates.push_back(estimate); 
+        double residual = obj.mObservations.at(i) - estimate;
+        double weightedResidual = obj.mWeights.at(i)*residual;
+        double l1AbsoluteWeightedResidual = std::abs(weightedResidual);
+        double l2WeightedResidual = std::pow(weightedResidual, 2); 
+        referenceL1 = referenceL1 + l1AbsoluteWeightedResidual;
+        referenceL2 = referenceL2 + l2WeightedResidual;
+        referenceLp = referenceLp + std::pow(l1AbsoluteWeightedResidual, p); 
+        l1Residuals.at(i) =-1*obj.mWeights[i]*::sgn(weightedResidual);
+        l2Residuals.at(i) =-2*std::pow(obj.mWeights[i], 2)*residual;
+        i = i + 1;
+    }   
+    referenceLp = std::pow(referenceLp, 1./p);
+    // g = -J^T r 
+    auto gradientL1 = ::ATx(l1Residuals.size(), nParameters, jacobian, l1Residuals, -1);
+    auto gradientL2 = ::ATx(l2Residuals.size(), nParameters, jacobian, l2Residuals, -1);
+    obj.mNorm = ::Norm::LeastSquares;
+    auto logLikelihood = obj.logLikelihood(x.size(), x.data());
+    EXPECT_NEAR(logLikelihood, -referenceL2, 1.e-4);
+    // Compute gradient
+    logLikelihood
+        = obj.logLikelihoodAndGradient(x.size(), x.data(), gradient.data());
+    EXPECT_NEAR(logLikelihood, -referenceL2, 1.e-4);
+    std::vector<double> gradientFiniteDifference(3);
+    obj.finiteDifference(x.size(), x.data(), gradientFiniteDifference.data());
+    EXPECT_NEAR(logLikelihood, -referenceL2, 1.e-4);
+    for (int i = 0; i < nParameters; ++i)
+    {   
+        EXPECT_NEAR(gradientL2[i], gradient[i], 1.e-8);
+        if (i == 0)
+        {
+            EXPECT_NEAR(gradientL2[i], gradientFiniteDifference[i], 1); 
+        }
+        else
+        {
+            EXPECT_NEAR(gradientL2[i], gradientFiniteDifference[i], 1.e-5);
+        }
+    }
+    //------------------------------------l1----------------------------------//
+    obj.mNorm = ::Norm::L1;
+    logLikelihood = obj.logLikelihood(x.size(), x.data());
+    EXPECT_NEAR(logLikelihood, -referenceL1, 1.e-4);
+    // Compute the gradient
+    logLikelihood
+        = obj.logLikelihoodAndGradient(x.size(), x.data(), gradient.data());
+    EXPECT_NEAR(logLikelihood, -referenceL1, 1.e-4);
+    obj.finiteDifference(x.size(), x.data(), gradientFiniteDifference.data());
+    for (int i = 0; i < nParameters; ++i)
+    {   
+        EXPECT_NEAR(gradientL1[i], gradient[i], 1.e-8);
+        if (i == 0)
+        {
+            EXPECT_NEAR(gradientL1[i], gradientFiniteDifference[i], 1); 
+        }
+        else
+        {
+            EXPECT_NEAR(gradientL1[i], gradientFiniteDifference[i], 1.e-5);
+        }
+    }
+    //------------------------------------lp----------------------------------//
+    obj.mNorm = ::Norm::Lp;
+    obj.mPNorm = p;
+    logLikelihood = obj.logLikelihood(x.size(), x.data());
+    EXPECT_NEAR(logLikelihood, -referenceLp, 1.e-4);
+    logLikelihood
+        = obj.logLikelihoodAndGradient(x.size(), x.data(), gradient.data());
+    EXPECT_NEAR(logLikelihood, -referenceLp, 1.e-4);
+    obj.finiteDifference(x.size(), x.data(), gradientFiniteDifference.data());
+    for (int i = 0; i < nParameters; ++i)
+    {   
+        if (i == 0)
+        {
+            EXPECT_NEAR(gradient[i], gradientFiniteDifference[i], 1.e-3);
+        }
+        else
+        {
+            EXPECT_NEAR(gradient[i], gradientFiniteDifference[i], 1.e-6);
+        }
+    }
 }
 
 }

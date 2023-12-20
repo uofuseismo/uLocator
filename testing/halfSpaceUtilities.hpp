@@ -156,10 +156,10 @@ public:
         auto dy = mStationY - ySource;
         auto dz = mStationZ - zSource;
         auto distance = std::sqrt( dx*dx + dy*dy + dz*dz );
-        *dtdt0 = 1;
-        *dtdx =-dx/(distance*mVelocity);
-        *dtdy =-dy/(distance*mVelocity);
-        *dtdz =-dz/(distance*mVelocity);
+        if (dtdt0 != nullptr){*dtdt0 = 1;}
+        if (dtdx != nullptr){*dtdx =-dx/(distance*mVelocity);}
+        if (dtdy != nullptr){*dtdy =-dy/(distance*mVelocity);}
+        if (dtdz != nullptr){*dtdz =-dz/(distance*mVelocity);}
         return originTime + distance/mVelocity;
     }   
     ULocator::Station mStation;
@@ -305,7 +305,7 @@ for (int j = 0; j < ny; ++j)
                                               observations.end());
     objectiveFunction.mTravelTimeCalculatorMap = travelTimeTableMap.release();
     double maxElevation = topography->getMinimumAndMaximumElevation().second;
-    objectiveFunction.mTopography = topography.release();
+    //objectiveFunction.mTopography = topography.release();
     objectiveFunction.mStationPhases = stationPhases;
     objectiveFunction.mObservations = observations;
     objectiveFunction.mWeights = weights;

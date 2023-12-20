@@ -1,10 +1,13 @@
+#include <fstream>
 #include <iostream>
+#include <algorithm>
 #include <cmath>
 #include <algorithm>
 #include <string>
 #include <vector>
 #include <filesystem>
 #include "uLocator/topography/gridded.hpp"
+#include "uLocator/position/geographicRegion.hpp"
 #include "position/lonTo180.hpp"
 #include "h5io.hpp"
 
@@ -59,14 +62,16 @@ class Gridded::GriddedImpl
 {
 public:
     std::vector<double> mElevations;
-    std::vector<double> mLatitudes;
-    std::vector<float> mLongitudes;
+    std::vector<double> mX;
+    std::vector<double> mY;
     double mZ00{0};
     double mZ01{0};
     double mZ10{0};
     double mZ11{0};
-    int mLon0{-1};
-    int mLat0{-1};
+    double mMaximumElevation{0};
+    double mMinimumElevation{0};
+    int mIX0{-1};
+    int mIY0{-1};
     bool mHaveTopography{false}; 
 };
 
@@ -114,7 +119,8 @@ void Gridded::clear() noexcept
 }
 
 /// Load a model from HDF5
-void Gridded::load(const std::string &fileName)
+void Gridded::load(const std::string &fileName,
+                   const ULocator::Position::IGeographicRegion &region)
 {
 #ifdef WITH_HDF5
     if (!std::filesystem::exists(fileName))
@@ -142,17 +148,70 @@ void Gridded::load(const std::string &fileName)
     }
     try
     {
-        ::readDataset(mFile, "Latitude",  &pImpl->mLatitudes);
-        ::checkLatitudes(pImpl->mLatitudes.size(), pImpl->mLatitudes.data());
-        ::readDataset(mFile, "Longitude", &pImpl->mLongitudes);
-        ::checkLongitudes(pImpl->mLongitudes.size(), pImpl->mLongitudes.data());
-        ::readDataset(mFile, "Elevation", &pImpl->mElevations);
-        ::fixLongitudes(pImpl->mLongitudes);
+        std::vector<double> latitudes, longitudes, elevations;
+        ::readDataset(mFile, "Latitude",  &latitudes);
+        ::checkLatitudes(latitudes.size(), latitudes.data());
+        ::readDataset(mFile, "Longitude", &longitudes);
+        ::checkLongitudes(longitudes.size(), longitudes.data());
+        ::readDataset(mFile, "Elevation", &elevations);
+        ::fixLongitudes(longitudes);
+        // Make my custom (lon, lat) interpolator
+        Gridded lonLatInterpolator;
+        lonLatInterpolator.set(longitudes.size(), longitudes.data(),
+                               latitudes.size(),  latitudes.data(),
+                               elevations.size(), elevations.data());
+        // Convert to a regular Cartesian grid
+        auto nx = static_cast<int> (longitudes.size());
+        auto ny = static_cast<int> (latitudes.size());
+        std::vector<double> x(nx);
+        std::vector<double> y(ny);
+        auto [x0, x1] = region.getExtentInX();
+        auto [y0, y1] = region.getExtentInY();
+        double dx = (x1 - x0)/(nx - 1);
+        double dy = (y1 - y0)/(ny - 1);
+        std::vector<double> interpolatedElevations(elevations.size(), 0);
+//std::ofstream ofl;
+//ofl.open("interpElevation.txt");
+        for (int iy = 0; iy < ny; ++iy)
+        {
+            for (int ix = 0; ix < nx; ++ix) 
+            {
+                double xi = x0 + ix*dx;
+                double yi = y0 + iy*dy;
+                x[ix] = xi;
+                y[iy] = yi;
+                auto indx = iy*nx + ix;
+                auto [latitude, longitude]
+                    = region.localToGeographicCoordinates(xi, yi);
+                interpolatedElevations[indx] = lonLatInterpolator(longitude, latitude);
+            }
+//ofl << std::endl;
+        }
+//ofl.close();
+        set(x.size(), x.data(),
+            y.size(), y.data(),
+            interpolatedElevations.size(), interpolatedElevations.data());
+/*
+std::ofstream ofl;
+ofl.open("recoveredElevation.txt");
+        for (int iy = 0; iy < ny; ++iy)
+        {
+            for (int ix = 0; ix < nx; ++ix)
+            {
+                auto [xi, yi] = region.geographicToLocalCoordinates(latitudes[iy], longitudes[ix]);
+//                auto elevation = evaluate(xi, yi);
+                auto elevation = evaluate(x[ix], y[iy]);
+ofl << x[ix] << " " << y[iy] << " " << elevation << std::endl;
+            }
+ofl << std::endl;
+        }
+ofl.close();
+*/
     }
     catch (const std::exception &e)
     {
-        pImpl->mLatitudes.clear();
-        pImpl->mLongitudes.clear();
+        pImpl->mX.clear();
+        pImpl->mY.clear();
         pImpl->mElevations.clear();
         H5Fclose(mFile);
         throw e;
@@ -173,79 +232,86 @@ bool Gridded::haveTopography() const noexcept
 
 /// Set the topography
 template<typename U>
-void Gridded::set(const int nLatitudes, const U *latitudes,
-                  const int nLongitudes, const U *longitudes,
+void Gridded::set(const int nx, const U *xs,
+                  const int ny, const U *ys,
                   const int nGrid, const U *elevation)
 {
-    if (nLatitudes*nLongitudes != nGrid)
+    if (nx*ny != nGrid)
     {
-        throw std::invalid_argument("nGrid != nLatitudes x nLongitudes");
+        throw std::invalid_argument("nGrid != nx x ny");
     }
     if (elevation == nullptr)
     {
         throw std::invalid_argument("Elevation is NULL");
     }
-    ::checkLatitudes(nLatitudes, latitudes);
-    ::checkLongitudes(nLongitudes, longitudes);
+    if (!std::is_sorted(xs, xs + nx, std::less<>{}))
+    {
+        throw std::invalid_argument("xs must be sorted");
+    }
+    if (!std::is_sorted(ys, ys + ny, std::less<>{}))
+    {
+        throw std::invalid_argument("ys must be sorted");
+    }
+    //::checkLatitudes(nLatitudes, latitudes);
+    //::checkLongitudes(nLongitudes, longitudes);
     // Copy
-    pImpl->mLatitudes.resize(nLatitudes);
-    std::copy(latitudes, latitudes + nLatitudes, pImpl->mLatitudes.data());
-    pImpl->mLongitudes.resize(nLongitudes);
-    std::copy(longitudes, longitudes + nLongitudes, pImpl->mLongitudes.data());
+    pImpl->mX.resize(nx);
+    std::copy(xs, xs + nx, pImpl->mX.data());
+    pImpl->mY.resize(ny);
+    std::copy(ys, ys + ny, pImpl->mY.data());
     pImpl->mElevations.resize(nGrid);
     std::copy(elevation, elevation + nGrid, pImpl->mElevations.data());
-    ::fixLongitudes(pImpl->mLongitudes);
+    const auto [elevationMin, elevationMax]
+       = std::minmax_element(pImpl->mElevations.begin(), pImpl->mElevations.end());
+    pImpl->mMinimumElevation = *elevationMin;
+    pImpl->mMaximumElevation = *elevationMax;
     pImpl->mHaveTopography = true;
 }
 
 /// Interpolate
-double Gridded::evaluate(const double latitude, const double longitudeIn) const
+double Gridded::evaluate(const double x, const double y) const
 {
-    if (latitude < -90 || latitude > 90)
-    {
-        throw std::invalid_argument("Latitude must be in range [-90,90]");
-    }
-    auto longitude = ::lonTo180(longitudeIn);
-    double longitude0 = pImpl->mLongitudes.front();
-    double longitude1 = pImpl->mLongitudes.back();
-    double latitude0  = pImpl->mLatitudes.front();
-    double latitude1  = pImpl->mLatitudes.back();
-    auto xi = std::max(longitude0, std::min(longitude1, longitude));
-    auto yi = std::max(latitude0,  std::min(latitude1,  latitude));
-    auto lonPtr = std::lower_bound(pImpl->mLongitudes.begin(),
-                                   pImpl->mLongitudes.end(),
-                                   xi);
-    auto iLon
-        = static_cast<int> (std::distance(pImpl->mLongitudes.begin(), lonPtr)) - 1;
-    iLon = std::max(0, std::min(iLon, static_cast<int> (pImpl->mLongitudes.size()) - 2));
+    return evaluate(x, y, nullptr, nullptr);
+}
 
-    auto latPtr = std::lower_bound(pImpl->mLatitudes.begin(),
-                                   pImpl->mLatitudes.end(),
-                                   yi);
-    auto iLat
-        = static_cast<int> (std::distance(pImpl->mLatitudes.begin(), latPtr)) - 1;
-    iLat = std::max(0, std::min(iLat, static_cast<int> (pImpl->mLatitudes.size()) - 2));
+/// Interpolate
+double Gridded::evaluate(const double x, const double y,
+                         double *dElevationDx, double *dElevationDy) const
+{
+    double xOrigin = pImpl->mX.front();
+    double xExtent = pImpl->mX.back();
+    double yOrigin = pImpl->mY.front();
+    double yExtent = pImpl->mY.back();
+    auto xi = std::max(xOrigin, std::min(xExtent, x));
+    auto yi = std::max(yOrigin, std::min(yExtent,  y));
+    auto xPtr = std::lower_bound(pImpl->mX.begin(), pImpl->mX.end(), xi);
+    auto ix = static_cast<int> (std::distance(pImpl->mX.begin(), xPtr)) - 1;
+    ix = std::max(0, std::min(ix, static_cast<int> (pImpl->mX.size()) - 2));
+
+    auto yPtr = std::lower_bound(pImpl->mY.begin(), pImpl->mY.end(), yi);
+    auto iy = static_cast<int> (std::distance(pImpl->mY.begin(), yPtr)) - 1;
+    iy = std::max(0, std::min(iy, static_cast<int> (pImpl->mY.size()) - 2));
     // Interpolate
-    double x0 = pImpl->mLongitudes[iLon];
-    double x1 = pImpl->mLongitudes[iLon + 1];
+    double x0 = pImpl->mX[ix];
+    double x1 = pImpl->mX[ix + 1];
     auto dxi = 1./(x1 - x0);
-    double y0 = pImpl->mLatitudes[iLat];
-    double y1 = pImpl->mLatitudes[iLat + 1];
+    double y0 = pImpl->mY[iy];
+    double y1 = pImpl->mY[iy + 1];
     auto dyi = 1./(y1 - y0);
 #ifndef NDEBUG
     assert(xi >= x0 && xi <= x1);
     assert(yi >= y0 && yi <= y1);
 #endif
-    auto nLongitudes = static_cast<int> (pImpl->mLongitudes.size());
+    auto nx = static_cast<int> (pImpl->mX.size());
     auto z00 = pImpl->mZ00;
     auto z01 = pImpl->mZ01;
     auto z10 = pImpl->mZ10;
     auto z11 = pImpl->mZ11;
-    if (iLon != pImpl->mLon0 || iLat != pImpl->mLat0)
+    if (ix != pImpl->mIX0 || iy != pImpl->mIY0)
     {
-        auto i00 = iLat*nLongitudes + iLon;
+        auto i00 = iy*nx + ix;
         auto i10 = i00 + 1;
-        auto i01 = i00 + nLongitudes;
+        auto i01 = i00 + nx;
         auto i11 = i01 + 1;
         z00 = static_cast<double> (pImpl->mElevations.at(i00));
         z10 = static_cast<double> (pImpl->mElevations.at(i10));
@@ -255,12 +321,29 @@ double Gridded::evaluate(const double latitude, const double longitudeIn) const
         pImpl->mZ01 = z01;
         pImpl->mZ10 = z10;
         pImpl->mZ11 = z11;
-        pImpl->mLon0 = iLon;
-        pImpl->mLat0 = iLat;
+        pImpl->mIX0 = ix;
+        pImpl->mIY0 = iy;
     }
     auto fy0 = dxi*( (x1 - xi)*z00 + (xi - x0)*z10 );
     auto fy1 = dxi*( (x1 - xi)*z01 + (xi - x0)*z11 );
+    if (dElevationDx != nullptr)
+    {
+        auto dfy0dx = dxi*( z10 - z00 );
+        auto dfy1dx = dxi*( z11 - z01 );
+        *dElevationDx = dyi*( (y1 - yi)*dfy0dx + (yi - y0)*dfy1dx ); 
+    }
+    if (dElevationDy != nullptr)
+    {
+        *dElevationDy = dyi*(fy1 - fy0);
+    }
     return dyi*( (y1 - yi)*fy0 + (yi - y0)*fy1 );
+}
+
+/// Min/max elevation
+std::pair<double, double> Gridded::getMinimumAndMaximumElevation() const
+{
+    if (!haveTopography()){throw std::runtime_error("Topography not set");}
+    return std::pair {pImpl->mMinimumElevation, pImpl->mMaximumElevation};
 }
 
 ///--------------------------------------------------------------------------///
