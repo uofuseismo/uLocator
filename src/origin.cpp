@@ -38,42 +38,38 @@ public:
         mAzimuthalGap =-1;
         mNearestStationDistance =-1;
         if (mArrivals.empty()){return;}
-        if (mEpicenter.havePosition())
+        if (!mEpicenter.havePosition()){return;}
+        // Compute derivative products
+        std::vector<double> azimuths;
+        azimuths.reserve(mArrivals.size() + 1);
+        double minimumDistance{std::numeric_limits<double>::max()};
+        for (const auto &arrival : mArrivals)
         {
-            std::vector<double> azimuths;
-            azimuths.reserve(mArrivals.size() + 1);
-            double minimumDistance{std::numeric_limits<double>::max()};
-            for (const auto &arrival : mArrivals)
+           if (arrival.haveAzimuth())
             {
-                if (arrival.haveAzimuth())
-                {
-                    azimuths.push_back(arrival.getAzimuth());
-                }
-                if (arrival.haveDistance())
-                {
-                    minimumDistance = std::min(minimumDistance,
-                                               arrival.getDistance());
-                }
+               azimuths.push_back(arrival.getAzimuth());
             }
-            if (minimumDistance < std::numeric_limits<double>::max())
+            if (arrival.haveDistance())
             {
-                mNearestStationDistance = minimumDistance;
-            }
-            auto nAzimuths = static_cast<int> (azimuths.size());
-            std::sort(azimuths.begin(), azimuths.begin() + nAzimuths);
-            azimuths.back() = azimuths.front(); // Trick that makes this work
-            double maximumGap{0};
-            for (int i = 0; i < nAzimuths; ++i)
-            {
-                maximumGap = std::max(azimuths[i + 1] - azimuths[i],
-                                      maximumGap); 
-            }
-            // Could happen for only one station and multiple phases
-            if (maximumGap > 0)
-            {
-                mAzimuthalGap = maximumGap;
+                minimumDistance = std::min(minimumDistance,
+                                           arrival.getDistance());
             }
         }
+        // Could happen for no arrivals with distances
+        if (minimumDistance < std::numeric_limits<double>::max())
+        {
+            mNearestStationDistance = minimumDistance;
+        }
+        auto nAzimuths = static_cast<int> (azimuths.size());
+        std::sort(azimuths.begin(), azimuths.begin() + nAzimuths);
+        azimuths.back() = azimuths.front(); // Trick that makes this work
+        double maximumGap{0};
+        for (int i = 0; i < nAzimuths; ++i)
+        {
+            maximumGap = std::max(azimuths[i + 1] - azimuths[i], maximumGap);
+        }
+        // Could happen for only one station and multiple phases
+        if (maximumGap > 0){mAzimuthalGap = maximumGap;}
     }
     std::vector<Arrival> mArrivals;
     Position::WGS84 mEpicenter;
