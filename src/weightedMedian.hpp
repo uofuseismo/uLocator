@@ -9,6 +9,14 @@
 namespace
 {
 
+/// @param[in] x  The vector residuals of which to find the weighted.
+///               median.  This has units of seconds.
+/// @param[in] weights  The corresponding weights.  This has units of
+///                     1/s.
+/// @param[in,out] workSpace  A workspace array.
+/// @result The weighted median of the residual vector with units of
+///         seconds.
+[[nodiscard]]
 double weightedMedian(const std::vector<double> &x,
                       const std::vector<double> &weights,
                       std::vector<std::pair<double, int>> &workSpace)

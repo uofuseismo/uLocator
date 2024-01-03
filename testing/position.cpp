@@ -1,6 +1,7 @@
 #include "uLocator/position/wgs84.hpp"
 #include "uLocator/position/utah.hpp"
 #include "uLocator/position/ynp.hpp"
+#include "uLocator/position/utahQuarry.hpp"
 #include <gtest/gtest.h>
 
 using namespace ULocator;
@@ -99,6 +100,43 @@ TEST(ULocatorPosition, YNP)
     EXPECT_NEAR(minMaxX.second,  78154.09571331974, 1.e-3);
     EXPECT_NEAR(minMaxY.first,  -110611.925792941,  1.e-3);
     EXPECT_NEAR(minMaxY.second,  111604.1838556079, 1.e-3);
+}
+
+TEST(ULocatorPosition, UtahQuarry)
+{
+    const std::string name{"Bingham"};
+    constexpr double latitude{40.529800};
+    constexpr double longitude{-112.147700};
+    Position::Utah utah;
+    auto localCoordinates  
+         = utah.geographicToLocalCoordinates(latitude, longitude);
+ 
+    Position::UtahQuarry bingham;
+    bingham.setName(name);
+    bingham.setGeographicCoordinates(latitude, longitude);
+
+    auto copy = bingham;
+    EXPECT_NEAR(copy.getGeographicCoordinates().first,  latitude,  1.e-10);
+    EXPECT_NEAR(copy.getGeographicCoordinates().second, longitude, 1.e-10);
+    EXPECT_EQ(copy.getName(), name);
+    EXPECT_NEAR(copy.getLocalCoordinates().first,
+                localCoordinates.first, 1.e-10);
+    EXPECT_NEAR(copy.getLocalCoordinates().second,
+                localCoordinates.second, 1.e-10);
+
+    auto move = std::move(bingham);
+    EXPECT_NEAR(move.getGeographicCoordinates().first,  latitude,  1.e-10);
+    EXPECT_NEAR(move.getGeographicCoordinates().second, longitude, 1.e-10);
+    EXPECT_EQ(move.getName(), name);
+
+    auto clone = move.clone();
+    EXPECT_TRUE(clone->haveGeographicCoordinates());
+    EXPECT_NEAR(clone->getGeographicCoordinates().first,  latitude,  1.e-10);
+    EXPECT_NEAR(clone->getGeographicCoordinates().second, longitude, 1.e-10);
+    EXPECT_NEAR(clone->getLocalCoordinates().first,
+                localCoordinates.first, 1.e-10);
+    EXPECT_NEAR(clone->getLocalCoordinates().second,
+                localCoordinates.second, 1.e-10);
 }
 
 }

@@ -17,6 +17,7 @@ double weightedMean(const std::vector<double> &residuals,
 #ifndef NDEBUG
     assert(!residuals.empty());
     assert(!weights.empty());
+    assert(weights.size() == residuals.size());
 #endif
     constexpr double zero{0};
     auto numerator = std::inner_product(residuals.begin(), residuals.end(),

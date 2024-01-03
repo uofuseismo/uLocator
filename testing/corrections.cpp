@@ -3,6 +3,7 @@
 #include <string>
 #include "uLocator/corrections/static.hpp"
 #include "weightedMean.hpp"
+#include "weightedMedian.hpp"
 #include <gtest/gtest.h>
 
 using namespace ULocator::Corrections;
@@ -15,6 +16,23 @@ TEST(ULocatorCorrections, WeightedMean)
     std::vector<double> residuals{14.424, 14.421, 14.417, 14.413, 14.41};
     std::vector<double> weights{3058.0, 8826.0, 56705.0, 30657.0, 12984.0};
     EXPECT_NEAR(::weightedMean(residuals, weights), 14.415602815646439, 1.e-12);
+}
+
+TEST(ULocatorCorrections, WeightedMedian)
+{
+    std::vector<std::pair<double, int>> workSpace;
+    EXPECT_NEAR(::weightedMedian(std::vector<double> {-2, -1, 1, 3},
+                                 std::vector<double> {1, 1, 1, 1},
+                                 workSpace), 0, 1.e-14);
+    EXPECT_NEAR(::weightedMedian(std::vector<double> {-2, 1, -1, 2, 4},
+                                 std::vector<double> { 1, 1,  1, 1, 1},
+                                 workSpace), 1, 1.e-14); 
+    EXPECT_NEAR(::weightedMedian(std::vector<double> {1, 2, 3, 4},
+                                 std::vector<double> {0.1, 0.4, 0.4, 0.1},
+                                 workSpace), 2.5, 1.e-14);
+    EXPECT_NEAR(::weightedMedian(std::vector<double> {1, 4, 5, 6, 11},
+                                 std::vector<double> {0.1, 0.2, 0.3, 0.2, 0.1},
+                                 workSpace), 5, 1.e-14);
 }
 
 TEST(ULocatorCorrections, Static)
@@ -48,7 +66,11 @@ TEST(ULocatorCorrections, Static)
     EXPECT_NEAR(correction.getCorrection(), 0.1, 1.e-10);
     correction.train(observed, estimated, weights, Static::Method::Mean);
     EXPECT_NEAR(correction.getCorrection(), -0.01333333333333333, 1.e-10);
+}
+/*
+TEST(ULocatorCorrections, SourceSpecificStation)
+{
 
 }
-
+*/
 }
