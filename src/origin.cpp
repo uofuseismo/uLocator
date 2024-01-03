@@ -11,35 +11,64 @@ using namespace ULocator;
 class Origin::OriginImpl
 {
 public:
-    void computeAzimuthalGap()
+    void updateArrivalDistanceAzimuth()
     {
-        mAzimuthalGap = 360;
-        if (mArrivals.empty()){return;}
-        auto nArrivals = static_cast<int> (mArrivals.size());
         if (mEpicenter.havePosition())
         {
             auto latitude = mEpicenter.getLatitude();
             auto longitude = mEpicenter.getLongitude();
-            std::vector<double> azimuths(mArrivals.size() + 1);
-            for (int i = 0; i < nArrivals; ++i)
+            for (auto &arrival : mArrivals)
             {
-                const auto &station = mArrivals[i].getStationReference();
-                double distance;
+                const auto &station = arrival.getStationReference();
+                double azimuth, distance;
                 Position::computeDistanceAzimuth(
                     mEpicenter,
                     station.getGeographicPosition(),
                     nullptr,
                     &distance,
-                    &azimuths[i],
+                    &azimuth,
                     nullptr);
+                arrival.setDistance(distance);
+                arrival.setAzimuth(azimuth);
             }
-            std::sort(azimuths.begin(), azimuths.begin() + mArrivals.size());
-            azimuths.back() = azimuths.front();
-            double maximumGap{0};
-            for (int i = 0; i < nArrivals; ++i)
+        }
+    }
+    void computeAzimuthalGapAndNearestStation()
+    {
+        mAzimuthalGap =-1;
+        mNearestStationDistance =-1;
+        if (mArrivals.empty()){return;}
+        if (mEpicenter.havePosition())
+        {
+            std::vector<double> azimuths;
+            azimuths.reserve(mArrivals.size() + 1);
+            double minimumDistance{std::numeric_limits<double>::max()};
+            for (const auto &arrival : mArrivals)
             {
-                maximumGap = std::max(azimuths[i + 1] - azimuths[i], maximumGap); 
+                if (arrival.haveAzimuth())
+                {
+                    azimuths.push_back(arrival.getAzimuth());
+                }
+                if (arrival.haveDistance())
+                {
+                    minimumDistance = std::min(minimumDistance,
+                                               arrival.getDistance());
+                }
             }
+            if (minimumDistance < std::numeric_limits<double>::max())
+            {
+                mNearestStationDistance = minimumDistance;
+            }
+            auto nAzimuths = static_cast<int> (azimuths.size());
+            std::sort(azimuths.begin(), azimuths.begin() + nAzimuths);
+            azimuths.back() = azimuths.front(); // Trick that makes this work
+            double maximumGap{0};
+            for (int i = 0; i < nAzimuths; ++i)
+            {
+                maximumGap = std::max(azimuths[i + 1] - azimuths[i],
+                                      maximumGap); 
+            }
+            // Could happen for only one station and multiple phases
             if (maximumGap > 0)
             {
                 mAzimuthalGap = maximumGap;
@@ -50,7 +79,8 @@ public:
     Position::WGS84 mEpicenter;
     double mOriginTime{0};
     double mDepth{0};
-    double mAzimuthalGap{0};
+    double mAzimuthalGap{-1};
+    double mNearestStationDistance{-1};
     int64_t mIdentifier{0};
     EventType mEventType{EventType::Unknown};
     bool mDepthFixed{false};
@@ -105,22 +135,16 @@ Origin::~Origin() = default;
 /// Depth
 void Origin::setDepth(const double depth, const bool isFixed)
 {
-    if (depth < -5400 || depth > 6400000)
+    if (depth < -8900 || depth > 6400000)
     {
-        throw std::invalid_argument("Depth must be in range [-8900, 6,400,000]");
+        throw std::invalid_argument(
+           "Depth must be in range [-8900, 6400000] km");
     }
     pImpl->mDepth = depth;
     pImpl->mDepthFixed = isFixed;
     pImpl->mHaveDepth = true;
 }
 
-/*
-void Origin::setDepthToFreeSurface() noexcept
-{
-
-}
-*/
-    
 double Origin::getDepth() const
 {
     if (!haveDepth()){throw std::runtime_error("Depth not set");}
@@ -137,6 +161,7 @@ bool Origin::isFixedDepth() const noexcept
     return pImpl->mDepthFixed;
 }
     
+/// Event identifier
 void Origin::setIdentifier(int64_t identifier) noexcept
 {
     pImpl->mIdentifier = identifier;
@@ -162,7 +187,8 @@ void Origin::setArrivals(const std::vector<Arrival> &arrivals)
         }
     }
     pImpl->mArrivals = arrivals;
-    pImpl->computeAzimuthalGap();
+    pImpl->updateArrivalDistanceAzimuth();
+    pImpl->computeAzimuthalGapAndNearestStation();
 }
 
 std::vector<Arrival> Origin::getArrivals() const
@@ -198,7 +224,8 @@ void Origin::setEpicenter(const Position::WGS84 &epicenter)
 {
     pImpl->mEpicenter = epicenter;
     pImpl->mHaveEpicenter = true;
-    pImpl->computeAzimuthalGap();
+    pImpl->updateArrivalDistanceAzimuth();
+    pImpl->computeAzimuthalGapAndNearestStation();
 }
 
 Position::WGS84 Origin::getEpicenter() const
@@ -221,4 +248,50 @@ void Origin::setEventType(const EventType eventType) noexcept
 Origin::EventType Origin::getEventType() const noexcept
 {
     return pImpl->mEventType;
+}
+
+/// Azimuthal gap
+double Origin::getAzimuthalGap() const
+{
+    if (!haveAzimuthalGap())
+    {
+        if (!haveEpicenter())
+        {
+            throw std::runtime_error("Epicenter not set");
+        }
+        else if (pImpl->mArrivals.empty())
+        {
+            throw std::runtime_error("No arrivals set");
+        }
+        throw std::runtime_error("Nearest station distance not computed");
+    }
+    return pImpl->mAzimuthalGap;
+}
+
+bool Origin::haveAzimuthalGap() const noexcept
+{
+    return (pImpl->mAzimuthalGap >= 0);
+}
+
+/// Distance
+double Origin::getNearestStationDistance() const
+{
+    if (!haveNearestStationDistance())
+    {
+        if (!haveEpicenter())
+        {
+            throw std::runtime_error("Epicenter not set");
+        }
+        else if (pImpl->mArrivals.empty())
+        {
+            throw std::runtime_error("No arrivals set");
+        }
+        throw std::runtime_error("Nearest station distance not computed");
+    }
+    return pImpl->mNearestStationDistance;
+}
+
+bool Origin::haveNearestStationDistance() const noexcept
+{
+    return (pImpl->mNearestStationDistance >= 0);
 }
