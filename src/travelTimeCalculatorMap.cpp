@@ -4,7 +4,6 @@
 #include <map>
 #ifdef USE_TBB
 #include <oneapi/tbb/parallel_for.h>
-//#include <oneapi/tbb.h>
 #endif
 #include "uLocator/travelTimeCalculatorMap.hpp"
 #include "uLocator/station.hpp"
@@ -14,14 +13,7 @@ using namespace ULocator;
 
 namespace
 {
-/*
-bool operator==(const std::pair<Station, std::string> &lhs,
-                const std::pair<Station, std::string> &rhs)
-{
-    return (lhs.first.getHash() == rhs.first.getHash() &&
-            lhs.second == rhs.second);
-}
-*/
+
 bool operator<(const std::pair<Station, std::string> &lhs,
                const std::pair<Station, std::string> &rhs)
 {
@@ -82,7 +74,8 @@ int TravelTimeCalculatorMap::size() const noexcept
 /// Evaluate
 void TravelTimeCalculatorMap::evaluate(
     const std::vector<std::pair<Station, std::string>> &stationPhases,
-    const Position::WGS84 &epicenter, const double depth,
+    const double originTime,
+    const double xSource, const double ySource, const double zSource,
     std::vector<double> *travelTimes,
     const bool applyCorrection) const
 {
@@ -103,9 +96,11 @@ void TravelTimeCalculatorMap::evaluate(
         {
              for (size_t i = range.begin(); i != range.end(); ++i)
              {
-                 travelTimes->at(i) = this->evaluate(stationPhases[i].first,
-                                                     stationPhases[i].second,
-                                                     epicenter, depth);
+                 travelTimes->at(i)
+                     = this->evaluate(stationPhases[i].first,
+                                      stationPhases[i].second,
+                                      originTime, xSource, ySource, zSource,
+                                      applyCorrection);
              }
         }
     );
@@ -113,8 +108,9 @@ void TravelTimeCalculatorMap::evaluate(
     for (size_t i = 0; i < stationPhases.size(); ++i)
     {
         travelTimes->at(i)
-            = this->evaluate(stationPhases[i].first, stationPhases[i].second,
-                             epicenter, depth,
+            = this->evaluate(stationPhases[i].first,
+                             stationPhases[i].second,
+                             originTime, xSource, ySource, zSource,
                              applyCorrection);
     }
 #endif
@@ -123,8 +119,10 @@ void TravelTimeCalculatorMap::evaluate(
 /// Evaluate
 void TravelTimeCalculatorMap::evaluate(
     const std::vector<std::pair<Station, std::string>> &stationPhases,
-    const Position::WGS84 &epicenter, const double depth,
+    const double originTime,
+    const double xSource, const double ySource, const double zSource,
     std::vector<double> *travelTimes,
+    std::vector<double> *dtdt0,
     std::vector<double> *dtdx,
     std::vector<double> *dtdy,
     std::vector<double> *dtdz,
@@ -134,12 +132,17 @@ void TravelTimeCalculatorMap::evaluate(
     {   
         throw std::invalid_argument("Travel times is NULL");
     }   
+    if (dtdt0 == nullptr){throw std::invalid_argument("dtdt0 is NULL");}
     if (dtdx == nullptr){throw std::invalid_argument("dtdx is NULL");}
     if (dtdy == nullptr){throw std::invalid_argument("dtdy is NULL");}
     if (dtdz == nullptr){throw std::invalid_argument("dtdz is NULL");}
     if (travelTimes->size() != stationPhases.size())
     {   
         travelTimes->resize(stationPhases.size(), 0); 
+    }
+    if (dtdt0->size() != stationPhases.size())
+    {
+        dtdt0->resize(stationPhases.size(), 0);
     }
     if (dtdx->size() != stationPhases.size())
     {
@@ -162,12 +165,14 @@ void TravelTimeCalculatorMap::evaluate(
         {
              for (size_t i = range.begin(); i != range.end(); ++i)
              {
-                 double dtdxi, dtdyi, dtdzi;
-                 travelTimes->at(i) = this->evaluate(stationPhases[i].first,
-                                                     stationPhases[i].second,
-                                                     epicenter, depth,
-                                                     &dtdxi, &dtdyi, &dtdzi,
-                                                     applyCorrection);
+                 double dtdt0i, dtdxi, dtdyi, dtdzi;
+                 travelTimes->at(i)
+                      = this->evaluate(stationPhases[i].first,
+                                       stationPhases[i].second,
+                                       originTime, xSource, ySource, zSource,
+                                       &dtdt0i, &dtdxi, &dtdyi, &dtdzi,
+                                       applyCorrection);
+                 dtdt0->at(i) = dtdt0i;
                  dtdx->at(i) = dtdxi;
                  dtdy->at(i) = dtdyi;
                  dtdz->at(i) = dtdzi;
@@ -177,12 +182,14 @@ void TravelTimeCalculatorMap::evaluate(
 #else
     for (size_t i = 0; i < stationPhases.size(); ++i)
     {   
-        double dtdxi, dtdyi, dtdzi;
+        double dtdt0i, dtdxi, dtdyi, dtdzi;
         travelTimes->at(i)
-            = this->evaluate(stationPhases[i].first, stationPhases[i].second,
-                             epicenter, depth,
-                             &dtdxi, &dtdyi, &dtdzi,
+            = this->evaluate(stationPhases[i].first,
+                             stationPhases[i].second,
+                             originTime, xSource, ySource, zSource,
+                             &dtdt0i, &dtdxi, &dtdyi, &dtdzi,
                              applyCorrection);
+        dtdt0->at(i) = dtdt0i;
         dtdx->at(i) = dtdxi;
         dtdy->at(i) = dtdyi;
         dtdz->at(i) = dtdzi;
@@ -192,20 +199,24 @@ void TravelTimeCalculatorMap::evaluate(
 
 double TravelTimeCalculatorMap::evaluate(
     const Station &station, const std::string &phase,
-    const Position::WGS84 &epicenter, const double depth,
+    const double originTime,
+    const double xSource, const double ySource, const double zSource,
     const bool applyCorrection) const
 {
-    return at(station, phase)->evaluate(epicenter, depth, applyCorrection);
+    return at(station, phase)->evaluate(originTime, xSource, ySource, zSource,
+                                        applyCorrection);
 }
 
 double TravelTimeCalculatorMap::evaluate(
     const Station &station, const std::string &phase,
-    const Position::WGS84 &epicenter, const double depth,
-    double *dtdx, double *dtdy, double *dtdz,
+    const double originTime,
+    const double xSource, const double ySource, const double zSource,
+    double *dtdt0, double *dtdx, double *dtdy, double *dtdz,
     const bool applyCorrection) const
 {
-    return at(station, phase)->evaluate(epicenter, depth,
-                                        dtdx, dtdy, dtdz, applyCorrection);
+    return at(station, phase)->evaluate(originTime, xSource, ySource, zSource,
+                                        dtdt0, dtdx, dtdy, dtdz,
+                                        applyCorrection);
 }
 
 /// Insert

@@ -168,28 +168,33 @@ TEST(ULocator, HalfSpace)
     pso.setTravelTimeCalculatorMap(std::move(travelTimeTableMap));
     pso.setTopography(std::move(topography));
     pso.setArrivals(arrivals);
-    pso.locate();
-/*
-    // Create the locator 
-    NLOptOptions options(NLOptOptions::Region::Utah);
-    options.setInitialAbsoluteModelTolerance(1.e-4);
-    options.setAbsoluteModelTolerance(1.e-7); 
-    options.setObjectiveFunction(NLOptOptions::ObjectiveFunction::LeastSquares);
-    NLOpt locator; 
-    locator.setOptions(options);
-    EXPECT_NO_THROW(locator.setTravelTimeCalculatorMap(std::move(travelTimeTableMap)));
-    EXPECT_NO_THROW(locator.setArrivals(arrivals));
-    EXPECT_NO_THROW(locator.locateEarthquake());
-    auto origin = locator.getOrigin();
-    EXPECT_NEAR(eventLatitude,  origin.getEpicenter().getLatitude(),  1.e-3);
-    EXPECT_NEAR(eventLongitude, origin.getEpicenter().getLongitude(), 1.e-3);
-    EXPECT_NEAR(eventDepth,     origin.getDepth(),                    1);
-    EXPECT_NEAR(originTime,     origin.getTime(),                     1.e-2);
+    std::vector<ULocator::Optimizers::IOptimizer::Norm> norms
+    {
+        ULocator::Optimizers::IOptimizer::Norm::LeastSquares,
+        ULocator::Optimizers::IOptimizer::Norm::L1,
+        ULocator::Optimizers::IOptimizer::Norm::Lp
+    };
+    for (const auto &norm : norms)
+    {
+        pso.locate(ULocator::Optimizers::IOptimizer::LocationProblem::ThreeDimensionsAndTime,
+                   norm);
+        EXPECT_TRUE(pso.haveOrigin());
+        auto newOrigin = pso.getOrigin();
+        EXPECT_NEAR(newOrigin.getEpicenter().getLatitude(),
+                    eventLatitude, 5.e-2);
+        EXPECT_NEAR(newOrigin.getEpicenter().getLongitude(),
+                    eventLongitude, 5.e-2);
+        EXPECT_NEAR(newOrigin.getTime(),  originTime, 5.e-2); 
+        EXPECT_NEAR(newOrigin.getDepth(), eventDepth, 5);
+        auto newArrivals = newOrigin.getArrivals();
+        for (const auto &newArrival : newArrivals)
+        {
+            std::cout << newArrival.getResidual() << std::endl;
+        }
+std::cout << std::endl;
+    }
 
-    //std::cout << "lat/lon residual: " << eventLatitude - origin.getEpicenter().getLatitude() << "," << eventLongitude - origin.getEpicenter().getLongitude() << std::endl;
-    //std::cout << "depth residual: " << eventDepth - origin.getDepth() << std::endl;
-    //std::cout << "ot residual: " << originTime - origin.getTime() << std::endl;
-*/
+    // Locate with fixed depth
 }
 
 }

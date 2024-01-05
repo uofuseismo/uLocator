@@ -1,4 +1,3 @@
-#include <iostream>
 #include <cmath>
 #ifndef NDEBUG
 #include <cassert>
@@ -45,7 +44,6 @@ public:
             ::latitudeLongitudeToUTM(mLatitude, mLongitude, zone,
                                      &mEasting, &mNorthing);
          }
-         //std::cout << mLatitude << " " << mLongitude << std::endl;
     }
     void reverse()
     {

@@ -12,16 +12,10 @@
 #include "uLocator/position/geographicRegion.hpp"
 #include "uLocator/topography/topography.hpp"
 #include "uLocator/station.hpp"
+#include "uLocator/optimizers/optimizer.hpp"
 
 namespace
 {
-
-enum class Norm
-{
-    L1,
-    LeastSquares,
-    Lp
-};
 
 enum class Measurement
 {
@@ -42,6 +36,45 @@ T sgn(const T x)
     {   
         return -1; 
     }   
+}
+
+template<typename T>
+void reduceTimes(const std::vector<T> &arrivalTimes,
+                 std::vector<T> *reducedArrivals,
+                 T *reductionTime)
+{
+    *reductionTime = 0;
+    if (reducedArrivals->size() != arrivalTimes.size())
+    {
+        reducedArrivals->resize(arrivalTimes.size());
+    }
+    if (arrivalTimes.empty()){return;}
+    *reductionTime
+        = *std::min_element(arrivalTimes.begin(), arrivalTimes.end());
+    reducedArrivals->resize(arrivalTimes.size());
+    std::transform(arrivalTimes.begin(), arrivalTimes.end(),
+                   reducedArrivals->begin(),
+                   [&](const T ai)
+                   {
+                       return ai - *reductionTime;
+                   });
+}
+
+template<typename T>
+void restoreTimes(const std::vector<T> &reducedArrivals,
+                  const T reductionTime,
+                  std::vector<T> *arrivalTimes)
+{
+    if (arrivalTimes->size() != reducedArrivals.size())
+    {
+        arrivalTimes->resize(reducedArrivals.size());
+    }
+    std::transform(reducedArrivals.begin(), reducedArrivals.end(),
+                   arrivalTimes->begin(),
+                   [&](const T ai)
+                   {
+                       return ai + reductionTime;
+                   });
 }
 
 template<typename T>
@@ -265,7 +298,7 @@ struct Problem3DAndTime
                                                &arrivalTimes,
                                                &dtdt0s, &dtdxs, &dtdys, &dtdzs,
                                                mApplyCorrection);
-            if (mNorm == ::Norm::LeastSquares)
+            if (mNorm == ULocator::Optimizers::IOptimizer::Norm::LeastSquares)
             {
                 constexpr double two{2};
                 for (int i = 0; i < nArrivals; ++i)
@@ -283,7 +316,7 @@ struct Problem3DAndTime
                                 - twoWeightSquaredResidual*dtdzs[i];
                 }
             }
-            else if (mNorm == ::Norm::L1)
+            else if (mNorm == ULocator::Optimizers::IOptimizer::Norm::L1)
             {
                 for (int i = 0; i < nArrivals; ++i)
                 {
@@ -302,7 +335,7 @@ struct Problem3DAndTime
                                 - weightedSgnWeightedResidual*dtdzs[i];
                 }
             }
-            else if (mNorm == ::Norm::Lp)
+            else if (mNorm == ULocator::Optimizers::IOptimizer::Norm::Lp)
             {
                 // p-norm: ||w*(T - T(x))||_p
                 //       = ( sum_i |w_i*(T_i - T_i(x))|^p )^(1/p)
@@ -353,19 +386,19 @@ struct Problem3DAndTime
                                                &arrivalTimes,
                                                mApplyCorrection);
         }
-        if (mNorm == ::Norm::LeastSquares)
+        if (mNorm == ULocator::Optimizers::IOptimizer::Norm::LeastSquares)
         {
             costFunction
                 = ::leastSquares(mWeights, mObservations, arrivalTimes,
                                  Measurement::Standard);
         }
-        else if (mNorm == ::Norm::L1)
+        else if (mNorm == ULocator::Optimizers::IOptimizer::Norm::L1)
         {
             costFunction
                 = ::l1(mWeights, mObservations, arrivalTimes,
                        Measurement::Standard);
         }
-        else if (mNorm == ::Norm::Lp)
+        else if (mNorm == ULocator::Optimizers::IOptimizer::Norm::Lp)
         {
             costFunction
                 = ::lp(mWeights, mObservations, arrivalTimes,
@@ -443,7 +476,8 @@ struct Problem3DAndTime
     std::vector<double> mWeights;
     std::vector<double> mLowerBounds;
     std::vector<double> mUpperBounds;
-    ::Norm mNorm{Norm::LeastSquares};
+    ULocator::Optimizers::IOptimizer::Norm mNorm{
+        ULocator::Optimizers::IOptimizer::Norm::LeastSquares};
     double mPNorm{1.5};
     double mPenaltyCoefficient{1};
     bool mApplyCorrection{true};
@@ -525,7 +559,7 @@ struct Problem2DAndTimeAndFixedDepth
                                                &arrivalTimes,
                                                &dtdt0s, &dtdxs, &dtdys, &dtdzs,
                                                mApplyCorrection);
-            if (mNorm == ::Norm::LeastSquares)
+            if (mNorm == ULocator::Optimizers::IOptimizer::Norm::LeastSquares)
             {
                 constexpr double two{2};
                 for (int i = 0; i < nArrivals; ++i)
@@ -541,7 +575,7 @@ struct Problem2DAndTimeAndFixedDepth
                                 - twoWeightSquaredResidual*dtdys[i];
                 }
             }
-            else if (mNorm == ::Norm::L1)
+            else if (mNorm == ULocator::Optimizers::IOptimizer::Norm::L1)
             {
                 for (int i = 0; i < nArrivals; ++i)
                 {
@@ -558,7 +592,7 @@ struct Problem2DAndTimeAndFixedDepth
                                 - weightedSgnWeightedResidual*dtdys[i];
                 }
             }
-            else if (mNorm == ::Norm::Lp)
+            else if (mNorm == ULocator::Optimizers::IOptimizer::Norm::Lp)
             {
                 double costFunctionInverse
                     = ::lp(mWeights, mObservations, arrivalTimes,
@@ -598,19 +632,19 @@ struct Problem2DAndTimeAndFixedDepth
                                                &arrivalTimes,
                                                mApplyCorrection);
         }
-        if (mNorm == ::Norm::LeastSquares)
+        if (mNorm == ULocator::Optimizers::IOptimizer::Norm::LeastSquares)
         {
             costFunction
                 = ::leastSquares(mWeights, mObservations, arrivalTimes,
                                  Measurement::Standard);
         }
-        else if (mNorm == ::Norm::L1)
+        else if (mNorm == ULocator::Optimizers::IOptimizer::Norm::L1)
         {
             costFunction
                 = ::l1(mWeights, mObservations, arrivalTimes,
                        Measurement::Standard);
         }
-        else if (mNorm == ::Norm::Lp)
+        else if (mNorm == ULocator::Optimizers::IOptimizer::Norm::Lp)
         {
             costFunction
                 = ::lp(mWeights, mObservations, arrivalTimes,
@@ -639,13 +673,17 @@ struct Problem2DAndTimeAndFixedDepth
     {
         return std::pair {mLowerBounds, mUpperBounds};
     }
+    /// @result The origin corresponding to this event.
+
     const ULocator::TravelTimeCalculatorMap *mTravelTimeCalculatorMap{nullptr};
     std::vector<std::pair<ULocator::Station, std::string>> mStationPhases;
     std::vector<double> mObservations;
     std::vector<double> mWeights;
     std::vector<double> mLowerBounds;
     std::vector<double> mUpperBounds;
-    ::Norm mNorm{Norm::LeastSquares};
+    ULocator::Optimizers::IOptimizer::Norm mNorm{
+        ULocator::Optimizers::IOptimizer::Norm::LeastSquares
+    };
     double mDepth{6000};
     double mPNorm{1.5};
     double mPenaltyCoefficient{1};
@@ -744,7 +782,7 @@ struct Problem2DAndTimeAndDepthAtFreeSurface
             // In the following we leverage implicit partial derivatives:
             //  d f(x, y, z = E(x,y))/dx = df/dx + df/dE dE/dx
             //  d f(x, y, z = E(x,y))/dy = df/dy + df/dE dE/dy
-            if (mNorm == ::Norm::LeastSquares)
+            if (mNorm == ULocator::Optimizers::IOptimizer::Norm::LeastSquares)
             {
                 constexpr double two{2};
                 for (int i = 0; i < nArrivals; ++i)
@@ -762,7 +800,7 @@ struct Problem2DAndTimeAndDepthAtFreeSurface
                                  *(dtdys[i] + dtdzs[i]*dEdy);
                 }
             }
-            else if (mNorm == Norm::L1)
+            else if (mNorm == ULocator::Optimizers::IOptimizer::Norm::L1)
             {
                 for (int i = 0; i < nArrivals; ++i)
                 {
@@ -781,7 +819,7 @@ struct Problem2DAndTimeAndDepthAtFreeSurface
                                  *(dtdys[i] + dtdzs[i]*dEdy);
                 }
             }
-            else if (mNorm == Norm::Lp)
+            else if (mNorm == ULocator::Optimizers::IOptimizer::Norm::Lp)
             {
                 double costFunctionInverse
                     = ::lp(mWeights, mObservations, arrivalTimes,
@@ -823,19 +861,19 @@ struct Problem2DAndTimeAndDepthAtFreeSurface
                                                &arrivalTimes,
                                                mApplyCorrection);
         }
-        if (mNorm == Norm::LeastSquares)
+        if (mNorm == ULocator::Optimizers::IOptimizer::Norm::LeastSquares)
         {
             costFunction
                 = ::leastSquares(mWeights, mObservations, arrivalTimes,
                                  Measurement::Standard);
         }
-        else if (mNorm == Norm::L1)
+        else if (mNorm == ULocator::Optimizers::IOptimizer::Norm::L1)
         {
             costFunction
                 = ::l1(mWeights, mObservations, arrivalTimes,
                        Measurement::Standard);
         }
-        else if (mNorm == Norm::Lp)
+        else if (mNorm == ULocator::Optimizers::IOptimizer::Norm::Lp)
         {
             costFunction
                 = ::lp(mWeights, mObservations, arrivalTimes,
@@ -873,7 +911,8 @@ struct Problem2DAndTimeAndDepthAtFreeSurface
     std::vector<double> mWeights;
     std::vector<double> mLowerBounds;
     std::vector<double> mUpperBounds;
-    Norm mNorm{::Norm::LeastSquares};
+    ULocator::Optimizers::IOptimizer::Norm mNorm{
+        ULocator::Optimizers::IOptimizer::Norm::LeastSquares};
     double mPNorm{1.5};
     double mPenaltyCoefficient{1};
     bool mApplyCorrection{true};

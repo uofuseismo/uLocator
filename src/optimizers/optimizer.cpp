@@ -2,6 +2,7 @@
 #include <vector>
 #include <umps/logging/standardOut.hpp>
 #include "uLocator/optimizers/optimizer.hpp"
+#include "uLocator/origin.hpp"
 #include "uLocator/travelTimeCalculatorMap.hpp"
 #include "uLocator/topography/topography.hpp"
 #include "uLocator/position/geographicRegion.hpp"
@@ -21,11 +22,13 @@ public:
             mLogger = std::make_shared<UMPS::Logging::StandardOut> ();
         }
     }
+    ULocator::Origin mOrigin;
     std::vector<ULocator::Arrival> mArrivals;
     std::shared_ptr<UMPS::Logging::ILog> mLogger{nullptr};
     std::unique_ptr<ULocator::TravelTimeCalculatorMap> mTravelTimeCalculatorMap{nullptr};
     std::unique_ptr<ULocator::Topography::ITopography> mTopography{nullptr};
     std::unique_ptr<ULocator::Position::IGeographicRegion> mGeographicRegion{nullptr};
+    bool mHaveOrigin{false};
 };
 
 /// Constructor
@@ -214,3 +217,38 @@ bool IOptimizer::haveTravelTimeCalculatorMap() const noexcept
 
 /// Destructor
 IOptimizer::~IOptimizer() = default;
+
+/// The origin
+void IOptimizer::setOrigin(const ULocator::Origin &origin)
+{
+    auto work = origin;
+    setOrigin(std::move(work));
+}
+
+void IOptimizer::setOrigin(ULocator::Origin &&origin)
+{
+    if (!origin.haveTime())
+    {
+        throw std::invalid_argument("Origin time not set");
+    }
+    if (!origin.haveEpicenter())
+    {
+        throw std::invalid_argument("Origin epicenter not set");
+    }
+    if (!origin.haveDepth())
+    {
+        throw std::invalid_argument("Origin depth not set");
+    }
+    pImpl->mOrigin = std::move(origin);
+}
+
+ULocator::Origin IOptimizer::getOrigin() const
+{
+    if (!haveOrigin()){throw std::runtime_error("Origin not set");}
+    return pImpl->mOrigin;
+}
+
+bool IOptimizer::haveOrigin() const noexcept
+{
+    return pImpl->mHaveOrigin;
+}

@@ -1,10 +1,12 @@
 #ifndef ULOCATOR_OPTIMIZERS_OPTIMIZER_HPP
 #define ULOCATOR_OPTIMIZERS_OPTIMIZER_HPP
 #include <memory>
+#include <vector>
 #include <umps/logging/log.hpp>
 namespace ULocator
 {
  class Arrival;
+ class Origin;
  class TravelTimeCalculatorMap;
  namespace Position 
  {
@@ -21,6 +23,31 @@ namespace ULocator::Optimizers
 class IOptimizer
 {
 public:
+    /// @brief Defines the location problem to solve.
+    enum class LocationProblem
+    {
+        ThreeDimensionsAndTime,  /*!< This is the most general problem which
+                                      involves solving for the origin time
+                                      and earthquake hypocenter. */
+        FixedToFreeSurfaceAndTime, /*!< This solves for the origin time
+                                        and epicenter while restricting the
+                                        event to the free surface.  This is
+                                        useful for quarry blasts. */
+        FixedDepthAndTime /*!< This solves for the origin time and epicenter
+                               while fixing the event to a given depth.  This
+                               can be useful during an initial, global search,
+                               location phase, then refining with
+                               a local search using ThreeDimensionsAndtime. */
+    };
+    /// @brief Defines
+    enum class Norm
+    {
+        LeastSquares, /*!< Standard least-squares */
+        L1, /*!< The L1 norm.  */
+        Lp  /*!< An L_p norm.  Note, you should use the specialized 
+                 LeastSquares for Lp with p = 2 and L1 with p = 1. */ 
+    };
+public:
     /// @name Constructors
     /// @{
 
@@ -31,7 +58,8 @@ public:
     /// @}
 
     /// @brief Locates the event.
-    virtual void locate() = 0;
+    virtual void locate(LocationProblem locationProblem,
+                        Norm norm = Norm::LeastSquares) = 0;
 
     /// @name Region
     /// @{
@@ -79,6 +107,18 @@ public:
     virtual void setArrivals(const std::vector<ULocator::Arrival> &arrivals);
     /// @result A constant reference to the arrivals.
     [[nodiscard]] virtual const std::vector<ULocator::Arrival> &getArrivalsReference() const noexcept;
+    /// @}
+
+    /// @name Origin
+    /// @{
+
+    virtual void setOrigin(const ULocator::Origin &origin);
+    virtual void setOrigin(ULocator::Origin &&origin);
+    /// @result The optimized-for origin.
+    /// @throws std::runtime_error if \c haveOrigin() is false.
+    [[nodiscard]] virtual ULocator::Origin getOrigin() const;
+    /// @result True indicates the origin was set.
+    [[nodiscard]] virtual bool haveOrigin() const noexcept;
     /// @}
  
     /// @brief Destructor.

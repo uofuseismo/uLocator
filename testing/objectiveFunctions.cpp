@@ -25,6 +25,26 @@ std::vector<double> ATx(const int nRows, const int nColumns,
     return y;
 }
 
+TEST(ULocatorOptimizersObjectiveFunctions, ReduceTime)
+{
+    std::vector<double> arrivals{13, 12, 10, 11};
+    std::vector<double> reducedArrivals;
+    double reductionTime;
+    ::reduceTimes(arrivals, &reducedArrivals, &reductionTime);
+    EXPECT_NEAR(reductionTime, 10, 1.e-14);
+    for (size_t i = 0; i < arrivals.size(); ++i)
+    {
+        EXPECT_NEAR(arrivals.at(i) - 10, reducedArrivals.at(i), 1.e-14);
+    }
+    std::vector<double> newArrivals;
+    ::restoreTimes(reducedArrivals, reductionTime, &newArrivals);
+    for (size_t i = 0; i < arrivals.size(); ++i)
+    {
+        EXPECT_NEAR(newArrivals.at(i), arrivals.at(i), 1.e-14);
+    }
+ 
+}
+
 TEST(ULocatorOptimizersObjectiveFunctions, L1Standard)
 {
     std::vector<double> weights{1, 0.5, 3};
@@ -158,7 +178,7 @@ TEST(ULocatorOptimizersObjectiveFunctions, ThreeDimensionsAndTime)
     // g = -J^T r 
     auto gradientL1 = ::ATx(l1Residuals.size(), nParameters, jacobian, l1Residuals, -1); 
     auto gradientL2 = ::ATx(l2Residuals.size(), nParameters, jacobian, l2Residuals, -1);
-    obj.mNorm = ::Norm::LeastSquares;
+    obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::LeastSquares;
     auto logLikelihood = obj.logLikelihood(x.size(), x.data());
     EXPECT_NEAR(logLikelihood, -referenceL2, 1.e-4);
     // Compute gradient
@@ -181,7 +201,7 @@ TEST(ULocatorOptimizersObjectiveFunctions, ThreeDimensionsAndTime)
         }
     }
     //------------------------------------l1----------------------------------//
-    obj.mNorm = ::Norm::L1;
+    obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::L1;
     logLikelihood = obj.logLikelihood(x.size(), x.data());
     EXPECT_NEAR(logLikelihood, -referenceL1, 1.e-4);
     // Compute the gradient
@@ -202,7 +222,7 @@ TEST(ULocatorOptimizersObjectiveFunctions, ThreeDimensionsAndTime)
         }
     }
     //------------------------------------lp----------------------------------//
-    obj.mNorm = ::Norm::Lp;
+    obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::Lp;
     obj.mPNorm = p;
     logLikelihood = obj.logLikelihood(x.size(), x.data());
     EXPECT_NEAR(logLikelihood, -referenceLp, 1.e-4);
@@ -282,7 +302,7 @@ TEST(ULocatorOptimizersObjectiveFunctions, ThreeDimensionsAndTime)
     // g = -J^T r 
     gradientL1 = ::ATx(l1Residuals.size(), nParameters, jacobian, l1Residuals, -1);
     gradientL2 = ::ATx(l2Residuals.size(), nParameters, jacobian, l2Residuals, -1);
-    obj.mNorm = ::Norm::LeastSquares;
+    obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::LeastSquares;
     logLikelihood = obj.logLikelihood(x.size(), x.data());
     auto l1Penalty = obj.mPenaltyCoefficient*(elevation - outOfBoundsSource);
     auto l2Penalty = obj.mPenaltyCoefficient*(elevation - outOfBoundsSource);
@@ -304,7 +324,7 @@ TEST(ULocatorOptimizersObjectiveFunctions, ThreeDimensionsAndTime)
         EXPECT_NEAR(gradientL2[i], gradientFiniteDifference[i], 5.e-1);
     }
     //---------------------------------------l1-------------------------------//
-    obj.mNorm = ::Norm::L1;
+    obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::L1;
     logLikelihood = obj.logLikelihood(x.size(), x.data());
     EXPECT_NEAR(logLikelihood, -(referenceL1 + l1Penalty), 1.e-4);
     // Compute the gradient
@@ -317,7 +337,7 @@ TEST(ULocatorOptimizersObjectiveFunctions, ThreeDimensionsAndTime)
         EXPECT_NEAR(gradientL1[i], gradientFiniteDifference[i], 5.e-1);
     }
     //---------------------------------------lp-------------------------------//
-    obj.mNorm = ::Norm::Lp;
+    obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::Lp;
     logLikelihood = obj.logLikelihood(x.size(), x.data());
     EXPECT_NEAR(logLikelihood, -(referenceLp + lpPenalty), 1.e-4);
     logLikelihood
@@ -402,7 +422,7 @@ TEST(ULocatorOptimizersObjectiveFunctions, EpicenterAndTime)
     // g = -J^T r 
     auto gradientL1 = ::ATx(l1Residuals.size(), nParameters, jacobian, l1Residuals, -1);
     auto gradientL2 = ::ATx(l2Residuals.size(), nParameters, jacobian, l2Residuals, -1);
-    obj.mNorm = ::Norm::LeastSquares;
+    obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::LeastSquares;
     auto logLikelihood = obj.logLikelihood(x.size(), x.data());
     EXPECT_NEAR(logLikelihood, -referenceL2, 1.e-4);
     // Compute gradient
@@ -425,7 +445,7 @@ TEST(ULocatorOptimizersObjectiveFunctions, EpicenterAndTime)
         }
     }
     //------------------------------------l1----------------------------------//
-    obj.mNorm = ::Norm::L1;
+    obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::L1;
     logLikelihood = obj.logLikelihood(x.size(), x.data());
     EXPECT_NEAR(logLikelihood, -referenceL1, 1.e-4);
     // Compute the gradient
@@ -446,7 +466,7 @@ TEST(ULocatorOptimizersObjectiveFunctions, EpicenterAndTime)
         }
     }
     //------------------------------------lp----------------------------------//
-    obj.mNorm = ::Norm::Lp;
+    obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::Lp;
     obj.mPNorm = p;
     logLikelihood = obj.logLikelihood(x.size(), x.data());
     EXPECT_NEAR(logLikelihood, -referenceLp, 1.e-4);
@@ -542,7 +562,7 @@ TEST(ULocatorOptimizersObjectiveFunctions, EpicenterFreeSurfaceAndTime)
     // g = -J^T r 
     auto gradientL1 = ::ATx(l1Residuals.size(), nParameters, jacobian, l1Residuals, -1);
     auto gradientL2 = ::ATx(l2Residuals.size(), nParameters, jacobian, l2Residuals, -1);
-    obj.mNorm = ::Norm::LeastSquares;
+    obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::LeastSquares;
     auto logLikelihood = obj.logLikelihood(x.size(), x.data());
     EXPECT_NEAR(logLikelihood, -referenceL2, 1.e-4);
     // Compute gradient
@@ -565,7 +585,7 @@ TEST(ULocatorOptimizersObjectiveFunctions, EpicenterFreeSurfaceAndTime)
         }
     }
     //------------------------------------l1----------------------------------//
-    obj.mNorm = ::Norm::L1;
+    obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::L1;
     logLikelihood = obj.logLikelihood(x.size(), x.data());
     EXPECT_NEAR(logLikelihood, -referenceL1, 1.e-4);
     // Compute the gradient
@@ -586,7 +606,7 @@ TEST(ULocatorOptimizersObjectiveFunctions, EpicenterFreeSurfaceAndTime)
         }
     }
     //------------------------------------lp----------------------------------//
-    obj.mNorm = ::Norm::Lp;
+    obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::Lp;
     obj.mPNorm = p;
     logLikelihood = obj.logLikelihood(x.size(), x.data());
     EXPECT_NEAR(logLikelihood, -referenceLp, 1.e-4);

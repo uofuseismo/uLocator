@@ -75,7 +75,7 @@ set(LIBRARY_SRC src/version.cpp
                 ##src/lineSearchOptions.cpp
                 #src/nlopt.cpp
                 #src/nloptOptions.cpp
-                #src/origin.cpp
+                src/origin.cpp
                 #src/quarry.cpp
                 #src/staticCorrection.cpp
                 #src/sourceSpecificStationCorrection.cpp
@@ -96,11 +96,18 @@ set(LIBRARY_SRC src/version.cpp
                 src/position/geographicPoint.cpp
                 src/position/wgs84.cpp
                 src/position/utah.cpp
+                src/position/utahQuarry.cpp
                 src/position/ynp.cpp
+                src/corrections/static.cpp
                 )
 if (${pagmo_FOUND})
    set(LIBRARY_SRC ${LIBRARY_SRC}
        src/optimizers/pagmo/particleSwarm.cpp)
+endif()
+if (${prima_FOUND})
+   set(LIBRARY_SRC ${LIBRARY_SRC}
+      # src/optimizers/prima/cobyla.cpp
+      )
 endif()
 if (NOT ${USE_UMPS})
    set(LIBRARY_SRC ${LIBRARY_SRC} src/logging/standardOut.cpp)
@@ -149,7 +156,9 @@ set(TEST_SRC
     testing/position.cpp
     testing/station.cpp
     testing/arrival.cpp
+    testing/origin.cpp
     testing/topography.cpp
+    testing/corrections.cpp
     testing/objectiveFunctions.cpp
     testing/halfSpace.cpp
     #testing/nlopt.cpp
