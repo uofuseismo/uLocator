@@ -99,6 +99,7 @@ set(LIBRARY_SRC src/version.cpp
                 src/position/utahQuarry.cpp
                 src/position/ynp.cpp
                 src/corrections/static.cpp
+                src/corrections/sourceSpecific.cpp
                 )
 if (${pagmo_FOUND})
    set(LIBRARY_SRC ${LIBRARY_SRC}
@@ -160,7 +161,7 @@ set(TEST_SRC
     testing/topography.cpp
     testing/corrections.cpp
     testing/objectiveFunctions.cpp
-    testing/halfSpace.cpp
+    #testing/halfSpace.cpp
     #testing/nlopt.cpp
     #testing/homogeneous.cpp
     #testing/example.cpp

@@ -1,0 +1,87 @@
+/*!
+\page TopicCorrections Corrections
+\ingroup Corrections_Introduction
+
+<p>
+Typically in earthquake location we do a subpar job of estimating arrival times.  There are multiple reasons for this.  We simply may not have access to high-resolution structural models.  And if we did, we may not wish to keep 3D travel-time fields in memory.  Or, we may prefer the simplicity afforded by travel-time calculation in layer-cake models.  Consequently, we introduce workarounds in the form of low-overhead corrections.  The corrections employed in this project fall in two categories:
+
+   - \ref TopicCorrectionsStatic : These are station-phase specific corrections that arise from sites being on, say, soft-soil and having some systematically biased residual.
+   - \ref TopicCorrectionsSourceSpecific : These are station-phase specific corrections that memorize residuals from sources in a given region.
+</p>
+
+\page TopicCorrectionsStatic Static
+\ingroup Corrections_static
+
+Static corrections are the simplest of corrections.  Effectively, we are going to add a constant to the predicted travel time.  The only question is what should this constant be?  Well, the answer depends on how we measure misfit.  For simplicity, let's use least-squares.  In this case, we are trying to minimize something of the form
+
+\f[
+    \phi(C_{r,p})
+  = \sum_{e = 1}^{n_{e}}
+    \sum_{i = 1}^{n_{obs}^{e}}
+    ( T_{i,s,p} - (\hat{T}_{i,s,p} (\textbf{x}_e; \textbf{x}_s) + t_0^{(e)} + C_{s,p}) )^2
+\f]
+
+where 
+  - \f$ n_{e} \f$ is the number of events
+  - \f$ n_{obs}^e \f$ the number of observations for the e'th event
+  - \f$ T_{i,r,p} \f$ is the i'th observed arrival time for station s, and phase, p
+  - \f$ \hat{T}_{i,s,p} \f$ is the corresponding predicted travel time
+  - \f$ t_0^{(e)} \f$ is the origin time of the e'th event
+  - \f$ \textbf{x}_e \f$ is the source location of the e'th event
+  - \f$ \textbf{x}_s \f$ is the receiver location for the s'th station
+  - \f$ C_{s,p}) \f$ is the correction for the s'th station and p'th phase
+
+In this case, we solve for \f$ C_{s,p} \f$ after setting \f$ \frac{\partial \phi}{\partial C_{s,p}} \f$ to zero.  In this case, the optimal static correction is
+
+\f[
+   C_{s,p} = \frac{1}{n_{e}} \sum_{e=1}^{n_{e}} (T_{i,s,p} - (\hat{T}_{e,s,p} + t_0))
+\f]
+
+is the average residual.  If outliers scare you then you can use a trimmed mean.  Or you could be more sophisticated, and define other norms.  For example, when optimizing in the \f$ L_1 \f$ norm static correction is the median residual.
+
+where \f$ n_{obs} \f$ is the number of observed arrivals of this phase type at the given station.
+
+Some people tend to not like means because of outliers.  In practice I compute trimmed-means when optimizing in a least-squares sense.
+
+Additionally, the derivatives of the (constant) static correction are simple
+
+\f[
+    \frac{\partial C_{s,p}}{\partial t_0} = 0
+\f]
+\f[
+    \frac{\partial C_{s,p}}{\partial x} = 0
+\f]
+\f[
+    \frac{\partial C_{s,p}}{\partial y} = 0
+\f]
+\f[
+    \frac{\partial C_{s,p}}{\partial z} = 0
+\f]
+
+\page TopicCorrectionsSourceSpecific Source-Specific
+\ingroup Corrections_sourceSpecific
+
+<p>
+The source-specific corrections are based on K-Nearest Neighbors.  In this case, our `training' involves saving the features (x, y, z) of the source and targets (residuals and observations weights) for all events generating a station/phase pair; provided there are enough observations.  We then memorize the training examples and targets using a <a href="https://en.wikipedia.org/wiki/K-d_tree">K-D tree</a> which typically results in \f$ \mathcal{O}(n \log n) \f$ search-complexity.  Consequently, memory usage will be on the order of the order of (number of catalog events) x (number of stations) x (number of phases).  The memory complexity at UUSS is therefore on the order of 100s of Mb's which is substantially more economical than full three-dimensional travel-time fields.  Note, if this becomes problematic we may explore SVMs for this activity in the future.
+</p>
+
+<p>
+After memorizing the training examples we can then interpolate the correction in one of three ways.
+</p>
+
+  - A simple weighted-average of memorized residuals and weights of \f$ n_{k} \f$ nearest-neighboring events to the query point (x,y,z)
+\f[
+    S_{s,p}(x,y,z) = \frac{\sum_{i=1}^{n_{k}} w_i r_i}{\sum_{i=1}^{n_{k}} w_i}
+\f]
+  - A challenge with the previous idea is that we can have very distance sources influencing the correction at a query point.  To correct this, we have implemented a weighted-average of the memorized residuals and weights of the \f$ n_{k} \f$ nearest-neighboring points provided the query point's distance to a neighbor is less than some maximum distance.  The cardinality of this new set of nearest-neighbors is \f$ 0 \le \hat{n}_k \le n_k \f$ where \f$ \hat{n}_k = \sum_{i=1}^{n_k} I(\textbf{x}, \textbf{x}_k) \f$. Here, \f$ I \f$ an indicator variable that is 1 when the Euclidean distance between a query point and a nearest neighbor does not exceed some maximum distance \f$ \Delta_{max} \f$; i.e., \f$ \Vert \textbf{x} - \textbf{x}_k \Vert_2 < \Delta_{max} \f$ and is 0 otherwise.  We then re-use the above formula to obtain
+\f[
+   S_{s,p}(x,y,z) = \frac{\sum_{i=1}^{\hat{n}_k} w_i r_i}{\sum_{i=1}^{\hat{n}_k} w_i}; \qquad \hat{n}_k > 0
+\f]
+and
+\f[
+   S_{s,p}(x,y,z) = 0; \qquad \hat{n}_k = 0
+\f]
+  - An inverse-distance weighted scheme that also has this maximum distance contraint.
+
+*/
+

@@ -1,0 +1,34 @@
+namespace ULocator
+{
+/*!
+\page index Overview
+
+\defgroup Locations_chapter Event Location
+\defgroup Locations_Introduction Introduction
+\brief Introduction to the event location section.
+\ingroup Locations_chapter
+
+\defgroup Corrections_chapter Corrections
+\defgroup Corrections_Introduction Introduction
+\brief Introduction to the corrections section.
+\ingroup Corrections_chapter
+\defgroup Corrections_static Static
+\brief Simple constant terms to add to a predicted travel time.
+\ingroup Corrections_chapter
+\defgroup Corrections_sourceSpecific Source-Specific
+\brief More flexible corrections that better accomodate 3D heterogeneities.
+\ingroup Corrections_chapter
+
+\defgroup Topography_chapter Topography
+\defgroup Topography_Introduction Introduction
+\brief Introduction to topographic event location constraints.
+\ingroup Topography_chapter
+\defgroup Topography_constant Constant
+\brief The simplest parameterization of topography is a constant elevation.  
+\ingroup Topography_chapter
+\defgroup Topography_gridded Gridded
+\brief A regular grid-based parameterization of elevation that (bi)-linearly interpolates elevation between nodes.
+\ingroup Topography_chapter
+
+*/
+}

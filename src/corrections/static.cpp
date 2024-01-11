@@ -61,7 +61,7 @@ Static& Static::operator=(Static &&correction) noexcept
 /// Destructor
 Static::~Static() = default;
 
-/// Initialization
+/// Identification
 void Static::setStationNameAndPhase(const std::string &network,
                                     const std::string &station,
                                     const std::string &phase)
@@ -106,6 +106,7 @@ bool Static::haveStationNameAndPhase() const noexcept
     return !pImpl->mNetwork.empty();
 }
 
+/// The corrections
 void Static::setCorrection(const double correction) noexcept
 {
     pImpl->mCorrection = correction;

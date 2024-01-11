@@ -275,8 +275,8 @@ public:
                          = static_cast<int> (std::round(rowValues[j]));
                     auto iSrcFeatures = mFeatures*trainingRow;
                     auto iSrcTargets = 2*trainingRow;
-                    double residual = mTrainingTargetsMatrix.at(iSrcTargets);
-                    double weight = mTrainingTargetsMatrix.at(iSrcTargets + 1);
+                    double residual = mTrainingTargetsMatrix[iSrcTargets];
+                    double weight = mTrainingTargetsMatrix[iSrcTargets + 1];
                     numerator = numerator + weight*residual;
                     denominator = denominator + weight;
                     if (weight > 0){allZeroWeights = false;}
@@ -292,14 +292,14 @@ public:
                          = static_cast<int> (std::round(rowValues[j]));
                     auto iSrcFeatures = mFeatures*trainingRow;
                     auto iSrcTargets = 2*trainingRow;
-                    double residual = mTrainingTargetsMatrix.at(iSrcTargets);
-                    double weight = mTrainingTargetsMatrix.at(iSrcTargets + 1);
-                    double dx = xi - mTrainingFeaturesMatrix.at(iSrcFeatures);
-                    double dy = yi - mTrainingFeaturesMatrix.at(iSrcFeatures + 1);
+                    double residual = mTrainingTargetsMatrix[iSrcTargets];
+                    double weight = mTrainingTargetsMatrix[iSrcTargets + 1];
+                    double dx = xi - mTrainingFeaturesMatrix[iSrcFeatures];
+                    double dy = yi - mTrainingFeaturesMatrix[iSrcFeatures + 1];
                     double dz = 0;
                     if (doDepth)
                     {
-                        dz = zi - mTrainingFeaturesMatrix.at(iSrcFeatures + 2);
+                        dz = zi - mTrainingFeaturesMatrix[iSrcFeatures + 2];
                     }
                     double distance = std::sqrt( dx*dx + dy*dy + dz*dz );
                     if (distance > mMaximumDistance)
@@ -324,14 +324,14 @@ public:
                          = static_cast<int> (std::round(rowValues[j]));
                     auto iSrcFeatures = mFeatures*trainingRow;
                     auto iSrcTargets = 2*trainingRow;
-                    double residual = mTrainingTargetsMatrix.at(iSrcTargets);
-                    double weight = mTrainingTargetsMatrix.at(iSrcTargets + 1); 
-                    double dx = xi - mTrainingFeaturesMatrix.at(iSrcFeatures);
-                    double dy = yi - mTrainingFeaturesMatrix.at(iSrcFeatures + 1); 
+                    double residual = mTrainingTargetsMatrix[iSrcTargets];
+                    double weight = mTrainingTargetsMatrix[iSrcTargets + 1]; 
+                    double dx = xi - mTrainingFeaturesMatrix[iSrcFeatures];
+                    double dy = yi - mTrainingFeaturesMatrix[iSrcFeatures + 1]; 
                     double dz = 0;
                     if (doDepth)
                     {
-                        dz = zi - mTrainingFeaturesMatrix.at(iSrcFeatures + 2); 
+                        dz = zi - mTrainingFeaturesMatrix[iSrcFeatures + 2]; 
                     }
                     double distance = std::sqrt( dx*dx + dy*dy + dz*dz );
                     double inverseDistance{0};
@@ -348,6 +348,7 @@ public:
                         {
                             inverseDistance = 1/distance;
                         }
+                        weight = inverseDistance*weight;
                         dwdxi = weight*(dx*inverseDistance);
                         dwdyi = weight*(dy*inverseDistance);
                         dwdzi = weight*(dz*inverseDistance);
