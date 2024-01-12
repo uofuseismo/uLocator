@@ -1,3 +1,4 @@
+#include <iomanip>
 #include <iostream>
 #include <filesystem>
 #include <vector>
@@ -261,12 +262,6 @@ public:
             double dsdyi{0};
             double dsdzi{0};
             double dtdti{0};
-            double dSumDWxi{0};
-            double dSumDWyi{0}; 
-            double dSumDWzi{0};
-            double dSumDRWxi{0};
-            double dSumDRWyi{0}; 
-            double dSumDRWzi{0};
             if (mEvaluationMethod == EvaluationMethod::WeightedAverage)
             {
                 for (int j = 0; j < static_cast<int> (mNeighbors); ++j)
@@ -314,6 +309,12 @@ public:
             }
             else
             {
+                double dSumRWDdxi{0};
+                double dSumRWDdyi{0}; 
+                double dSumRWDdzi{0};
+                double dSumWd2dDxi{0};
+                double dSumWd2dDyi{0};
+                double dSumWd2dDzi{0};
                 // Canononical form of derivative is:
                 // d/dx [ \sum_{i} r_i w_i (x) / \sum_{i} w_i ]
                 // = \sum_{i} r_i dw_i/dx / \sum_{i} w_i
@@ -333,46 +334,46 @@ public:
                     {
                         dz = zi - mTrainingFeaturesMatrix[iSrcFeatures + 2]; 
                     }
-                    double distance = std::sqrt( dx*dx + dy*dy + dz*dz );
+                    // Don't let anything be closer than a micrometer for
+                    // numerical reasons
+                    double distance
+                        = std::max(1.e-6, std::sqrt( dx*dx + dy*dy + dz*dz ));
                     double inverseDistance{0};
-                    double dwdxi{0};
-                    double dwdyi{0};
-                    double dwdzi{0};
+                    double inverseDistance3{0};
                     if (distance > mMaximumDistance)
                     {
                         weight = 0;
+                        continue;
                     }
                     else
                     {
-                        if (distance > 1.e-6)
-                        {
-                            inverseDistance = 1/distance;
-                        }
-                        weight = inverseDistance*weight;
-                        dwdxi = weight*(dx*inverseDistance);
-                        dwdyi = weight*(dy*inverseDistance);
-                        dwdzi = weight*(dz*inverseDistance);
+                        constexpr double one{1};
+                        inverseDistance = one/distance;
+                        inverseDistance3 = one/(distance*distance*distance);
+                        allZeroWeights = false;
                     }
-                    numerator = numerator + weight*residual;
-                    denominator = denominator + weight;
-                    dSumDWxi = dSumDWxi + dwdxi;
-                    dSumDWyi = dSumDWyi + dwdyi;
-                    dSumDWzi = dSumDWzi + dwdzi;
-                    dSumDRWxi = dSumDRWxi + residual*dwdxi;
-                    dSumDRWyi = dSumDRWyi + residual*dwdyi;
-                    dSumDRWzi = dSumDRWzi + residual*dwdzi;
-                    if (weight > 0){allZeroWeights = false;}
+                    numerator = numerator + (weight*inverseDistance)*residual;
+                    denominator = denominator + weight*inverseDistance;
+                    double wdxid3 = weight*(dx*inverseDistance3);
+                    double wdyid3 = weight*(dy*inverseDistance3);
+                    double wdzid3 = weight*(dz*inverseDistance3);
+                    dSumRWDdxi = dSumRWDdxi + residual*wdxid3;
+                    dSumRWDdyi = dSumRWDdyi + residual*wdyid3;
+                    dSumRWDdzi = dSumRWDdzi + residual*wdzid3;
+                    dSumWd2dDxi = dSumWd2dDxi + wdxid3;
+                    dSumWd2dDyi = dSumWd2dDyi + wdyid3;
+                    dSumWd2dDzi = dSumWd2dDzi + wdzid3;
                 } // Loop
                 if (!allZeroWeights)
                 {
                     correction = numerator/denominator;
-                    auto denominator2 = denominator*denominator;
-                    dsdxi = dSumDRWxi/denominator
-                          + (numerator*dSumDWxi)/denominator2;
-                    dsdyi = dSumDRWyi/denominator
-                          + (numerator*dSumDWyi)/denominator2;
-                    dsdzi = dSumDRWzi/denominator
-                          + (numerator*dSumDWzi)/denominator2;
+                    double denominator2 = denominator*denominator;
+                    dsdxi =-dSumRWDdxi/denominator
+                          + (numerator/denominator2)*dSumWd2dDxi;
+                    dsdyi =-dSumRWDdyi/denominator
+                          + (numerator/denominator2)*dSumWd2dDyi;
+                    dsdzi =-dSumRWDdzi/denominator
+                          + (numerator/denominator2)*dSumWd2dDzi;
                 }
             } // End picking job
             // Save results
