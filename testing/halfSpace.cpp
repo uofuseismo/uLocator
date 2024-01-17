@@ -174,9 +174,12 @@ TEST(ULocator, HalfSpace)
         ULocator::Optimizers::IOptimizer::Norm::L1,
         ULocator::Optimizers::IOptimizer::Norm::Lp
     };
+ 
+    ULocator::Origin initialGuess;
     for (const auto &norm : norms)
     {
-        pso.locate(ULocator::Optimizers::IOptimizer::LocationProblem::ThreeDimensionsAndTime,
+        pso.locate(initialGuess,
+                   ULocator::Optimizers::IOptimizer::LocationProblem::ThreeDimensionsAndTime,
                    norm);
         EXPECT_TRUE(pso.haveOrigin());
         auto newOrigin = pso.getOrigin();
@@ -189,12 +192,29 @@ TEST(ULocator, HalfSpace)
         auto newArrivals = newOrigin.getArrivals();
         for (const auto &newArrival : newArrivals)
         {
-            std::cout << newArrival.getResidual() << std::endl;
+            EXPECT_NEAR(newArrival.getResidual(), 0, 1.e-3);
         }
-std::cout << std::endl;
     }
 
     // Locate with fixed depth
+    initialGuess.setDepth(eventDepth);
+    for (const auto &norm : norms)
+    {
+        pso.locateEventWithFixedDepth(eventDepth, 
+                                      norm);
+        EXPECT_TRUE(pso.haveOrigin());
+        auto newOrigin = pso.getOrigin();
+        EXPECT_NEAR(newOrigin.getEpicenter().getLatitude(),
+                    eventLatitude, 5.e-2);
+        EXPECT_NEAR(newOrigin.getEpicenter().getLongitude(),
+                    eventLongitude, 5.e-2);
+        EXPECT_NEAR(newOrigin.getDepth(), eventDepth, 1.e-8);
+        auto newArrivals = newOrigin.getArrivals();
+        for (const auto &newArrival : newArrivals)
+        {
+            EXPECT_NEAR(newArrival.getResidual(), 0, 1.e-3);
+        }
+    }
 }
 
 }
