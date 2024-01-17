@@ -184,7 +184,7 @@ public:
     ///                     the source x position.
     /// @param[out] dtdy    The derivative of the correction with respect to
     ///                     the source y position.
-    /// @param[out] dtdy    The derivative of the correction with respect to
+    /// @param[out] dtdz    The derivative of the correction with respect to
     ///                     the source z position.
     /// @param[in] predictedTime  The predicted travel time in seconds.
     /// @result The `corrected' predicted travel time in seconds - i.e.,

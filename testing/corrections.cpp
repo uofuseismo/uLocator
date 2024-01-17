@@ -86,7 +86,7 @@ TEST(ULocatorCorrections, Static)
     EXPECT_NEAR(correction(estimateTime),
                 staticCorrection + estimateTime, 1.e-14);
     double dtdt0, dtdx, dtdy, dtdz;
-    EXPECT_NEAR(correction.evaluate(estimateTime, &dtdt0, &dtdx, &dtdy, &dtdz), 
+    EXPECT_NEAR(correction.evaluate(&dtdt0, &dtdx, &dtdy, &dtdz, estimateTime), 
                 staticCorrection + estimateTime, 1.e-14);
     EXPECT_NEAR(dtdt0, 0, 1.e-14);
     EXPECT_NEAR(dtdx,  0, 1.e-14);
@@ -105,6 +105,7 @@ TEST(ULocatorCorrections, SourceSpecific)
 {
     std::mt19937 rng(86754309);
     std::uniform_real_distribution<double> distribution(-0.5, 0.5);
+    std::uniform_int_distribution<int> intDistribution(-500, 500);
     ULocator::Position::Utah utah;
     SourceSpecific correction; 
   
@@ -135,7 +136,7 @@ TEST(ULocatorCorrections, SourceSpecific)
             {
                 double phi = iPhi*(2*M_PI - 0)/(nPhi); // Don't wrap around
                 double theta = iTheta*(M_PI - 0)/(nTheta - 1);
-                double randomRadius = radius + distribution(rng);
+                double randomRadius = radius + intDistribution(rng);
                 double xi = x + randomRadius*std::sin(theta)*std::cos(phi);
                 double yi = y + randomRadius*std::sin(theta)*std::sin(phi);
                 double zi = z + randomRadius*std::cos(theta);
@@ -287,11 +288,24 @@ TEST(ULocatorCorrections, SourceSpecific)
                     travelTime + referenceCorrection, 1.e-10); 
 
         EXPECT_EQ(dcdt0, 0);
-std::cout << dcdx << " " << dcdy << " " << dcdz << std::endl;
-constexpr double pert{1.e-5};
-std::cout << (correction.evaluate(x + pert, y, z) - correction.evaluate(x, y, z))/pert << std::endl;
-std::cout << (correction.evaluate(x, y + pert, z) - correction.evaluate(x, y, z))/pert << std::endl;
-std::cout << (correction.evaluate(x, y, z + pert) - correction.evaluate(x, y, z))/pert << std::endl;
+        // A gnarly thing can happen at the centroid.  Basically,
+        // we switch class membership.  So let's move away.
+        double xp = x + 520;
+        double yp = y + 530;
+        double zp = z + 490;
+        double c = correction.evaluate(xp, yp, zp,
+                                       &dcdt0, &dcdx, &dcdy, &dcdz,
+                                       travelTime);
+        constexpr double h{1.e-5};
+        double cx = correction.evaluate(xp + h, yp, zp, travelTime);
+        double cy = correction.evaluate(xp, yp + h, zp, travelTime);
+        double cz = correction.evaluate(xp, yp, zp + h, travelTime);
+        double dcdxfd = (cx - c)/h;
+        double dcdyfd = (cy - c)/h;
+        double dcdzfd = (cz - c)/h;
+        EXPECT_NEAR(dcdx, dcdxfd, 1.e-4);
+        EXPECT_NEAR(dcdy, dcdyfd, 1.e-4);
+        EXPECT_NEAR(dcdz, dcdzfd, 1.e-4);
     }
 }
 

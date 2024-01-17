@@ -53,6 +53,10 @@ if (${pagmo_FOUND})
    message("Found pagmo")
    add_compile_definitions(WITH_PAGMO)
 endif()
+if (${NLopt_FOUND})
+   message("NLOpt found")
+   add_compile_definitions(WITH_NLOPT)
+endif()
 if (${USE_EIKONALXX})
    message("Will compile with EikonalXX ray tracer")
    add_compile_definitions(WITH_EIKONALXX)
@@ -110,6 +114,10 @@ if (${prima_FOUND})
       # src/optimizers/prima/cobyla.cpp
       )
 endif()
+if (${NLopt_FOUND})
+   set(LIBRARY_SRC ${LIBRARY_SRC}
+       src/optimizers/nlopt/dividedRectangles.cpp)
+endif()
 if (NOT ${USE_UMPS})
    set(LIBRARY_SRC ${LIBRARY_SRC} src/logging/standardOut.cpp)
 endif()
@@ -166,6 +174,13 @@ set(TEST_SRC
     #testing/homogeneous.cpp
     #testing/example.cpp
     )
+if (${pagmo_FOUND})
+   #set(TEST_SRC ${TEST_SRC} testing/pagmo.cpp)
+endif()
+if (${NLopt_FOUND})
+   set(TEST_SRC ${TEST_SRC} testing/nlopt.cpp)
+endif()
+
 add_executable(unitTests ${TEST_SRC})
 set_target_properties(unitTests PROPERTIES
                       CXX_STANDARD 20
@@ -237,6 +252,22 @@ add_test(NAME unitTests
 if (${WRAP_PYTHON})
    message("Will build Python bindings")
    find_package(pybind11 REQUIRED)
+   add_library(pyulocator MODULE
+               python/pyulocator.cpp
+               python/dataStructures.cpp)
+   set_target_properties(pyulocator PROPERTIES
+                         PREFIX ""
+                         CXX_STANDARD 20
+                         CXX_STANDARD_REQUIRED YES 
+                         CXX_EXTENSIONS NO) 
+   target_include_directories(pyulocator
+                              PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/python/include>
+                                      $<BUILD_INTERFACE:${UMPS_INCLUDE_DIR}>
+                                      $<BUILD_INTERFACE:${UMPS_INCLUDE_DIR}/../>
+                                      $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>)
+   target_link_libraries(pyulocator
+                         PRIVATE pybind11::module pybind11::pybind11 pybind11::lto
+                                 uLocator)
 endif()
 
 #add_executable(createSirenData src/createSirenData.cpp)

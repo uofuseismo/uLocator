@@ -107,8 +107,8 @@ public:
     /// @brief Saves the static correction to an HDF5 archive.
     /// @param[in] fileName  The name of the HDF5 archive.
     /// @throws std::runtime_error if \c haveCorrection() is false
-    ///         \c haveStationName() is false, or \c compiledWithHDF5() is
-    ///         false.
+    ///         \c haveStationNameAndPhase() is false, or \c compiledWithHDF5()
+    ///         is false.
     void save(const std::string &fileName) const;
     /// @brief Loads the static correction from an HDF5 archive.
     /// @param[in] fileName  The name of the HDF5 archive.
@@ -128,8 +128,7 @@ public:
     /// @result The `corrected' predicted travel time in seconds - i.e.,
     ///         correctedTime = predictedTime + getCorrection().
     /// @throws std::runtime_error if \c haveCorrection() is false. 
-    [[nodiscard]] double evaluate(double predictedTime) const;
-    /// @param[in] predictedTime  The predicted travel time in seconds.
+    [[nodiscard]] double evaluate(double predictedTime = 0) const;
     /// @param[out] dtdt0   The derivative of the correction with respect to
     ///                     the origin time.
     /// @param[out] dtdx    The derivative of the correction with respect to
@@ -138,10 +137,11 @@ public:
     ///                     the source y position.
     /// @param[out] dtdy    The derivative of the correction with respect to
     ///                     the source z position.
+    /// @param[in] predictedTime  The predicted travel time in seconds.
     /// @result The `corrected' predicted travel time in seconds - i.e.,
     ///         correctedTime = predictedTime + getCorrection().
     /// @throws std::runtime_error if \c haveCorrection() is false. 
-    [[nodiscard]] double evaluate(double predictedTime, double *dtdt0, double *dtdx, double *dtdy, double *dtdz) const;
+    [[nodiscard]] double evaluate(double *dtdt0, double *dtdx, double *dtdy, double *dtdz, double predictedTime = 0) const;
     /// @}
 
     /// @name Operators
@@ -155,8 +155,7 @@ public:
     /// @result The `corrected' predicted travel time in seconds - i.e.,
     ///         correctedTime = predictedTime + getCorrection().
     /// @throws std::runtime_error if \c haveCorrection() is false. 
-    [[nodiscard]] double operator()(double predictedTime) const;
-    /// @param[in] predictedTime  The predicted travel time in seconds.
+    [[nodiscard]] double operator()(double predictedTime = 0) const;
     /// @param[out] dtdt0   The derivative of the correction with respect to
     ///                     the origin time.
     /// @param[out] dtdx    The derivative of the correction with respect to
@@ -165,10 +164,11 @@ public:
     ///                     the source y position.
     /// @param[out] dtdy    The derivative of the correction with respect to
     ///                     the source z position.
+    /// @param[in] predictedTime  The predicted travel time in seconds.
     /// @result The `corrected' predicted travel time in seconds - i.e.,
     ///         correctedTime = predictedTime + getCorrection().
     /// @throws std::runtime_error if \c haveCorrection() is false. 
-    [[nodiscard]] double operator()(double predictedTime, double *dtdt0, double *dtdx, double *dtdy, double *dtdz) const;
+    [[nodiscard]] double operator()(double *dtdt0, double *dtdx, double *dtdy, double *dtdz, double predictedTime = 0) const;
     /// @}
 
     /// @name Destructors

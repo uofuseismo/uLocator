@@ -194,12 +194,12 @@ void Static::train(const std::vector<double> &observedArrivalTimes,
 double Static::evaluate(const double predictedTime) const
 {
     if (!haveCorrection()){throw std::runtime_error("Correction not set");}
-    return evaluate(predictedTime, nullptr, nullptr, nullptr, nullptr);
+    return evaluate(nullptr, nullptr, nullptr, nullptr, predictedTime);
 }
 
 double Static::evaluate(
-    const double predictedTime,
-    double *dtdt0, double *dtdx, double *dtdy, double *dtdz) const
+    double *dtdt0, double *dtdx, double *dtdy, double *dtdz,
+    const double predictedTime) const
 {
     if (!haveCorrection()){throw std::runtime_error("Correction not set");}
     if (dtdt0 != nullptr){*dtdt0 = 0;}
@@ -215,10 +215,10 @@ double Static::operator()(const double predictedTime) const
 }
 
 double Static::operator()(
-    const double predictedTime,
-    double *dtdt0, double *dtdx, double *dtdy, double *dtdz) const
+    double *dtdt0, double *dtdx, double *dtdy, double *dtdz,
+    const double predictedTime) const
 {
-    return evaluate(predictedTime, dtdt0, dtdx, dtdy, dtdz);
+    return evaluate(dtdt0, dtdx, dtdy, dtdz, predictedTime);
 }
 
 /// HDF5 support?
