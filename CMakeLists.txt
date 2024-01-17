@@ -68,9 +68,9 @@ endif()
 configure_file(${CMAKE_SOURCE_DIR}/include/private/version.hpp.in
                ${CMAKE_SOURCE_DIR}/include/uLocator/version.hpp)
 
-set(LIBRARY_SRC src/version.cpp
+set(LIBRARY_SRC lib/version.cpp
                 #src/homogeneous.cpp
-                src/arrival.cpp
+                lib/arrival.cpp
                 ##src/direct.cpp
                 ##src/directOptions.cpp
                 #src/firstArrivalRayTracer.cpp
@@ -79,17 +79,17 @@ set(LIBRARY_SRC src/version.cpp
                 ##src/lineSearchOptions.cpp
                 #src/nlopt.cpp
                 #src/nloptOptions.cpp
-                src/origin.cpp
+                lib/origin.cpp
                 #src/quarry.cpp
                 #src/staticCorrection.cpp
                 #src/sourceSpecificStationCorrection.cpp
-                src/optimizers/optimizer.cpp
-                src/station.cpp
-                src/travelTimeCalculator.cpp
-                src/travelTimeCalculatorMap.cpp
-                src/uussRayTracer.cpp
-                src/topography/constant.cpp
-                src/topography/gridded.cpp
+                lib/optimizers/optimizer.cpp
+                lib/station.cpp
+                lib/travelTimeCalculator.cpp
+                lib/travelTimeCalculatorMap.cpp
+                lib/uussRayTracer.cpp
+                lib/topography/constant.cpp
+                lib/topography/gridded.cpp
                 #src/travelTimeCalculatorMap.cpp
                 #src/uussTravelTimeCaclulator.cpp
                 #src/objectiveFunctions/l1.cpp
@@ -97,13 +97,13 @@ set(LIBRARY_SRC src/version.cpp
                 #src/objectiveFunctions/doubleDifferenceL1.cpp
                 #src/objectiveFunctions/leastSquares.cpp
                 #src/objectiveFunctions/objectiveFunction.cpp
-                src/position/geographicPoint.cpp
-                src/position/wgs84.cpp
-                src/position/utah.cpp
-                src/position/utahQuarry.cpp
-                src/position/ynp.cpp
-                src/corrections/static.cpp
-                src/corrections/sourceSpecific.cpp
+                lib/position/geographicPoint.cpp
+                lib/position/wgs84.cpp
+                lib/position/utah.cpp
+                lib/position/utahQuarry.cpp
+                lib/position/ynp.cpp
+                lib/corrections/static.cpp
+                lib/corrections/sourceSpecific.cpp
                 )
 if (${pagmo_FOUND})
    set(LIBRARY_SRC ${LIBRARY_SRC}
@@ -148,7 +148,7 @@ target_link_libraries(uLocator
                               ${EIKONALXX_LIBRARY} ${DAL_LIBS})
 target_include_directories(uLocator
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-                           PRIVATE ${CMAKE_SOURCE_DIR}/src
+                           PRIVATE ${CMAKE_SOURCE_DIR}/lib
                                    ${UMPS_INCLUDE_DIR} ${MCMC_INCLUDE_DIR}
                                    ${NLOPT_INCLUDE_DIRS} ${EIKONALXX_INCLUDE_DIR}
                                    ${oneDAL_INCLUDE_DIRS} hdf5::hdf5 NLopt::nlopt spdlog::spdlog prima::primac Pagmo::pagmo
@@ -190,7 +190,7 @@ target_link_libraries(unitTests PRIVATE uLocator ${GTEST_BOTH_LIBRARIES} ${UMPS_
 target_include_directories(unitTests
                            PRIVATE ${GTEST_INCLUDE_DIRS}
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-                           PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
+                           PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/lib>
                            PRIVATE $<BUILD_INTERFACE:${UMPS_INCLUDE_DIR}>)
 add_test(NAME unitTests 
          COMMAND unitTests)
