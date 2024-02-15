@@ -81,7 +81,36 @@ and
 \f[
    S_{s,p}(x,y,z) = 0; \qquad \hat{n}_k = 0
 \f]
-  - An inverse-distance weighted scheme that also has this maximum distance contraint.
+  - An inverse-distance weighted scheme that also has this maximum distance contraint.  Let, \f$ d(\textbf{x}, \textbf{x}_k) \f$ denote the Euclidean distance between the query point, \f$ \textbf{x} \f$, and the k'th neighbor, \f$ \textbf{x}_k \f$.  The interpolation is as follows
+\f[
+   S_{s,p}(x,y,z) = \frac{\sum_{i=1}^{\hat{n}_k} \frac{w_i r_i}{d_i} }{ \sum_{i=1}^{\hat{n}_k} \frac{w_i}{d_i} }
+\f]
+The derivatives are a bit more complicated but look like
+\f[
+   \frac{\partial S_{s,p}}{\partial t_0} = 0
+\f]
+\f[
+   \frac{\partial S_{s,p}}{\partial x}
+ =-\frac{\sum_{i=1}^{\hat{n}_k} \frac{r_i w_i (x - x_i)}{ d(\textbf{x}, \textbf{x}_i)^3 }}{ \sum_{i=1}^{\hat{n}_k} \frac{w_i}{d(\textbf{x}, \textbf{x}_i)} }
+  + \frac{\sum_{i=1}^{\hat{n}_k} \frac{w_i r_i}{d(\textbf{x}, \textbf{x}_i)}}
+         { \left ( \sum_{i=1}^{\hat{n}_k}  \frac{w_i}{d(\textbf{x}, \textbf{x}_i)} \right )^2 }
+   \sum_{i=1}^{\hat{n}_k} \frac{w_i (x - x_i)}{ d(\textbf{x}, \textbf{x}_i)^3 }
+\f]
+\f[
+   \frac{\partial S_{s,p}}{\partial y}
+ =-\frac{\sum_{i=1}^{\hat{n}_k} \frac{r_i w_i (y - y_i)}{ d(\textbf{x}, \textbf{x}_i)^3 }}{ \sum_{i=1}^{\hat{n}_k} \frac{w_i}{d(\textbf{x}, \textbf{x}_i)} }
+  + \frac{\sum_{i=1}^{\hat{n}_k} \frac{w_i r_i}{d(\textbf{x}, \textbf{x}_i)}}
+         { \left ( \sum_{i=1}^{\hat{n}_k}  \frac{w_i}{d(\textbf{x}, \textbf{x}_i)} \right )^2 }
+   \sum_{i=1}^{\hat{n}_k} \frac{w_i (y - y_i)}{ d(\textbf{x}, \textbf{x}_i)^3 }
+\f]
+\f[
+   \frac{\partial S_{s,p}}{\partial x}
+ =-\frac{\sum_{i=1}^{\hat{n}_k} \frac{r_i w_i (z - x_i)}{ d(\textbf{x}, \textbf{x}_i)^3 }}{ \sum_{i=1}^{\hat{n}_k} \frac{w_i}{d(\textbf{x}, \textbf{x}_i)} }
+  + \frac{\sum_{i=1}^{\hat{n}_k} \frac{w_i r_i}{d(\textbf{x}, \textbf{x}_i)}}
+         { \left ( \sum_{i=1}^{\hat{n}_k}  \frac{w_i}{d(\textbf{x}, \textbf{x}_i)} \right )^2 }
+   \sum_{i=1}^{\hat{n}_k} \frac{w_i (z - z_i)}{ d(\textbf{x}, \textbf{x}_i)^3 }
+\f]
+Note, I do not recommend finite-differencing these derivatives.  The bug is pathological but basically if you perturb just right at just the wrong spot you'll get a different set of nearest neighbors and the fun will just begin.  This make sense however since the KNN to some extent is working as a Voronoi interpolation so there should be non-continuous derivatives lurking throughout the parameter space.
 
 */
 

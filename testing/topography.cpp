@@ -1,7 +1,7 @@
 #include <vector>
 #include "uLocator/topography/constant.hpp"
 #include "uLocator/topography/gridded.hpp"
-#include "uLocator/position/utah.hpp"
+#include "uLocator/position/utahRegion.hpp"
 #include <gtest/gtest.h>
 
 using namespace ULocator::Topography;

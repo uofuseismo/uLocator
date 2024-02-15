@@ -36,7 +36,7 @@ public:
     /// @result The geographic region of this point.
     [[nodiscard]] std::unique_ptr<IGeographicRegion> getGeographicRegion() const;
     /// @result A copy of the class.
-    //[[nodiscard]] virtual std::unique_ptr<IGeographicPoint> clone() const;
+    [[nodiscard]] virtual std::unique_ptr<IGeographicPoint> clone() const = 0;
 private:
     class IGeographicPointImpl;
     std::unique_ptr<IGeographicPointImpl> pImpl; 

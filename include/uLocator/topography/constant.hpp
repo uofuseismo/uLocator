@@ -4,7 +4,7 @@
 #include "uLocator/topography/topography.hpp"
 namespace ULocator::Topography
 {
-/// @class Constant "constant.hpp" "uLocator/constant.hpp"
+/// @class Constant "constant.hpp" "uLocator/topography/constant.hpp"
 /// @brief This is a constant topography function which is generally not useful
 ///        but fairly easy to use.
 /// @copyright Ben Baker (University of Utah) distributed under the MIT license.

@@ -1,13 +1,45 @@
+#include <iostream>
+#include <iomanip>
 #include <string>
 #include <vector>
+#ifndef NDEBUG
+#include <cassert>
+#endif
+#include <boost/math/tools/minima.hpp>
+#ifdef WITH_UMPS
 #include <umps/logging/standardOut.hpp>
+#else
+#include "logging/standardOut.hpp"
+#endif
 #include "uLocator/optimizers/optimizer.hpp"
 #include "uLocator/origin.hpp"
 #include "uLocator/travelTimeCalculatorMap.hpp"
 #include "uLocator/topography/topography.hpp"
 #include "uLocator/position/geographicRegion.hpp"
+#include "uLocator/position/wgs84.hpp"
 #include "uLocator/station.hpp"
 #include "uLocator/arrival.hpp"
+#include "objectiveFunctions.hpp"
+#include "weightedMean.hpp"
+#include "weightedMedian.hpp"
+#include "originTime.hpp"
+
+namespace
+{
+std::vector<double> computeResiduals(const std::vector<double> &observations,
+                                     const std::vector<double> &estimates)
+{
+#ifndef NDEBUG
+    assert(observations.size() == estimates.size());
+#endif
+    std::vector<double> residuals(observations.size());
+    for (int i = 0; i < static_cast<int> (observations.size()); ++i)
+    {
+        residuals[i] = observations[i] - estimates[i];
+    } 
+    return residuals;
+}
+}
 
 using namespace ULocator::Optimizers;
 
@@ -251,4 +283,141 @@ ULocator::Origin IOptimizer::getOrigin() const
 bool IOptimizer::haveOrigin() const noexcept
 {
     return pImpl->mHaveOrigin;
+}
+
+/// Location schemes
+void IOptimizer::locateEventAtFreeSurface(const Norm norm)
+{
+    locate(LocationProblem::FixedToFreeSurfaceAndTime, norm);
+}   
+
+/// Locate with no guess of origin location
+void IOptimizer::locate(const LocationProblem locationProblem,
+                        const Norm norm)
+{
+    ULocator::Origin origin; // Uninformative origin
+    locate(origin, locationProblem, norm);
+}
+
+/// Locate with a fixed depth
+void IOptimizer::locateEventWithFixedDepth(
+    const double depth, const Norm norm)
+{   
+    ULocator::Origin origin;
+    origin.setDepth(depth);
+    locate(origin, LocationProblem::FixedDepthAndTime, norm);
+} 
+
+/// Evaluates the objective function at a location
+double IOptimizer::evaluateObjectiveFunction(
+    const ULocator::Origin &origin,
+    const Norm norm) const
+{
+    constexpr bool applyCorrection{true};
+    if (!haveGeographicRegion())
+    {
+        throw std::runtime_error("Geographic region not set");
+    }
+    if (!haveTravelTimeCalculatorMap())
+    {
+        throw std::runtime_error("Travel time calculator map not set");
+    } 
+    if (!origin.haveEpicenter())
+    {
+        throw std::runtime_error("Epicenter not set");
+    }
+    if (!origin.haveDepth())
+    {
+        throw std::runtime_error("Depth not set");
+    }
+    bool estimateSourceTime{true};
+    double originTime{0};
+    if (origin.haveTime())
+    {
+        originTime = origin.getTime();
+        estimateSourceTime = false;
+    }
+    // Run the forward problem
+    auto latitude = origin.getEpicenter().getLatitude();
+    auto longitude = origin.getEpicenter().getLongitude();
+    auto [xSource, ySource]
+        = pImpl->mGeographicRegion->geographicToLocalCoordinates(
+             latitude, longitude);
+    auto zSource = origin.getDepth();
+    std::vector<double> observations;
+    std::vector<double> estimates;
+    std::vector<double> weights;
+    observations.reserve(pImpl->mArrivals.size());
+    estimates.reserve(pImpl->mArrivals.size());
+    weights.reserve(pImpl->mArrivals.size());
+    for (const auto &arrival : pImpl->mArrivals)
+    {
+        auto estimate = pImpl->mTravelTimeCalculatorMap->evaluate(
+                            arrival.getStationReference(),
+                            arrival.getPhase(),
+                            originTime, xSource, ySource, zSource,
+                            applyCorrection);
+        observations.push_back(arrival.getTime());
+        estimates.push_back(estimate);
+        weights.push_back(1./arrival.getStandardError());
+    }
+    double objectiveFunction{0};
+    if (norm == Norm::L1)
+    {
+        if (estimateSourceTime)
+        {
+            auto originTime = ::optimizeOriginTimeL1(observations,
+                                                     estimates,
+                                                     weights);
+            for (int i = 0; i < static_cast<int> (estimates.size()); ++i)
+            {
+                estimates[i] = estimates[i] + originTime;
+            }
+        }
+        objectiveFunction = ::l1(weights, 
+                                 observations,
+                                 estimates,
+                                 ::Measurement::Standard); 
+    }
+    else if (norm == Norm::LeastSquares)
+    {
+        if (estimateSourceTime)
+        {
+            auto originTime = ::optimizeOriginTimeLeastSquares(observations,
+                                                               estimates,
+                                                               weights);
+            for (int i = 0; i < static_cast<int> (estimates.size()); ++i)
+            {
+                estimates[i] = estimates[i] + originTime;
+            }
+        }
+        objectiveFunction = ::leastSquares(weights,
+                                           observations,
+                                           estimates,
+                                           ::Measurement::Standard);
+    }
+    else if (norm == Norm::Lp)
+    { 
+        constexpr double p{1.5};
+        if (estimateSourceTime)
+        {
+            double timeWindow{200}; // FIXME make timewindow part of base class?  
+            auto originTime = ::optimizeOriginTimeLp(observations,
+                                                     estimates,
+                                                     weights,
+                                                     p,
+                                                     timeWindow);
+            for (int i = 0; i < static_cast<int> (estimates.size()); ++i)
+            {
+                estimates[i] = estimates[i] + originTime;
+            }
+        }
+        objectiveFunction = ::lp(weights,
+                                 observations,
+                                 estimates,
+                                 p,
+                                 ::Measurement::Standard);
+
+    }
+    return objectiveFunction;
 }

@@ -30,5 +30,8 @@ namespace ULocator
 \brief A regular grid-based parameterization of elevation that (bi)-linearly interpolates elevation between nodes.
 \ingroup Topography_chapter
 
+\defgroup Examples_chapter Examples
+\defgroup Examples_UUSSRelocation UUSS Event Relocation
+
 */
 }

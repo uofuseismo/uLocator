@@ -215,6 +215,8 @@ public:
     /// @name Destructors
     /// @{
 
+    /// @brief Resets the class and releases memory.
+    void clear() noexcept;
     /// @brief Default destructor.
     ~SourceSpecific();
     /// @}

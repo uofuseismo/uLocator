@@ -11,6 +11,8 @@
 #include "uLocator/travelTimeCalculatorMap.hpp"
 #include "uLocator/position/geographicRegion.hpp"
 #include "uLocator/topography/topography.hpp"
+#include "uLocator/origin.hpp"
+#include "uLocator/arrival.hpp"
 #include "uLocator/station.hpp"
 #include "uLocator/optimizers/optimizer.hpp"
 
@@ -77,6 +79,24 @@ void restoreTimes(const std::vector<T> &reducedArrivals,
                    });
 }
 
+/// @brief This is a convience utility for extracting the observations and
+///        weights from a well-formed origin. 
+[[nodiscard]]
+std::pair<std::vector<double>, std::vector<double>>
+originToObservationsAndWeights(const ULocator::Origin &origin)
+{
+    const auto &arrivals = origin.getArrivalsReference();
+    std::vector<double> observations(arrivals.size());
+    std::vector<double> weights(arrivals.size());
+    auto nArrivals = static_cast<int> (arrivals.size());
+    for (int i = 0; i < nArrivals; ++i)
+    {   
+        observations[i] = arrivals[i].getTime();
+        weights[i]      = 1./arrivals[i].getStandardError();
+    }   
+    return std::pair {observations, weights};
+}
+
 template<typename T>
 [[nodiscard]] 
 T leastSquares(const std::vector<T> &weights,
@@ -84,38 +104,47 @@ T leastSquares(const std::vector<T> &weights,
                const std::vector<T> &estimates,
                const Measurement measurement)
 {
-     const T *__restrict__ weightsPtr = weights.data();
-     const T *__restrict__ observationsPtr = observations.data();
-     const T *__restrict__ estimatesPtr = estimates.data();
-     auto n = static_cast<int> (weights.size());
-     double sumSquaredOfResiduals{0};
-     if (measurement == Measurement::Standard)
-     {
-         for (int i = 0; i < n; ++i)
-         {
-             double weightedResidual
-                = weightsPtr[i]*(observationsPtr[i] - estimatesPtr[i]);
-             sumSquaredOfResiduals = sumSquaredOfResiduals
-                                   + weightedResidual*weightedResidual;
-         }
-     }
-     else if (measurement == Measurement::DoubleDifference)
-     {   
-         for (int i = 0; i < n; ++i)
-         {
-             for (int j = i + 1; j < n; ++j)
-             {
-                 double doubleDifferenceResidual
-                    = (observationsPtr[i] - observationsPtr[j])
-                    - (estimatesPtr[i]    - estimatesPtr[j]);
-                 double weight = std::sqrt(weightsPtr[i]*weightsPtr[j]);
-                 double weightedResidual = weight*doubleDifferenceResidual;
-                 sumSquaredOfResiduals = sumSquaredOfResiduals
-                                       + weightedResidual*weightedResidual;
-             }
-         }
-     }
-     return static_cast<T> (sumSquaredOfResiduals);
+    const T *__restrict__ weightsPtr = weights.data();
+    const T *__restrict__ observationsPtr = observations.data();
+    const T *__restrict__ estimatesPtr = estimates.data();
+    auto n = static_cast<int> (weights.size());
+    double sumSquaredOfResiduals{0};
+    if (measurement == Measurement::Standard)
+    {
+        for (int i = 0; i < n; ++i)
+        {
+            double weightedResidual
+               = weightsPtr[i]*(observationsPtr[i] - estimatesPtr[i]);
+            sumSquaredOfResiduals = sumSquaredOfResiduals
+                                  + weightedResidual*weightedResidual;
+        }
+    }
+    else if (measurement == Measurement::DoubleDifference)
+    {   
+        for (int i = 0; i < n; ++i)
+        {
+            for (int j = i + 1; j < n; ++j)
+            {
+                double doubleDifferenceResidual
+                   = (observationsPtr[i] - observationsPtr[j])
+                   - (estimatesPtr[i]    - estimatesPtr[j]);
+                double weight = std::sqrt(weightsPtr[i]*weightsPtr[j]);
+                double weightedResidual = weight*doubleDifferenceResidual;
+                sumSquaredOfResiduals = sumSquaredOfResiduals
+                                      + weightedResidual*weightedResidual;
+            }
+        }
+    }
+    return static_cast<T> (sumSquaredOfResiduals);
+}
+
+[[nodiscard]]
+double leastSquares(const ULocator::Origin &origin,
+                    const std::vector<double> &estimates,
+                    const Measurement measurement)
+{
+    auto [observations, weights] = ::originToObservationsAndWeights(origin);
+    return ::leastSquares(weights, observations, estimates, measurement);
 }
 
 template<typename T>
@@ -165,6 +194,16 @@ T l1(const std::vector<T> &weights,
 #endif
      return static_cast<T> (sumAbsoluteResiduals);
 }
+
+[[nodiscard]]
+double l1(const ULocator::Origin &origin,
+          const std::vector<double> &estimates,
+          const Measurement measurement)
+{
+    auto [observations, weights] = ::originToObservationsAndWeights(origin);
+    return ::l1(weights, observations, estimates, measurement);
+}
+
 
 template<typename T>
 [[nodiscard]] 
@@ -218,6 +257,16 @@ T lp(const std::vector<T> &weights,
 #endif
      return std::pow(sumAbsoluteResidualsToP, 1./p);;
 }
+
+[[nodiscard]]
+double lp(const ULocator::Origin &origin,
+          const std::vector<double> &estimates,
+          const double p,
+          const Measurement measurement)
+{
+    auto [observations, weights] = ::originToObservationsAndWeights(origin);
+    return ::lp(weights, observations, estimates, p, measurement);
+} 
 
 //----------------------------------------------------------------------------//
 //                                 3D + Time                                  //
@@ -469,6 +518,34 @@ struct Problem3DAndTime
     {
         return std::pair {mLowerBounds, mUpperBounds};
     }
+    /// @brief Populates arrays from an arrivals array
+    void fillObservationsWeightsStationPhasesArraysFromArrivals(
+        const std::vector<ULocator::Arrival> &arrivals,
+        const bool reduceTimes)
+    {
+        std::vector<std::pair<ULocator::Station, std::string>>
+             stationPhases(arrivals.size());
+        std::vector<double> weights(arrivals.size());
+        std::vector<double> observations(arrivals.size());
+        std::vector<double> estimateArrivalTimes(arrivals.size(), 0);
+        for (int i = 0; i < static_cast<int> (arrivals.size()); ++i)
+        {
+            stationPhases[i]
+                = std::pair{arrivals[i].getStation(), arrivals[i].getPhase()};
+            weights[i] = 1./arrivals[i].getStandardError();
+            observations[i] = arrivals[i].getTime();
+        }
+        mStationPhases = std::move(stationPhases);
+        mWeights = std::move(weights);
+        if (reduceTimes)
+        {
+            ::reduceTimes(observations, &mObservations, &mReductionTime);
+        }
+        else
+        {
+            mObservations = std::move(observations);
+        }
+    }
     const ULocator::TravelTimeCalculatorMap *mTravelTimeCalculatorMap{nullptr};
     const ULocator::Topography::ITopography *mTopography{nullptr};
     std::vector<std::pair<ULocator::Station, std::string>> mStationPhases;
@@ -480,6 +557,7 @@ struct Problem3DAndTime
         ULocator::Optimizers::IOptimizer::Norm::LeastSquares};
     double mPNorm{1.5};
     double mPenaltyCoefficient{1};
+    double mReductionTime{0};
     bool mApplyCorrection{true};
 };
 
@@ -673,7 +751,34 @@ struct Problem2DAndTimeAndFixedDepth
     {
         return std::pair {mLowerBounds, mUpperBounds};
     }
-    /// @result The origin corresponding to this event.
+    /// @brief Populates arrays from an arrivals array
+    void fillObservationsWeightsStationPhasesArraysFromArrivals(
+        const std::vector<ULocator::Arrival> &arrivals,
+        const bool reduceTimes)
+    {   
+        std::vector<std::pair<ULocator::Station, std::string>>
+             stationPhases(arrivals.size());
+        std::vector<double> weights(arrivals.size());
+        std::vector<double> observations(arrivals.size());
+        std::vector<double> estimateArrivalTimes(arrivals.size(), 0);
+        for (int i = 0; i < static_cast<int> (arrivals.size()); ++i)
+        {
+            stationPhases[i]
+                = std::pair{arrivals[i].getStation(), arrivals[i].getPhase()};
+            weights[i] = 1./arrivals[i].getStandardError();
+            observations[i] = arrivals[i].getTime();
+        }
+        mStationPhases = std::move(stationPhases);
+        mWeights = std::move(weights);
+        if (reduceTimes)
+        {
+            ::reduceTimes(observations, &mObservations, &mReductionTime);
+        }
+        else
+        {
+            mObservations = std::move(observations);
+        }
+    }
 
     const ULocator::TravelTimeCalculatorMap *mTravelTimeCalculatorMap{nullptr};
     std::vector<std::pair<ULocator::Station, std::string>> mStationPhases;
@@ -687,6 +792,7 @@ struct Problem2DAndTimeAndFixedDepth
     double mDepth{6000};
     double mPNorm{1.5};
     double mPenaltyCoefficient{1};
+    double mReductionTime{0};
     bool mApplyCorrection{true};
 };
 
@@ -904,6 +1010,35 @@ struct Problem2DAndTimeAndDepthAtFreeSurface
     {
         return std::pair {mLowerBounds, mUpperBounds};
     }
+    /// @brief Populates arrays from an arrivals array
+    void fillObservationsWeightsStationPhasesArraysFromArrivals(
+        const std::vector<ULocator::Arrival> &arrivals,
+        const bool reduceTimes)
+    {   
+        std::vector<std::pair<ULocator::Station, std::string>>
+             stationPhases(arrivals.size());
+        std::vector<double> weights(arrivals.size());
+        std::vector<double> observations(arrivals.size());
+        std::vector<double> estimateArrivalTimes(arrivals.size(), 0);
+        for (int i = 0; i < static_cast<int> (arrivals.size()); ++i)
+        {
+            stationPhases[i]
+                = std::pair{arrivals[i].getStation(), arrivals[i].getPhase()};
+            weights[i] = 1./arrivals[i].getStandardError();
+            observations[i] = arrivals[i].getTime();
+        }
+        mStationPhases = std::move(stationPhases);
+        mWeights = std::move(weights);
+        if (reduceTimes)
+        {
+            ::reduceTimes(observations, &mObservations, &mReductionTime);
+        }
+        else
+        {
+            mObservations = std::move(observations);
+            mReductionTime = 0;
+        }
+    }
     const ULocator::TravelTimeCalculatorMap *mTravelTimeCalculatorMap{nullptr};
     const ULocator::Topography::ITopography *mTopography{nullptr};
     std::vector<std::pair<ULocator::Station, std::string>> mStationPhases;
@@ -915,6 +1050,7 @@ struct Problem2DAndTimeAndDepthAtFreeSurface
         ULocator::Optimizers::IOptimizer::Norm::LeastSquares};
     double mPNorm{1.5};
     double mPenaltyCoefficient{1};
+    double mReductionTime{0};
     bool mApplyCorrection{true};
 };
 

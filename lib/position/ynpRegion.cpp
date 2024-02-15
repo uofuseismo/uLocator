@@ -1,27 +1,29 @@
+#include <iostream>
+#include <iomanip>
 #include <cmath>
 #include <string>
 #include <GeographicLib/Geocentric.hpp>
 #include <GeographicLib/LocalCartesian.hpp>
-#include "uLocator/position/utah.hpp"
+#include "uLocator/position/ynpRegion.hpp"
 
 using namespace ULocator::Position;
 
-#define MINIMUM_LATITUDE 36.25
-#define MAXIMUM_LATITUDE 43.00
-#define CENTER_LATITUDE  39.625
-#define MINIMUM_LONGITUDE -114.75
-#define MAXIMUM_LONGITUDE -108.25
-#define CENTER_LONGITUDE  -111.5
-#define MINIMUM_X -264866.0565037383
-#define MAXIMUM_X  264866.0565037381
-#define MINIMUM_Y -369110.6893637062
-#define MAXIMUM_Y  379402.8900178153
+#define MINIMUM_LATITUDE 43.5
+#define MAXIMUM_LATITUDE 45.5
+#define CENTER_LATITUDE  44.5
+#define MINIMUM_LONGITUDE -111.75
+#define MAXIMUM_LONGITUDE -109.75
+#define CENTER_LONGITUDE  -110.75
+#define MINIMUM_X -78154.09571331975
+#define MAXIMUM_X  78154.09571331974
+#define MINIMUM_Y -110611.925792941
+#define MAXIMUM_Y  111604.1838556079
 
-class Utah::UtahImpl
+class YNPRegion::YNPRegionImpl
 {
 public:
-    /*
-    UtahImpl()
+/*
+    YNPRegionImpl()
     {
         double x, y, z, lat, lon, h;
         mProjection.Forward(MINIMUM_LATITUDE, MINIMUM_LONGITUDE, 0, x, y, z);
@@ -49,7 +51,7 @@ public:
         mProjection.Reverse(mMaximumX, mMaximumY, 0, lat, lon, h); 
         std::cout << lat << " " << lon << std::endl;
     }
-    */
+*/
     GeographicLib::Geocentric mEarth{GeographicLib::Constants::WGS84_a(),
                                      GeographicLib::Constants::WGS84_f()};
     GeographicLib::LocalCartesian mProjection{CENTER_LATITUDE,
@@ -63,55 +65,55 @@ public:
 };
 
 /// Constructor.
-Utah::Utah() :
-    pImpl(std::make_unique<UtahImpl> ())
+YNPRegion::YNPRegion() :
+    pImpl(std::make_unique<YNPRegionImpl> ())
 {
 }
 
 /// Copy constructor
-Utah::Utah(const Utah &utah)
+YNPRegion::YNPRegion(const YNPRegion &ynp)
 {
-    *this = utah;
+    *this = ynp;
 }
 
 /// Move constructor
-Utah::Utah(Utah &&utah) noexcept
+YNPRegion::YNPRegion(YNPRegion &&ynp) noexcept
 {
-    *this = std::move(utah);
+    *this = std::move(ynp);
 }
 
 /// Copy assignment
-Utah& Utah::operator=(const Utah &utah)
+YNPRegion& YNPRegion::operator=(const YNPRegion &ynp)
 {
-    if (&utah == this){return *this;}
-    pImpl = std::make_unique<UtahImpl> (*utah.pImpl);
+    if (&ynp == this){return *this;}
+    pImpl = std::make_unique<YNPRegionImpl> (*ynp.pImpl);
     return *this;
 }
 
 /// Move assignment
-Utah& Utah::operator=(Utah &&utah) noexcept
+YNPRegion& YNPRegion::operator=(YNPRegion &&ynp) noexcept
 {
-    if (&utah == this){return *this;}
-    pImpl = std::move(utah.pImpl);
+    if (&ynp == this){return *this;}
+    pImpl = std::move(ynp.pImpl);
     return *this;
 }
 
 /// X-extent
-std::pair<double, double> Utah::getExtentInX() const noexcept
+std::pair<double, double> YNPRegion::getExtentInX() const noexcept
 {
     return std::pair {MINIMUM_X, MAXIMUM_X}; 
 }
 
 /// Y-extent
-std::pair<double, double> Utah::getExtentInY() const noexcept
+std::pair<double, double> YNPRegion::getExtentInY() const noexcept
 {
     return std::pair {MINIMUM_Y, MAXIMUM_Y};
 }
 
 /// Forward transformation
 std::pair<double, double> 
-Utah::geographicToLocalCoordinates(const double latitude,
-                                   const double longitude) const
+YNPRegion::geographicToLocalCoordinates(const double latitude,
+                                  const double longitude) const
 {
     if (latitude < -90 || latitude > 90)
     {
@@ -126,7 +128,7 @@ Utah::geographicToLocalCoordinates(const double latitude,
 
 /// Reverse transformation
 std::pair<double, double> 
-Utah::localToGeographicCoordinates(const double x, const double y) const
+YNPRegion::localToGeographicCoordinates(const double x, const double y) const
 {
     double latitude, longitude, h;
     pImpl->mProjection.Reverse(x, y, 0.0, latitude, longitude, h);
@@ -135,42 +137,12 @@ Utah::localToGeographicCoordinates(const double x, const double y) const
 
 
 /// Destructor.
-Utah::~Utah() = default;
+YNPRegion::~YNPRegion() = default;
 
 /// Clone
-std::unique_ptr<IGeographicRegion> Utah::clone() const
+std::unique_ptr<IGeographicRegion> YNPRegion::clone() const
 {
     std::unique_ptr<IGeographicRegion> region
-        = std::make_unique<Utah> (*this);
+        = std::make_unique<YNPRegion> (*this);
     return region;
 }
-
-/*
-#include <GeographicLib/Geodesic.hpp>
-int main()
-{
-    Utah utah;
-    double stGeorgeLatitude{37.0965};
-    double stGeorgeLongitude{-113.5684};
-    double slcLatitude{40.7608};
-    double slcLongitude{-111.8910};
-    auto [xsg, ysg] = utah.geographicToLocalCoordinates(stGeorgeLatitude, stGeorgeLongitude);
-    auto [xslc, yslc] = utah.geographicToLocalCoordinates(slcLatitude, slcLongitude);
-    auto distance = std::hypot(xslc - xsg, yslc - ysg);
-    std::cout << std::setprecision(12) << distance << std::endl;
-
-    GeographicLib::Geodesic geodesic{GeographicLib::Constants::WGS84_a(),
-                                     GeographicLib::Constants::WGS84_f()};
-    double distanceCorrect, azimuth, backAzimuth;
-    double greatCircleDistance
-         = geodesic.Inverse(slcLatitude,      slcLongitude,
-                            stGeorgeLatitude, stGeorgeLongitude,
-                            distanceCorrect, azimuth, backAzimuth);
-    if (azimuth < 0){azimuth = azimuth + 360;}
-    backAzimuth = backAzimuth + 180;
-
-    std::cout << distance << " " << distanceCorrect << std::endl; 
-    std::cout << azimuth << " " << 90 - std::atan2(ysg - yslc, xsg - xslc)*180/M_PI << std::endl; // target - origin
-    std::cout << backAzimuth << " " << 90 - std::atan2(yslc - ysg, xslc - xsg)*180/M_PI << std::endl;
-}
-*/

@@ -91,6 +91,7 @@ public:
                  oneapi::dal::minkowski_distance::descriptor<double>>
               > (nNeighbors);
     }
+/*
     /// Load the model
     void load(const std::string &fileName)
     {
@@ -200,6 +201,7 @@ public:
         // Train the model
         train();
     }
+*/
     /// Train the model
     void train()
     {
@@ -325,10 +327,10 @@ public:
                          = static_cast<int> (std::round(rowValues[j]));
                     auto iSrcFeatures = mFeatures*trainingRow;
                     auto iSrcTargets = 2*trainingRow;
-                    double residual = mTrainingTargetsMatrix[iSrcTargets];
-                    double weight = mTrainingTargetsMatrix[iSrcTargets + 1]; 
-                    double dx = xi - mTrainingFeaturesMatrix[iSrcFeatures];
-                    double dy = yi - mTrainingFeaturesMatrix[iSrcFeatures + 1]; 
+                    double residual = mTrainingTargetsMatrix.at(iSrcTargets);
+                    double weight = mTrainingTargetsMatrix.at(iSrcTargets + 1); 
+                    double dx = xi - mTrainingFeaturesMatrix.at(iSrcFeatures);
+                    double dy = yi - mTrainingFeaturesMatrix.at(iSrcFeatures + 1); 
                     double dz = 0;
                     if (doDepth)
                     {
@@ -469,6 +471,12 @@ SourceSpecific& SourceSpecific::operator=(const SourceSpecific &correction)
         }
     }
     return *this;
+}
+
+/// Reset class
+void SourceSpecific::clear() noexcept
+{
+    pImpl = std::make_unique<SourceSpecificImpl> ();
 }
 
 /// Destructor
@@ -795,7 +803,7 @@ void SourceSpecific::load(const std::string &fileName)
         H5Gclose(stationGroup);
         H5Fclose(file);
         throw std::runtime_error(std::string{KNN_GROUP_NAME}
-                             + " KNN group doesn't exist");
+                             + " group doesn't exist");
     }
     auto knnGroup = H5Gopen(stationGroup, KNN_GROUP_NAME, H5P_DEFAULT);
     // Load the training features
@@ -864,34 +872,63 @@ void SourceSpecific::load(const std::string &fileName)
     int nNeighbors;
     status = H5Dread(dataSet, H5T_NATIVE_INT, scalarSpace, dataSpace,
                      H5P_DEFAULT, &nNeighbors);
-    setNumberOfNeighbors(nNeighbors);
     H5Sclose(dataSpace);
     H5Dclose(dataSet);
+    if (status < 0)
+    {
+        H5Sclose(scalarSpace);
+        H5Gclose(knnGroup);
+        H5Gclose(stationGroup);
+        H5Fclose(file);
+        throw std::runtime_error("Failed to read number of neighbors");
+    }
+    setNumberOfNeighbors(nNeighbors);
 
     dataSet = H5Dopen2(knnGroup, EVALUATION_METHOD_NAME, H5P_DEFAULT);
     dataSpace = H5Dget_space(dataSet);
     int iEvaluationMethod;
     status = H5Dread(dataSet, H5T_NATIVE_INT, scalarSpace, dataSpace,
                      H5P_DEFAULT, &iEvaluationMethod);
-    setEvaluationMethod(static_cast<EvaluationMethod> (iEvaluationMethod));
     H5Sclose(dataSpace);
     H5Dclose(dataSet);
+    if (status < 0)
+    {
+        H5Sclose(scalarSpace);
+        H5Gclose(knnGroup);
+        H5Gclose(stationGroup);
+        H5Fclose(file);
+        throw std::runtime_error("Failed to read evaluation method");
+    }
+    setEvaluationMethod(static_cast<EvaluationMethod> (iEvaluationMethod));
 
     double maximumDistance{-1};
     dataSet = H5Dopen2(knnGroup, MAXIMUM_DISTANCE_NAME, H5P_DEFAULT);
     dataSpace = H5Dget_space(dataSet);
     status = H5Dread(dataSet, H5T_NATIVE_DOUBLE, scalarSpace, dataSpace,
                      H5P_DEFAULT, &maximumDistance);
-    pImpl->mMaximumDistance =-1;
-    if (maximumDistance >= 0){setMaximumDistance(maximumDistance);}
     H5Sclose(dataSpace);
     H5Dclose(dataSet);
+    if (status < 0)
+    {
+        H5Sclose(scalarSpace);
+        H5Gclose(knnGroup);
+        H5Gclose(stationGroup);
+        H5Fclose(file);
+        throw std::runtime_error("Failed to read maximum distance");
+    }
+    pImpl->mMaximumDistance =-1;
+    if (maximumDistance >= 0){setMaximumDistance(maximumDistance);}
 
     H5Sclose(scalarSpace);
     // Close the rest up
     H5Gclose(knnGroup);
     H5Gclose(stationGroup);
     H5Fclose(file);
+    // And train it
+    pImpl->train();
+#ifndef NDEBUG
+    assert(haveModel());
+#endif
 #endif
 }
 

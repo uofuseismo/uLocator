@@ -54,6 +54,9 @@ public:
     ///                    with respect to y.  This has units s/m.
     /// @param[out] dtdz   The derivative of the source-to-receiver travel time
     ///                    with respect to z.  This has units s/m.
+    /// @param[in] applyCorrection  True indicates the static and 
+    ///                             source-specific corrections should be
+    ///                             applied; assuming they were set.
     /// @result The source-to-receiver travel time in seconds.
     [[nodiscard]] virtual double evaluate(double x, double y, double z,
                                           double *dtdx, double *dtdy, double *dtdz,
@@ -62,6 +65,9 @@ public:
     /// @param[in] x       The x position of the source in meters.
     /// @param[in] y       The y position of the source in meters.
     /// @param[in] z       The z position of the source in meters.
+    /// @param[in] applyCorrection  True indicates the static and 
+    ///                             source-specific corrections should be
+    ///                             applied; assuming they were set.
     /// @result The theoretical arrival time of the phase at the station in
     ///         seconds.
     [[nodiscard]] virtual double operator()(double t0, double x, double y, double z, bool applyCorrection = true) const;

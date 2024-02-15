@@ -2,7 +2,7 @@
 #include "uLocator/arrival.hpp"
 #include "uLocator/station.hpp"
 #include "uLocator/position/wgs84.hpp"
-#include "uLocator/position/ynp.hpp"
+#include "uLocator/position/ynpRegion.hpp"
 #include <gtest/gtest.h>
 
 using namespace ULocator;
@@ -17,7 +17,7 @@ TEST(ULocator, Arrival)
     constexpr double stationLatitude{44.60533};
     constexpr double stationLongitude{-110.64317};
     constexpr double stationElevation{2653.0};
-    Position::YNP ynp;
+    Position::YNPRegion ynp;
     Station station;
     station.setNetwork(network);
     station.setName(stationName);

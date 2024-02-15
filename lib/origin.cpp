@@ -1,6 +1,9 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#ifndef NDEBUG
+#include <cassert>
+#endif
 #include "uLocator/origin.hpp"
 #include "uLocator/arrival.hpp"
 #include "uLocator/station.hpp"
@@ -62,7 +65,7 @@ public:
         }
         auto nAzimuths = static_cast<int> (azimuths.size());
         std::sort(azimuths.begin(), azimuths.begin() + nAzimuths);
-        azimuths.back() = azimuths.front(); // Trick that makes this work
+        azimuths.push_back(azimuths.at(0)); // Trick that makes this work
         double maximumGap{0};
         for (int i = 0; i < nAzimuths; ++i)
         {
@@ -71,12 +74,36 @@ public:
         // Could happen for only one station and multiple phases
         if (maximumGap > 0){mAzimuthalGap = maximumGap;}
     }
+    void computeWeightedRMSE()
+    {
+        mWeightedRMSE =-1;
+        if (mArrivals.empty()){return;}
+        double numerator{0};
+        double denominator{0};
+        for (const auto &arrival : mArrivals)
+        {
+            if (arrival.haveStandardError() &&
+                arrival.haveTime() &&
+                arrival.haveResidual())
+            {
+#ifndef NDEBUG
+                assert(arrival.getStandardError() > 0);
+#endif
+                double weight = 1./arrival.getStandardError();
+                double residual = arrival.getResidual();
+                numerator = numerator + weight*(residual*residual);
+                denominator = denominator + weight;
+            }
+        }
+        if (denominator > 0){mWeightedRMSE = std::sqrt(numerator/denominator);}
+    }
     std::vector<Arrival> mArrivals;
     Position::WGS84 mEpicenter;
     double mOriginTime{0};
     double mDepth{0};
     double mAzimuthalGap{-1};
     double mNearestStationDistance{-1};
+    double mWeightedRMSE{-1};
     int64_t mIdentifier{0};
     EventType mEventType{EventType::Unknown};
     bool mDepthFixed{false};
@@ -185,6 +212,7 @@ void Origin::setArrivals(const std::vector<Arrival> &arrivals)
     pImpl->mArrivals = arrivals;
     pImpl->updateArrivalDistanceAzimuth();
     pImpl->computeAzimuthalGapAndNearestStation();
+    pImpl->computeWeightedRMSE();
 }
 
 std::vector<Arrival> Origin::getArrivals() const
@@ -290,4 +318,20 @@ double Origin::getNearestStationDistance() const
 bool Origin::haveNearestStationDistance() const noexcept
 {
     return (pImpl->mNearestStationDistance >= 0);
+}
+
+/// RMSE
+double Origin::getWeightedRootMeanSquaredError() const
+{
+    if (!haveWeightedRootMeanSquaredError())
+    {
+        throw std::runtime_error(
+           "WeightedRMSE cannot be computed from current arrivals");
+    }
+    return pImpl->mWeightedRMSE;
+}
+
+bool Origin::haveWeightedRootMeanSquaredError() const noexcept
+{
+    return (pImpl->mWeightedRMSE >= 0);
 }

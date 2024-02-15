@@ -58,9 +58,26 @@ public:
     /// @}
 
     /// @brief Locates the event.
-    virtual void locate(LocationProblem locationProblem,
+    /// @param[in] locationProblem  Defines the location heuristic.
+    /// @param[in] initialGuess     This provides an initial depth and/or
+    ///                             epicentral estimate.
+    /// @param[in] norm             Defines the norm to optimize.
+    virtual void locate(const ULocator::Origin &initialGuess,
+                        LocationProblem locationProblem,
                         Norm norm = Norm::LeastSquares) = 0;
-
+    /// @brief Locates the event but assumes nothing about the event location.
+    /// @param[in] locationProblem  Defines the location heuristic.
+    /// @param[in] norm             Defines the norm to optimize.
+    virtual void locate(LocationProblem locationProblem,
+                        Norm norm = Norm::LeastSquares);
+    /// @brief Locates an event afixed to the free surface.
+    virtual void locateEventAtFreeSurface(Norm norm = Norm::LeastSquares);
+    /// @brief Locates an event at a fixed depth.
+    virtual void locateEventWithFixedDepth(double depth,
+                                           Norm norm = Norm::LeastSquares);
+    /// @brief Evaluates the objective function at a given location.
+    virtual double evaluateObjectiveFunction(const ULocator::Origin &origin,
+                                             Norm norm = Norm::LeastSquares) const;
     /// @name Region
     /// @{
  
@@ -112,8 +129,6 @@ public:
     /// @name Origin
     /// @{
 
-    virtual void setOrigin(const ULocator::Origin &origin);
-    virtual void setOrigin(ULocator::Origin &&origin);
     /// @result The optimized-for origin.
     /// @throws std::runtime_error if \c haveOrigin() is false.
     [[nodiscard]] virtual ULocator::Origin getOrigin() const;
@@ -126,6 +141,13 @@ public:
 
     IOptimizer(const IOptimizer &) = delete;
     IOptimizer& operator=(const IOptimizer &) = delete; 
+protected:
+    /// @brief This utility sets the origin information.
+    /// @param[in] origin   The event origin.
+    virtual void setOrigin(const ULocator::Origin &origin);
+    /// @brief This utility sets the origin information.
+    /// @param[in] origin   The event origin.
+    virtual void setOrigin(ULocator::Origin &&origin);
 private:
     class IOptimizerImpl;
     std::unique_ptr<IOptimizerImpl> pImpl;

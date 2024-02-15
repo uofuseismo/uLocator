@@ -1,4 +1,5 @@
 #include <fstream>
+#include <vector>
 #include <iomanip>
 #include <iostream>
 #include <string>
@@ -7,6 +8,8 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 #include <boost/tokenizer.hpp>
+#include <GeographicLib/Geocentric.hpp>
+#include <GeographicLib/LocalCartesian.hpp>
 #ifdef WITH_UMPS
 #include <umps/logging/standardOut.hpp>
 #else
@@ -14,19 +17,28 @@
 #endif
 #include "uLocator/arrival.hpp"
 #include "uLocator/origin.hpp"
+#include "uLocator/optimizers/nlopt/dividedRectangles.hpp"
+#include "uLocator/optimizers/pagmo/particleSwarm.hpp"
+#include "uLocator/optimizers/nlopt/boundOptimizationByQuadraticApproximation.hpp"
+#include "uLocator/optimizers/prima/boundOptimizationByQuadraticApproximation.hpp"
 //#include "uLocator/direct.hpp"
 //#include "uLocator/directOptions.hpp"
-#include "uLocator/uussTravelTimeCalculator.hpp"
+//#include "uLocator/uussTravelTimeCalculator.hpp"
+#include "uLocator/uussRayTracer.hpp"
+#include "uLocator/position/utahRegion.hpp"
+#include "uLocator/position/ynpRegion.hpp"
 #include "uLocator/travelTimeCalculatorMap.hpp"
-//#include "uLocator/hamiltonianMonteCarloOptions.hpp"
-//#include "uLocator/hamiltonianMonteCarlo.hpp"
-#include "uLocator/nlopt.hpp"
-#include "uLocator/nloptOptions.hpp"
 #include "uLocator/station.hpp"
 #include "uLocator/position/wgs84.hpp"
-#include "uLocator/topography.hpp"
-
-#define UTM_ZONE 12
+#include "uLocator/topography/constant.hpp"
+#include "uLocator/topography/gridded.hpp"
+#include "uLocator/corrections/static.hpp"
+#include "uLocator/corrections/sourceSpecific.hpp"
+#include "loadCatalog.hpp"
+#include "utahQuarries.hpp"
+#include "utahQuarryBlastTravelTimeDatabase.hpp"
+#include "originTime.hpp"
+#include "searchStations.hpp"
 
 using namespace ULocator;
 
@@ -34,232 +46,13 @@ using namespace ULocator;
 //0    1       2       3        4        5     6          7            8            9             10            11                       12                      13                   14            15          16            17        18        19          20          21        22             23    24 
 //evid,network,station,location,channelz,phase,arrival_id,arrival_time,pick_quality,first_motion,take_off_angle,source_receiver_distance,source_receiver_azimuth,travel_time_residual,receiver_lat,receiver_lon,receiver_elev,event_lat,event_lon,event_depth,origin_time,magnitude,magnitude_type,rflag,etype
 //60000004,UU,HLJ,01,EHZ,P,228,1349658396.9360406,1.0,1,140,10.8,296.0,0.03,40.6105,-111.40067,1931.0,40.5678333,-111.2855,12.41,1349658393.5900002,0.01,d,F,eq
+//0,              1,       2,     3,                4             5
+//event_identifier,network,station,vertical_channel,location_code,arrival_time,residual,phase,station_latitude,station_longitude,station_elevation,standard_error,arrival_identifier,arrival_evaluation_type,event_latitude,event_longitude,event_depth,origin_time,source_receiver_distance_km,source_to_receiver_azimuth,receiver_to_source_azimuth,event_type
 
-double qualityToStandardError(const double quality)
-{
-    if (std::abs(quality - 1) < 1.e-4)
-    {
-        return 0.03;
-    }
-    else if (std::abs(quality - 0.75) < 1.e-4)
-    {
-        return 0.06;
-    }
-    else if (std::abs(quality - 0.5) < 1.e-4)
-    {
-        return 0.15;
-    }
-#ifndef NDEBUG
-    assert(false);
-#endif
-    return 1;
-}
-
-std::vector<Origin> loadCatalog(const std::string &fileName,
-                                const std::string &trainingFileName,
-                                std::shared_ptr<UMPS::Logging::ILog> logger)
-{
-    // Get training events
-    std::string line;
-    std::vector<int64_t> trainingEventIdentifiers;
-    std::ifstream trainingFile(trainingFileName);
-    getline(trainingFile, line); // Header
-    while (getline(trainingFile, line))
-    {
-        std::vector<std::string> splitLine;
-        splitLine.reserve(64);
-        boost::tokenizer<boost::escaped_list_separator<char>>
-           tokenizer(line,
-                     boost::escaped_list_separator<char>('\\', ',', '\"'));
-        for (auto i = tokenizer.begin(); i != tokenizer.end(); ++i) 
-        {
-            splitLine.push_back(*i);
-        }
-        trainingEventIdentifiers.push_back(std::stol(splitLine[0]));
-    } 
-    // Get entire catalog
-    std::vector<Origin> origins;
-    origins.reserve(10000);
-    std::ifstream csvFile(fileName); 
-    if (!csvFile.is_open())
-    {
-        throw std::runtime_error("Couldn't open: " + fileName);
-    }
-    Origin origin;
-    std::vector<Arrival> arrivals;
-    int64_t evidOld{-1};
-    getline(csvFile, line); // Header
-    while (getline(csvFile, line))
-    {
-        std::vector<std::string> splitLine;
-        splitLine.reserve(64);
-        boost::tokenizer<boost::escaped_list_separator<char>>
-           tokenizer(line,
-                     boost::escaped_list_separator<char>('\\', ',', '\"'));
-        for (auto i = tokenizer.begin(); i != tokenizer.end(); ++i) 
-        {
-            splitLine.push_back(*i);
-        }
-        auto evid = std::stol(splitLine[0]);
-        auto network = splitLine[1];
-        auto stationName = splitLine[2];
-        auto phase = splitLine[5];
-        auto arid = std::stol(splitLine[6]);
-        auto time = std::stod(splitLine[7]);
-        auto residual = std::stod(splitLine[13]);
-        auto uncertainty = qualityToStandardError(std::stod(splitLine[8]));
-        auto stationLat = std::stod(splitLine[14]);
-        auto stationLon = std::stod(splitLine[15]);
-        auto stationElev = std::stod(splitLine[16]);
-        auto eventLat = std::stod(splitLine[17]); 
-        auto eventLon = std::stod(splitLine[18]);
-        auto eventDepth = 1000*std::stod(splitLine[19]);
-        auto originTime = std::stod(splitLine[20]);
-        auto eventType = splitLine[24];
-        if (evid != evidOld)
-        {
-            // When we get to a new event finish out this origin
-            if (evidOld !=-1)
-            {
-                if (std::find(trainingEventIdentifiers.begin(),
-                              trainingEventIdentifiers.end(),
-                              origin.getIdentifier())
-                    != trainingEventIdentifiers.end())
-                {
-                    origin.setArrivals(arrivals);
-                    origins.push_back(origin);
-                }
-            }
-            // Update
-            evidOld = evid;
-            arrivals.clear();
-            origin.clear();
-            // Set initial origin information
-            Position::WGS84 epicenter{eventLat, eventLon, UTM_ZONE};
-            origin.setIdentifier(evid);
-            origin.setEpicenter(epicenter);
-            origin.setDepth(eventDepth);
-            origin.setTime(originTime);
-            origin.setEventType(Origin::EventType::Earthquake);
-            if (eventType == "qb")
-            {
-                origin.setEventType(Origin::EventType::QuarryBlast);
-            }
-        }
-        Position::WGS84 stationPosition{stationLat, stationLon, UTM_ZONE};
-        Arrival arrival;
-        Station station;
-        station.setNetwork(network);
-        station.setName(stationName);
-        station.setGeographicPosition(stationPosition);
-        station.setElevation(stationElev);
-        arrival.setTime(time);
-        arrival.setStandardError(uncertainty);
-        arrival.setResidual(residual);
-        arrival.setPhase(phase);
-        arrival.setStation(station);
-        arrival.setIdentifier(arid);
-        // Assert the arrival does not already exist
-        bool exists{false};
-        for (const auto &a : arrivals)
-        {
-            const auto &si = a.getStation();
-            if (si.getNetwork() == network &&
-                si.getName()    == stationName &&
-                a.getPhase()    == phase)
-            {
-                exists = true;
-                logger->warn("Duplicate phase arrival for: "
-                            + std::to_string(evid)
-                            + " " + network + "." + stationName + "." + phase
-                            + "; skipping...");
-            }
-        }
-        if (!exists)
-        {
-            arrivals.push_back(std::move(arrival));
-        }
-    }
-    return origins;    
-}
-
-std::vector<Station> uniqueStationsFromOrigins(
-    const std::vector<Origin> &origins)
-{
-    std::vector<Station> uniqueStations;
-    std::vector<std::string> uniqueStationNames;
-    for (const auto &origin : origins)
-    {
-        const auto arrivals = origin.getArrivalsReference();
-        for (const auto &arrival : arrivals)
-        {
-            const auto station = arrival.getStationReference();
-            auto name = station.getNetwork() + "." + station.getName();
-            bool exists{false};
-            for (const auto &uniqueStationName : uniqueStationNames)
-            {
-                if (name == uniqueStationName)
-                {
-                    exists = true;
-                    break;
-                }
-            }
-            if (!exists)
-            {
-                uniqueStationNames.push_back(name);
-                uniqueStations.push_back(station);
-            }
-        }
-    }
-    return uniqueStations;
-}
-
-/*
-std::vector<ULocator::Arrival> 
-    loadJSON(const std::filesystem::path &jsonFileName)
-{
-    std::ifstream jsonFile(jsonFileName);
-    auto obj = nlohmann::json::parse(jsonFile);
-    jsonFile.close();
-    std::vector<ULocator::Arrival> arrivals;
-    for (const auto &item : obj)
-    {
-        auto stationLatitude  = item["station_latitude"].get<double> ();
-        auto stationLongitude = item["station_longitude"].get<double> ();
-        ULocator::Position::WGS84 position{stationLatitude, stationLongitude, UTM_ZONE};
-        ULocator::Station station;
-        station.setNetwork(item["network"].get<std::string> ());
-        station.setName(item["station"].get<std::string> ());
-        station.setGeographicPosition(position);
-        ULocator::Arrival arrival;
-        arrival.setStation(station);
-        arrival.setIdentifier(item["arrival_id"].get<int64_t> ());
-        arrival.setTime(item["arrival_time"].get<double> ()); 
-        arrival.setStandardError(item["standard_error"].get<double> ());
-        auto phase = item["phase"].get<std::string> ();
-        if (phase == "P")
-        {
-            arrival.setPhase(ULocator::Arrival::PhaseType::P);
-        }
-        else if (phase == "S")
-        {
-            arrival.setPhase(ULocator::Arrival::PhaseType::S);
-        }
-        else
-        {
-            assert(false);
-            std::cout << "Unhandled phase type: " << phase << std::endl;
-            continue;
-        }
-        arrivals.push_back(arrival);
-    }
-    return arrivals;
-}
-*/
-
+/// @result An application logger.
 std::shared_ptr<UMPS::Logging::ILog> makeLogger()
 {
-    return std::make_shared<UMPS::Logging::StandardOut> ();
+    return std::make_shared<UMPS::Logging::StandardOut> (UMPS::Logging::Level::Info);
 }
 
 /// @brief Parses the command line options.
@@ -272,6 +65,13 @@ struct ProgramOptions
     std::string topographyFile;
     std::string correctionsFile;
     std::string region{"utah"};
+    std::unique_ptr<Position::IGeographicRegion> geographicRegion{nullptr};
+    int catalogVersion{3};
+    double utahDefaultDepth{4780};
+    double ynpDefaultDepth{6600};
+    double utahTimeWindow{140};  // Longest seen is 80 s (50 pct extra)
+    double ynpTimeWindow{61}; // Longest seen is 42 seconds (50 pct extra)
+    double pNorm{1.5};
     bool doSourceSpecificStationCorrections{true};
     bool doStaticCorrections{true};
     bool locate{true};
@@ -287,17 +87,19 @@ The ulocate utility locates all evens in  catalog.  Example usage:
 Allowed options)""");
     desc.add_options()
         ("help",         "Produces this help message")
-        ("catalog_file", boost::program_options::value<std::string> ()->default_value("../examples/utah/utah_catalog.csv"),
+        ("catalog_file", boost::program_options::value<std::string> ()->default_value("../examples/uuss/utah_catalog.csv"),
                          "A CSV file with the picks for each event")
-        ("events_file",  boost::program_options::value<std::string> ()->default_value("../examples/utah/utah_events_training.csv"),
+        ("catalog_version", boost::program_options::value<int> ()->default_value(options.catalogVersion),
+                         "The catalog file version number")
+        ("events_file",  boost::program_options::value<std::string> ()->default_value("../examples/uuss/utah_events_training.csv"),
                          "A CSV with the events")
         ("output_file",  boost::program_options::value<std::string> ()->default_value("relocatedUtahCatalog.csv"),
                          "The output catalog file")
-        ("traveltime_file", boost::program_options::value<std::string> ()->default_value("../examples/utah/utahTravelTimes.h5"),
+        ("traveltime_file", boost::program_options::value<std::string> ()->default_value("../examples/uuss/utahTravelTimes.h5"),
                          "The archive with the travel time grids")
         ("corrections_file", boost::program_options::value<std::string> ()->default_value(""), //correctionsArchive.h5"),
                          "The travel time corrections file")
-        ("topography_file",  boost::program_options::value<std::string> ()->default_value("utahTopo.h5"),
+        ("topography_file",  boost::program_options::value<std::string> ()->default_value("utahTopography.h5"),
                          "The topography file")
         ("region", boost::program_options::value<std::string> ()->default_value("utah"),
                    "The region - e.g., utah or ynp")
@@ -376,7 +178,7 @@ Allowed options)""");
     }
     else
     {
-        std::cout << "Will not use topography" << std::endl;
+        std::cout << "Will use constant topography" << std::endl;
     }
     if (vm.count("corrections_file"))
     {
@@ -402,13 +204,33 @@ Allowed options)""");
         auto region = vm["region"].as<std::string> ();
         if (region != "utah" && region != "ynp")
         {
-            std::cerr << "Unhandled region: " << region << std::endl;
+            throw std::invalid_argument("Unhandled region: " + region);
         }
+        else
+        {
+            if (region == "utah")
+            {
+                options.geographicRegion = std::make_unique<Position::UtahRegion> ();
+            }
+            else if (region == "ynp")
+            {
+                options.geographicRegion = std::make_unique<Position::YNPRegion> ();
+            }
+        } 
         options.region = region;
     }
     else
     {
         throw std::invalid_argument("Region not set");
+    }
+    if (vm.count("catalog_version"))
+    {
+        auto version = vm["catalog_version"].as<int> ();
+        if (version < 1 || version > 3)
+        {
+            throw std::invalid_argument("catalog_version must be 1, 2, or 3");
+        }
+        options.catalogVersion = version;
     }
     options.locate = true;
     if (vm.count("predict"))
@@ -420,13 +242,87 @@ Allowed options)""");
     {
         options.doStaticCorrections = false;
     }
+    if (options.doStaticCorrections &&
+        !std::filesystem::exists(options.correctionsFile))
+    {
+        options.doStaticCorrections = false;
+    }
     options.doSourceSpecificStationCorrections = true;
     if (vm.count("disable_source_specific_station_corrections"))
     {
         options.doSourceSpecificStationCorrections = false;
     }
+    if (options.doSourceSpecificStationCorrections &&
+        !std::filesystem::exists(options.correctionsFile))
+    {
+        options.doSourceSpecificStationCorrections = false;
+    }
     return options;
 }
+
+/*
+class RefinedRegion : public ULocator::Position::IGeographicRegion
+{
+public:
+    ~RefinedRegion() = default;
+    RefinedRegion(const ULocator::Position::WGS84 &epicenter,
+                  const ULocator::Position::IGeographicRegion &region,
+                  const double refinedSearchInX = 50000,
+                  const double refinedSearchInY = 50000) :
+        IGeographicRegion()
+    {
+        auto latitude = epicenter.getLatitude();
+        auto longitude = epicenter.getLongitude();
+        GeographicLib::Geocentric mEarth{GeographicLib::Constants::WGS84_a(),
+                                         GeographicLib::Constants::WGS84_f()};
+        GeographicLib::LocalCartesian mProjection{latitude,
+                                                  longitude,
+                                                  0.0, // Height above ellipsoid at origin (meters)
+                                                  mEarth};
+        mMinimumX =-std::abs(refinedSearchInX);
+        mMaximumX = std::abs(refinedSearchInX);
+        mMinimumY =-std::abs(refinedSearchInY);
+        mMaximumY = std::abs(refinedSearchInY);
+    }
+    /// Forward transformation
+    std::pair<double, double> 
+        geographicToLocalCoordinates(const double latitude,
+                                     const double longitude) const override
+    {
+        if (latitude < -90 || latitude > 90) 
+        {   
+            throw std::invalid_argument("Latitude " + std::to_string(latitude)
+                                      + " must be in range [-90,90]");
+        }   
+        double x, y, z;
+        mProjection.Forward(latitude, longitude, 0.0, x, y, z); 
+        return std::pair {x, y}; 
+    }
+    /// Reverse transformation
+    std::pair<double, double> 
+        localToGeographicCoordinates(const double x, const double y) const override
+    {
+        double latitude, longitude, h;
+        mProjection.Reverse(x, y, 0.0, latitude, longitude, h); 
+        return std::pair {latitude, longitude}; 
+    }
+    /// X-extent
+    [[nodiscard]] std::pair<double, double> getExtentInX() const noexcept override
+    {   
+        return std::pair {mMinimumX, mMaximumX};
+    }
+    /// Y-extent
+    std::pair<double, double> getExtentInY() const noexcept override
+    {
+        return std::pair {mMinimumY, mMaximumY};
+    }
+    GeographicLib::LocalCartesian mProjection;
+    double mMinimumX{0};
+    double mMaximumX{0};
+    double mMinimumY{0};
+    double mMaximumY{0};
+};
+*/
 
 int main(int argc, char *argv[])
 {
@@ -442,7 +338,9 @@ int main(int argc, char *argv[])
     }
     if (programOptions.catalogFile.empty()){return EXIT_SUCCESS;}
  
-    auto logger = makeLogger();
+    auto logger = ::makeLogger();
+    
+/*
 //60086357,41.9576667,-112.8155,8.3,1411640115.6399994,0.2047364678717393,1.99,l,eq
 //    std::filesystem::path jsonFileName{"60086357.json"}; 
     //std::filesystem::path jsonFileName{"../examples/utah/60000071.json"};
@@ -450,82 +348,208 @@ int main(int argc, char *argv[])
     std::filesystem::path travelTimeFile = programOptions.travelTimeFile; //{"../examples/utah/utahTravelTimes.h5"};
     std::filesystem::path topographyFile = programOptions.topographyFile; // = {"utahTopo.h5"};
     std::filesystem::path correctionsFile = programOptions.correctionsFile; //{"correctionsArchive.h5"};
+*/
 
+    // Load up the catalog to (re)locate, station information, etc. 
     logger->info("Loading origins...");
+    constexpr int utmZone{12};
     auto origins = ::loadCatalog(programOptions.catalogFile,
                                  programOptions.eventsFile,
-                                 logger);
+                                 *programOptions.geographicRegion,
+                                 logger,
+                                 programOptions.catalogVersion,
+                                 utmZone);
     logger->info("Tabulating unique stations...");
     auto uniqueStations = ::uniqueStationsFromOrigins(origins); 
-    logger->info("Found: " + std::to_string(uniqueStations.size()) + " stations");
+    logger->info("Found: "
+               + std::to_string(uniqueStations.size()) + " stations");
+
     // Load the topography
-    logger->info("Loading topography...");
-    auto topography = std::make_unique<ULocator::Topography> (); 
-    try 
+    std::unique_ptr<ULocator::Topography::ITopography> topography{nullptr};
+    if (std::filesystem::exists(programOptions.topographyFile))
     {
-        topography->load(topographyFile);
+        logger->info("Loading topography from "
+                   + programOptions.topographyFile);
+        auto griddedTopography
+            = std::make_unique<ULocator::Topography::Gridded> ();
+        try 
+        {
+            griddedTopography->load(programOptions.topographyFile,
+                                    *programOptions.geographicRegion);
+        }
+        catch (const std::exception &e) 
+        {
+            logger->error(e.what());
+            return EXIT_FAILURE;
+        }
+        topography = std::move(griddedTopography);
     }
-    catch (const std::exception &e) 
+    else
     {
-        logger->error(e.what());
-        return EXIT_FAILURE;
+        logger->info("Using constant topography of 2 km");
+        auto constantTopography
+            = std::make_unique<ULocator::Topography::Constant> ();
+        constantTopography->set(2000);
+        topography = std::move(constantTopography);
     }
-    // Load the travel time tables
-    std::vector<Station> stationShitList;
+
+    // Load the quarries
+    std::unique_ptr<::UtahQuarryBlastTravelTimeDatabase> quarryLocator{nullptr};
+    if (programOptions.locate && programOptions.region == "utah")
+    {
+        quarryLocator = std::make_unique<::UtahQuarryBlastTravelTimeDatabase> ();
+        if (programOptions.doStaticCorrections)
+        {
+            quarryLocator->setStaticCorrectionsFile(
+                programOptions.correctionsFile);
+        }
+        if (programOptions.doSourceSpecificStationCorrections)
+        {
+            quarryLocator->setSourceSpecificCorrectionsFile(
+                programOptions.correctionsFile);
+        }
+    }
+    // Load the known locations
+    std::unique_ptr<::UtahEventTravelTimeDatabase> utahEventDatabase{nullptr};
+    std::unique_ptr<::YNPEventTravelTimeDatabase> ynpEventDatabase{nullptr};
+    if (programOptions.locate)
+    {
+        if (programOptions.region == "utah")
+        {
+            utahEventDatabase = std::make_unique<::UtahEventTravelTimeDatabase> ();
+            if (programOptions.doStaticCorrections)
+            {
+                utahEventDatabase->setStaticCorrectionsFile(
+                    programOptions.correctionsFile);
+            }
+            if (programOptions.doSourceSpecificStationCorrections)
+            {
+                utahEventDatabase->setSourceSpecificCorrectionsFile(
+                    programOptions.correctionsFile);
+            }
+        }
+        else
+        {
+            ynpEventDatabase = std::make_unique<::YNPEventTravelTimeDatabase> ();
+            if (programOptions.doStaticCorrections)
+            {
+                ynpEventDatabase->setStaticCorrectionsFile(
+                    programOptions.correctionsFile);
+            }
+            if (programOptions.doSourceSpecificStationCorrections)
+            {
+                ynpEventDatabase->setSourceSpecificCorrectionsFile(
+                    programOptions.correctionsFile);
+            }
+        }
+    }
+
+    // Generate the ray-tracer travel time calculators
+    logger->info("Initializing travel time calculators...");
+    std::vector<Station> stationBlackList;
     auto travelTimeCalculators = std::make_unique<ULocator::TravelTimeCalculatorMap> ();
     for (const auto &uniqueStation : uniqueStations)
     {
-        auto pCalculator = std::make_unique<ULocator::UUSSTravelTimeCalculator> (logger);
-        auto sCalculator = std::make_unique<ULocator::UUSSTravelTimeCalculator> (logger);
+        auto rayTracerRegion = UUSSRayTracer::Region::Utah;
+        if (programOptions.region == "ynp")
+        {
+            rayTracerRegion = UUSSRayTracer::Region::YNP;
+        }
         try
         {
-            pCalculator->load(travelTimeFile,
-                              uniqueStation,
-                              "P",
-                              programOptions.region);
-            if (!correctionsFile.empty())
+            ULocator::Corrections::Static pStatic;
+            ULocator::Corrections::Static sStatic;
+            ULocator::Corrections::SourceSpecific pSSSC;
+            ULocator::Corrections::SourceSpecific sSSSC;
+            if (programOptions.doStaticCorrections)
             {
-                if (programOptions.doStaticCorrections)
+                pStatic.setStationNameAndPhase(uniqueStation.getNetwork(),
+                                               uniqueStation.getName(),
+                                               "P");
+                sStatic.setStationNameAndPhase(uniqueStation.getNetwork(),
+                                               uniqueStation.getName(),
+                                               "S");
+                try
                 {
-                    logger->info("Loading P static corrections from: "
-                               + std::string {correctionsFile});
-                    pCalculator->loadStaticCorrection(correctionsFile);
+                    pStatic.load(programOptions.correctionsFile);
+                    logger->info("Loaded P static for "
+                               + uniqueStation.getNetwork()
+                               + " " + uniqueStation.getName());
                 }
-                if (programOptions.doSourceSpecificStationCorrections)
+                catch (const std::exception &e)
                 {
-                    logger->info(
-                        "Loading P source specific station corrections from: "
-                       + std::string {correctionsFile});
-                    pCalculator->loadSourceSpecificStationCorrections(
-                       correctionsFile);
+                    logger->warn(e.what());
+                    pStatic.clear();
+                }
+                try
+                {
+                    sStatic.load(programOptions.correctionsFile);
+                    logger->info("Loaded S static for "
+                               + uniqueStation.getNetwork()
+                               + " " + uniqueStation.getName());
+                }
+                catch (const std::exception &e)
+                {
+                    logger->warn(e.what());
+                    sStatic.clear();
                 }
             }
-            sCalculator->load(travelTimeFile,
-                              uniqueStation,
-                              "S",
-                              programOptions.region);
-            if (!correctionsFile.empty())
+            if (programOptions.doSourceSpecificStationCorrections)
             {
-                if (programOptions.doStaticCorrections)
+                pSSSC.setStationNameAndPhase(uniqueStation.getNetwork(),
+                                             uniqueStation.getName(),
+                                             "P");
+                sSSSC.setStationNameAndPhase(uniqueStation.getNetwork(),
+                                             uniqueStation.getName(),
+                                             "S");
+                try
                 {
-                    logger->info("Loading S static corrections from: "
-                               + std::string {correctionsFile});
-                    sCalculator->loadStaticCorrection(correctionsFile);
+                    pSSSC.load(programOptions.correctionsFile);
+                    logger->info("Loaded P SSSC for "
+                               + uniqueStation.getNetwork() 
+                               + " " + uniqueStation.getName());
                 }
-                if (programOptions.doSourceSpecificStationCorrections)
+                catch (const std::exception &e)
                 {
-                    logger->info(
-                        "Loading S source specific station corrections from: "
-                       + std::string {correctionsFile});
-                    sCalculator->loadSourceSpecificStationCorrections(
-                       correctionsFile);
+                    logger->warn(e.what());
+                    pSSSC.clear();
+                }
+                try
+                {
+                    sSSSC.load(programOptions.correctionsFile);
+                    logger->info("Loaded S SSSC for " 
+                               + uniqueStation.getNetwork()
+                               + " " + uniqueStation.getName());
+                }
+                catch (const std::exception &e)
+                {
+                    logger->warn(e.what());
+                    sSSSC.clear();
                 }
             }
+            auto pCalculator
+                = std::make_unique<UUSSRayTracer> (uniqueStation,
+                                                   UUSSRayTracer::Phase::P,
+                                                   rayTracerRegion,
+                                                   std::move(pStatic),
+                                                   std::move(pSSSC),
+                                                   logger);
+            auto sCalculator
+                = std::make_unique<UUSSRayTracer> (uniqueStation,
+                                                   UUSSRayTracer::Phase::S,
+                                                   rayTracerRegion,
+                                                   std::move(sStatic),
+                                                   std::move(sSSSC),
+                                                   logger);
+            travelTimeCalculators->insert(uniqueStation, "P",
+                                          std::move(pCalculator));
+            travelTimeCalculators->insert(uniqueStation, "S",
+                                          std::move(sCalculator));
         }
         catch (const std::exception &e)
         {
             bool exists{false};
-            for (const auto &station : stationShitList)
+            for (const auto &station : stationBlackList)
             {
                 if (station.getNetwork() == uniqueStation.getNetwork() && 
                     station.getName() == uniqueStation.getName())
@@ -533,69 +557,48 @@ int main(int argc, char *argv[])
                     exists = true;
                 }
             }
-            if (!exists){stationShitList.push_back(uniqueStation);}
-            std::cerr << e.what() << std::endl;
+            if (!exists)
+            {
+                logger->warn("Blacklisting "
+                           + uniqueStation.getNetwork() + "."
+                           + uniqueStation.getName());
+                stationBlackList.push_back(uniqueStation);
+            }
+            logger->error(e.what());
             continue;
         }
-        travelTimeCalculators->insert(uniqueStation, "P", std::move(pCalculator));
-        travelTimeCalculators->insert(uniqueStation, "S", std::move(sCalculator));
     }
-    auto region = NLOptOptions::Region::Utah;
-    if (programOptions.region == "ynp")
-    {
-        region = NLOptOptions::Region::Yellowstone;
-        logger->info("Using the Yellowstone region"); 
-    }
-    else
-    {
-        logger->info("Using the Utah region");
-    }
-    bool locate = true;
-    if (programOptions.locate)
-    {
-        locate = true;
-        logger->info("Will perform location");
-    }
-    else
-    {
-        locate = false;
-        logger->info("Will compute predictions for given events");
-    }
-/*
-    ULocator::DirectOptions options(region);
-    options.setObjectiveFunction(DirectOptions::ObjectiveFunction::L1);
-    options.setAbsoluteModelTolerance(1.e-6);
-*/
-    ULocator::NLOptOptions options(region);
-    options.setObjectiveFunction(NLOptOptions::ObjectiveFunction::L1);
-    ULocator::NLOpt nloptSolver(logger);
-    nloptSolver.setOptions(options);
-    nloptSolver.setTopography(std::move(topography));
-    nloptSolver.setTravelTimeCalculatorMap(std::move(travelTimeCalculators));
-/*
-    ULocator::Direct directSolver(logger);
-    directSolver.setOptions(options);
-    directSolver.setTopography(std::move(topography));
-    directSolver.setTravelTimeCalculatorMap(std::move(travelTimeCalculators));
-*/
+
     std::ofstream outCatalog(programOptions.outputFile);
-    std::ofstream locationFailures("locationFailures.csv");
-    outCatalog << "event_identifier,latitude,longitude,depth,origin_time,network,station,phase,arrival_time,standard_error,residual,uncorrected_travel_time,source_receiver_distance,event_type,n_objective_function_evaluations,weightedRMS" << std::endl;
-    locationFailures << "event_identifier,latitude,longitude,depth,event_type,reason" << std::endl; 
-    for (int iOrigin = 0; iOrigin < static_cast<int> (origins.size()); ++iOrigin)
+    //std::ofstream locationFailures("locationFailures.csv");
+    outCatalog << "event_identifier,latitude,longitude,depth,origin_time,network,station,phase,arrival_time,standard_error,residual,uncorrected_travel_time,source_receiver_distance,event_type,n_objective_function_evaluations,weightedRMSE" << std::endl;
+
+    for (int iOrigin = 0; iOrigin < static_cast<int>(origins.size()); ++iOrigin)
     {
-        logger->info("Processing " + std::to_string(iOrigin + 1) + " out of "
-                   + std::to_string(origins.size()));
+//if (iOrigin + 1 != 68){continue;}
+//if (iOrigin > 20){break;}
+        if ((iOrigin + 1)%50 == 0 || true)
+        {
+            double percentDone = (iOrigin*100.)/(origins.size() - 1);
+            logger->info("Processing " + std::to_string(iOrigin + 1)
+                       + " out of "
+                       + std::to_string(origins.size())
+                       + " (" + std::to_string(percentDone) + " %)");
+        }
         auto origin = origins[iOrigin];
-//if (origin.getIdentifier() != 60086357){continue;}
-//if (origin.getIdentifier() != 60029937){continue;}
         auto arrivals = origin.getArrivals();
+        bool isQuarryBlast = false;
+        if (origin.getEventType() == Origin::EventType::QuarryBlast)
+        {
+            isQuarryBlast = true;
+        }
+        // If any arrivals are on a black-listed station then purge it 
         arrivals.erase(
             std::remove_if(arrivals.begin(), arrivals.end(),
                            [&](const Arrival &arrival)
                       {
                           auto arrivalStation = arrival.getStationReference();
-                          for (const auto &station : stationShitList)
+                          for (const auto &station : stationBlackList)
                           {
                               if (arrivalStation.getNetwork() ==
                                   station.getNetwork() &&
@@ -609,161 +612,455 @@ int main(int argc, char *argv[])
                           return false;
                       }),
              arrivals.end());
-        if (arrivals.size() < 4 && locate)
+        // Time to work
+        int nObjectiveFunctionEvaluations{0};
+        if (programOptions.locate)
         {
-            logger->error("Cannot locate event: "
-                        + std::to_string(origin.getIdentifier())
-                        + " because too few observations");
-            continue;
-        }
-        try
-        {
-            nloptSolver.setArrivals(arrivals);
-        }
-        catch (const std::exception &e)
-        {
-            logger->error("Could not set arrivals for: "
-                        + std::to_string(origin.getIdentifier())
-                        + ".  Failed with: " + std::string {e.what()});
-            continue;
-        }
-        try
-        {
-            bool isQuarryBlast = false;
-            if (origin.getEventType() == Origin::EventType::QuarryBlast)
+            // Define the origin time search window and fixed depth for the
+            // initial optimization 
+            double timeWindow = programOptions.utahTimeWindow;
+            double initialDepth = programOptions.utahDefaultDepth;
+            if (programOptions.region == "ynp")
             {
-                isQuarryBlast = true;
+                timeWindow = programOptions.ynpTimeWindow; 
+                initialDepth = programOptions.ynpDefaultDepth;
             }
-            int nObjectiveFunctionEvaluations = 1;
-            if (locate)
+            // First we build an initial solution.  Effectively, we will
+            // always check quarries and sometimes check earthquake locations.
+            logger->debug("Performing quarry optimization...");
+            auto [bestQuarryIndex, bestQuarryOrigin,
+                  bestQuarryObjectiveFunction]
+                = quarryLocator->findBestQuarry(
+                     origin,
+                     ULocator::Optimizers::IOptimizer::Norm::Lp,
+                     programOptions.pNorm,
+                     timeWindow);
+            auto bestQuarryName = quarryLocator->at(bestQuarryIndex).getName();
+            ULocator::Origin bestInitialOrigin;
+            double bestInitialObjectiveFunction{std::numeric_limits<double>::max()};
+            ULocator::Optimizers::IOptimizer::LocationProblem problem;
+            //std::vector<double> trialDepths;
+            // For quarry blasts we fix the depth and call it a day
+            if (origin.getEventType() ==
+                ULocator::Origin::EventType::QuarryBlast)
             {
-                if (isQuarryBlast)
+                problem = ULocator::Optimizers::IOptimizer::LocationProblem::FixedToFreeSurfaceAndTime;
+                // Use a known quarry as an initial guess for a quarry solution
+                ULocator::Origin initialGuess{bestQuarryOrigin};
+                // Now optimize with DIRECT
+                logger->info("Performing initial quarry blast search...");
+                ULocator::Optimizers::NLOpt::DividedRectangles direct(logger);
+                direct.setMaximumNumberOfObjectiveFunctionEvaluations(1200);
+                direct.setLocationTolerance(1000);
+                direct.setOriginTimeTolerance(1);
+                direct.setOriginTimeSearchWindowDuration(timeWindow);
+                direct.setTravelTimeCalculatorMap(std::move(travelTimeCalculators));
+                direct.setTopography(std::move(topography));
+                direct.setGeographicRegion(*programOptions.geographicRegion);
+                direct.setArrivals(arrivals);
+                direct.locate(initialGuess,
+                              problem,
+                              ULocator::Optimizers::IOptimizer::Norm::Lp);
+                nObjectiveFunctionEvaluations = direct.getNumberOfObjectiveFunctionEvaluations();
+                bestInitialOrigin = direct.getOrigin();
+                bestInitialObjectiveFunction = direct.getOptimalObjectiveFunction();
+                travelTimeCalculators = direct.releaseTravelTimeCalculatorMap();
+                topography = direct.releaseTopography();
+                if (bestQuarryObjectiveFunction < direct.getOptimalObjectiveFunction())
                 {
-                    logger->info("Locating quarry blast: "
-                               + std::to_string(origin.getIdentifier()));
-                    nloptSolver.locateQuarryBlast();
-                    //(Direct::SourceDepthConstraint::FixedToFreeSurface);
+                    logger->debug("Using quarry location "
+                                + bestQuarryName
+                                + " instead of DIRECT solution"); 
+                    bestInitialOrigin = bestQuarryOrigin;
+                    bestInitialObjectiveFunction = bestQuarryObjectiveFunction;
                 }
                 else
                 {
-                    logger->info("Locating event: "
-                               + std::to_string(origin.getIdentifier()));
-                    nloptSolver.locateEarthquake(); //directSolver.locate();
+                    logger->debug("Using DIRECT quarry solution");
                 }
-                nObjectiveFunctionEvaluations
-                    = nloptSolver.getNumberOfObjectiveFunctionEvaluations()
-                    + nloptSolver.getNumberOfGradientEvaluations();
+                // Locate for real
+                logger->info("Fine-tuning quarry blast location...");
+                //trialDepths.push_back(bestInitialOrigin.getDepth());
+            }
+            else
+            {
+                problem = ULocator::Optimizers::IOptimizer::LocationProblem::FixedDepthAndTime;
+                // Assume the closest station (smallest arrival) time is where
+                // the event is and locate based on that
+                logger->debug("Performing station location optimization...");
+                auto [bestStationOrigin, stationObjectiveFunction]
+                    = ::searchStations(origin,
+                                       *travelTimeCalculators,
+                                       initialDepth,
+                                       ULocator::Optimizers::IOptimizer::Norm::Lp,
+                                       programOptions.pNorm,
+                                       timeWindow,
+                                       true);
+                // Search the cluster centers 
+                logger->debug("Searching earthquake cluster centroids...");
+                double bestKnownEventObjectiveFunction{std::numeric_limits<double>::max()};
+                ULocator::Origin bestKnownEventOrigin; 
+                int bestKnownEventIndex;
+                if (programOptions.region == "utah")
+                {
+                    auto bestEventInDatabase
+                        = utahEventDatabase->findBestEvent(
+                            origin,
+                            ULocator::Optimizers::IOptimizer::Norm::Lp,
+                            programOptions.pNorm,
+                            timeWindow,
+                            true);
+                    bestKnownEventOrigin = std::get<1> (bestEventInDatabase);
+                    bestKnownEventObjectiveFunction = std::get<2> (bestEventInDatabase);
+                }
+                else
+                {
+                    auto bestEventInDatabase
+                        = ynpEventDatabase->findBestEvent(
+                            origin,
+                            ULocator::Optimizers::IOptimizer::Norm::Lp,
+                            programOptions.pNorm,
+                            timeWindow,
+                            true);
+                    bestKnownEventOrigin = std::get<1> (bestEventInDatabase);
+                    bestKnownEventObjectiveFunction = std::get<2> (bestEventInDatabase);
+                }
 
-            }
-            else
-            {
-                if (isQuarryBlast)
+                // Do a crude (x,y,t) search with a fixed depth
+                logger->info("Performing initial earthquake search...");
+                ULocator::Optimizers::NLOpt::DividedRectangles direct(logger);
+                direct.setMaximumNumberOfObjectiveFunctionEvaluations(1500);
+                direct.setLocationTolerance(1000); // Doesn't matter
+                direct.setOriginTimeTolerance(1); // Doesn't matter
+                direct.setOriginTimeSearchWindowDuration(timeWindow);
+                direct.setTravelTimeCalculatorMap(std::move(travelTimeCalculators));
+                direct.setGeographicRegion(*programOptions.geographicRegion);
+                direct.setTopography(std::move(topography));
+                direct.setArrivals(arrivals);
+                direct.locateEventWithFixedDepth(
+                    initialDepth,
+                    ULocator::Optimizers::IOptimizer::Norm::Lp);
+                nObjectiveFunctionEvaluations
+                    = direct.getNumberOfObjectiveFunctionEvaluations();
+                bestInitialOrigin = direct.getOrigin();
+                auto directOptimalObjectiveFunction = direct.getOptimalObjectiveFunction();
+                travelTimeCalculators = direct.releaseTravelTimeCalculatorMap();
+                topography = direct.releaseTopography();
+                // Choose the best starting guess
+                bestInitialObjectiveFunction = directOptimalObjectiveFunction;
+                if (bestQuarryObjectiveFunction < directOptimalObjectiveFunction &&
+                    bestQuarryObjectiveFunction < stationObjectiveFunction &&
+                    bestQuarryObjectiveFunction < bestKnownEventObjectiveFunction)
                 {
-                    logger->info("Computing travel times for quarry blast: "
-                               + std::to_string(origin.getIdentifier()));
+                    logger->debug("Using quarry location "
+                                + bestQuarryName
+                                + " for earthquake instead of DIRECT solution");
+                    bestInitialOrigin = bestQuarryOrigin;
+                    bestInitialObjectiveFunction = bestQuarryObjectiveFunction;
+                }
+                else if (stationObjectiveFunction < directOptimalObjectiveFunction &&
+                         stationObjectiveFunction < bestQuarryObjectiveFunction &&
+                         stationObjectiveFunction < bestKnownEventObjectiveFunction)
+                {
+                    logger->debug("Using closest station location for earthquake location instead of DIRECT solution");
+                    bestInitialOrigin = bestStationOrigin;
+                    bestInitialObjectiveFunction = stationObjectiveFunction;
+                }
+                else if (bestKnownEventObjectiveFunction < directOptimalObjectiveFunction &&
+                         bestKnownEventObjectiveFunction < bestQuarryObjectiveFunction &&
+                         bestKnownEventObjectiveFunction < stationObjectiveFunction)
+                {
+                    logger->debug("Using saved event location for earthquake instead of DIRECT solution");
+                    bestInitialOrigin = bestKnownEventOrigin;
+                    bestInitialObjectiveFunction = bestKnownEventObjectiveFunction;
+                }
+                // Locate for real
+                logger->info("Fine-tuning earthquake location...");
+/*
+                //trialDepths.push_back(bestInitialOrigin.getDepth());
+                if (programOptions.region == "utah")
+                {
+                    auto interfaces = ULocator::UUSSRayTracer::getInterfaces(
+                        ULocator::UUSSRayTracer::Region::Utah);
+                    for (int layer = 0;
+                         layer < static_cast<int> (interfaces.size()) - 1;
+                         ++layer)
+                    {
+                        auto averageDepth = 0.5*(interfaces[layer]
+                                               + interfaces[layer + 1]);
+                        trialDepths.push_back( std::max(-800., averageDepth) );
+                    }
                 }
                 else
                 {
-                    logger->info("Computing travel times for event: "
-                               + std::to_string(origin.getIdentifier()));
+                    auto interfaces = ULocator::UUSSRayTracer::getInterfaces(
+                        ULocator::UUSSRayTracer::Region::YNP);
+                    for (int layer = 0;
+                         layer < static_cast<int> (interfaces.size()) - 1;
+                         ++layer)
+                    {
+                        auto averageDepth = 0.5*(interfaces[layer]
+                                               + interfaces[layer + 1]);
+                        trialDepths.push_back( std::max(-1200., averageDepth) );
+                    }
+                }
+*/
+                // Define search depths
+                problem = ULocator::Optimizers::IOptimizer::LocationProblem::ThreeDimensionsAndTime;
+            }
+            // Set some extra stuff 
+            bestInitialOrigin.setIdentifier(origins[iOrigin].getIdentifier());
+            bestInitialOrigin.setEventType(origins[iOrigin].getEventType());
+            // Now locate for real 
+            auto initialLatitude = bestInitialOrigin.getEpicenter().getLatitude();
+            auto initialLongitude = bestInitialOrigin.getEpicenter().getLongitude();
+            auto [initialX, initialY]
+                = programOptions.geographicRegion->geographicToLocalCoordinates(
+                      initialLatitude, initialLongitude);
+            auto [x0, x1] = programOptions.geographicRegion->getExtentInX();
+            auto [y0, y1] = programOptions.geographicRegion->getExtentInY();
+            std::pair<double, double> newExtentInX {std::max(x0, initialX - 50000),
+                                                    std::min(x1, initialX + 50000)};
+            std::pair<double, double> newExtentInY {std::max(y0, initialY - 50000),
+                                                    std::min(y1, initialY + 50000)};
+            ULocator::Optimizers::Pagmo::ParticleSwarm pso(logger);
+            pso.setTravelTimeCalculatorMap(std::move(travelTimeCalculators));
+            pso.setTopography(std::move(topography));
+            pso.setNumberOfParticles(20);
+            pso.setNumberOfGenerations(150);
+            pso.setOriginTimeSearchWindowDuration(timeWindow);
+            pso.setGeographicRegion(*programOptions.geographicRegion);
+            pso.setExtentInX(newExtentInX);
+            pso.setExtentInY(newExtentInY);
+            pso.setArrivals(arrivals);
+            auto optimalOrigin = bestInitialOrigin;
+            double optimalDepthObjectiveFunction{bestInitialObjectiveFunction};
+            try
+            {
+                pso.locate(bestInitialOrigin,
+                           problem,
+                           ULocator::Optimizers::IOptimizer::Norm::Lp);
+                if (pso.getOptimalObjectiveFunction() < bestInitialObjectiveFunction)
+                {
+                    logger->debug("Using PSO solution");
+                    optimalOrigin = pso.getOrigin();
+                }
+                else
+                {
+                    logger->warn("Using initial solution for "
+                            + std::to_string(origins[iOrigin].getIdentifier()));
                 }
             }
-            // Tabulate the raw travel times
-            Origin newOrigin;
-            if (locate)
+            catch (const std::exception &e)
             {
-                newOrigin = nloptSolver.getOrigin();
+                 logger->error("PSO failed " + std::string {e.what()} + " for "
+                            + std::to_string(origins[iOrigin].getIdentifier()));
+            }
+            travelTimeCalculators = pso.releaseTravelTimeCalculatorMap();
+            topography = pso.releaseTopography();
+
+/*
+            ULocator::Optimizers::Prima::
+                BoundOptimizationByQuadraticApproximation bobyqa(logger);
+            bobyqa.setMaximumNumberOfObjectiveFunctionEvaluations(2500);
+            bobyqa.setLocationTolerance(1.e-1); ////bobyqa.setLocationTolerance(1);
+            bobyqa.setOriginTimeTolerance(1.e-3);
+            bobyqa.setOriginTimeTolerance(0.001);
+            bobyqa.setOriginTimeSearchWindowDuration(timeWindow);
+            bobyqa.setTravelTimeCalculatorMap(std::move(travelTimeCalculators));
+            bobyqa.setGeographicRegion(*programOptions.geographicRegion);
+            bobyqa.setExtentInX(newExtentInX);
+            bobyqa.setExtentInY(newExtentInY);
+            bobyqa.setTopography(std::move(topography));
+            bobyqa.setArrivals(arrivals);
+            // Iterate through the velocity model and locate at different depths
+            bool reducedObjectiveFunction{false};
+            auto optimalOrigin = bestInitialOrigin;
+            double optimalDepthObjectiveFunction{bestInitialObjectiveFunction};
+std::cout << bestInitialObjectiveFunction << std::endl;
+            for (const auto &trialDepth : trialDepths)
+            {
+//std::cout << trialDepth << std::endl;
+                ULocator::Origin trialOrigin{optimalOrigin};
+                trialOrigin.setDepth(trialDepth);
+                try
+                {
+                    bobyqa.locate(trialOrigin,
+                                  problem,
+                                  ULocator::Optimizers::IOptimizer::Norm::Lp);
+                }
+                catch (const std::exception &e)
+                {
+                    logger->warn("BOBYQA problem detected: "
+                               + std::string {e.what()} + " at depth "
+                               + std::to_string(trialDepth) + "; skipping...");
+                    continue;
+                } 
+                double objectiveFunctionThisDepth
+                    = bobyqa.getOptimalObjectiveFunction();
+std::cout<<objectiveFunctionThisDepth<<std::endl;
+                nObjectiveFunctionEvaluations 
+                    = nObjectiveFunctionEvaluations 
+                    + bobyqa.getNumberOfObjectiveFunctionEvaluations();
+                if (objectiveFunctionThisDepth < optimalDepthObjectiveFunction)
+                {
+                    optimalOrigin = bobyqa.getOrigin();
+                    optimalDepthObjectiveFunction = objectiveFunctionThisDepth;
+                    reducedObjectiveFunction = true;
+                }
+            }
+            travelTimeCalculators = bobyqa.releaseTravelTimeCalculatorMap();
+            topography = bobyqa.releaseTopography();
+            if (!reducedObjectiveFunction)
+            {
+                logger->warn("Using initial solution for event "
+                           + std::to_string(origins[iOrigin].getIdentifier()));
             }
             else
             {
-                newOrigin = origin;
+                logger->debug("Using BOBYQA solution for "
+                            + std::to_string(origins[iOrigin].getIdentifier()));
             }
-            constexpr bool applyCorrection{false};
-            newOrigin = nloptSolver.predict(newOrigin, applyCorrection);
-            auto newArrivals = newOrigin.getArrivals();
-            auto newEpicenter = newOrigin.getEpicenter();
-            auto newDepth = newOrigin.getDepth();
-            double numerator = 0;
-            double denominator = 0;
-            std::vector<double> residuals;
-            for (const auto &newArrival : newArrivals)
-            {
-                auto weight = 1./std::max(1.e-14, newArrival.getStandardError());
-                numerator = numerator + weight*std::pow(newArrival.getResidual(), 2);
-                denominator = denominator + weight;
-                residuals.push_back(newArrival.getResidual());
-            }
-            double weightedRMS = std::sqrt(numerator/std::max(1.e-14, denominator));
-            
+*/
+//std::cout << "Done" << std::endl;
+            // Note something for my own edification
 /*
-            std::vector<double> travelTimes;
-            travelTimes.resize(newArrivals.size(), 0);
-            auto travelTimeMap = directSolver.releaseTravelTimeCalculatorMap();
-            int iArrival = 0;
-            for (const auto &newArrival : newArrivals)
+//std::cout << origin.getEpicenter().getLatitude() << " " << origin.getEpicenter().getLongitude() << std::endl;
+std::cout << "initial solution: " << bestInitialOrigin.getEpicenter().getLatitude() << " " << bestInitialOrigin.getEpicenter().getLongitude() << " " << bestInitialOrigin.getDepth() << std::endl;
+std::cout << "refined solution: " << optimalOrigin.getEpicenter().getLatitude() << " " << optimalOrigin.getEpicenter().getLongitude() << " " << optimalOrigin.getDepth() << std::endl;
+std::cout << "real solution: " << origins[iOrigin].getEpicenter().getLatitude() << " " << origins[iOrigin].getEpicenter().getLongitude() << " " << origins[iOrigin].getDepth() << std::endl;
+*/
+            // Over-write origin 
+            origin = optimalOrigin;
+            origin.setIdentifier(origins.at(iOrigin).getIdentifier());
+            origin.setEventType(origins.at(iOrigin).getEventType());
+            // Now compute the uncorrected travel times
+            arrivals = origin.getArrivals();
+            std::vector<std::pair<ULocator::Station, std::string>>
+                stationPhases;
+            for (const auto &arrival : arrivals)
+            {
+                stationPhases.push_back(std::pair {arrival.getStation(),
+                                                   arrival.getPhase()});
+            }
+            // Compute uncorrected times
+            std::vector<double> estimateTimes;
+            try
             {
                 constexpr bool applyCorrection{false};
-                travelTimes.at(iArrival) = 
-                    travelTimeMap->evaluate(newArrival.getStation(), newArrival.getPhase(),
-                                            newEpicenter, newDepth,
-                                            applyCorrection); 
+                auto [xSource, ySource]
+                    = programOptions.geographicRegion->geographicToLocalCoordinates(
+                         origin.getEpicenter().getLatitude(),
+                         origin.getEpicenter().getLongitude());
+                travelTimeCalculators->evaluate(stationPhases,
+                                                origin.getTime(), 
+                                                xSource, ySource,
+                                                origin.getDepth(),
+                                                &estimateTimes,
+                                                applyCorrection);
+            }
+            catch (const std::exception &e) 
+            {
+                logger->error(e.what());
+            }
+            // Write the catalog
+            int iArrival = 0;
+            for (const auto &arrival : origin.getArrivals())
+            {
+                double uncorrectedTravelTime = estimateTimes.at(iArrival);
+                outCatalog << std::setprecision(16)  
+                           << origin.getIdentifier() << "," 
+                           << origin.getEpicenter().getLatitude() << ","
+                           << origin.getEpicenter().getLongitude() << ","
+                           << origin.getDepth() << ","
+                           << origin.getTime() << ","
+                           << arrival.getStationReference().getNetwork() << ","
+                           << arrival.getStationReference().getName() << ","
+                           << arrival.getPhase() << ","
+                           << arrival.getTime() << ","
+                           << arrival.getStandardError() << ","
+                           << arrival.getResidual() << ","
+                           << uncorrectedTravelTime << ","
+                           << arrival.getDistance() << ","
+                           << ::eventTypeToString(origin.getEventType()) << ","
+                           << nObjectiveFunctionEvaluations << ","
+                           << origin.getWeightedRootMeanSquaredError() << std::endl;
                 iArrival = iArrival + 1;
             }
-            directSolver.setTravelTimeCalculatorMap(std::move(travelTimeMap));
-*/
-            // Write it all out
-            std::string eventType = "eq";
-            if (isQuarryBlast){eventType = "qb";}
+        }
+        else // Job is forward problem only
+        {
+            nObjectiveFunctionEvaluations = 1;
+            auto epicenter = origin.getEpicenter();
+            auto zSource = origin.getDepth();
+            auto [xSource, ySource]
+                = programOptions.geographicRegion->geographicToLocalCoordinates(
+                     epicenter.getLatitude(),
+                     epicenter.getLongitude());
+            std::vector<std::pair<ULocator::Station, std::string>>
+                stationPhases;
+            for (const auto &arrival : arrivals)
+            {
+                stationPhases.push_back(std::pair {arrival.getStation(),
+                                                   arrival.getPhase()});
+            }
+            // Compute residuals for corrected times and uncorrected travel times
+            std::vector<double> estimateTimes;
+            try
+            {
+                bool applyCorrection{true};
+                travelTimeCalculators->evaluate(stationPhases,
+                                                origin.getTime(),
+                                                xSource, ySource, zSource,
+                                                &estimateTimes,
+                                                applyCorrection);
+                for (int i = 0; i < static_cast<int>(arrivals.size()); ++i)
+                {
+                    auto residual = arrivals.at(i).getTime()
+                                  - estimateTimes.at(i);
+                    arrivals.at(i).setResidual(residual);
+                }
+                origin.setArrivals(arrivals);
+                // Uncorrected estimate times
+                applyCorrection = false;
+                travelTimeCalculators->evaluate(stationPhases,
+                                                origin.getTime(),
+                                                xSource, ySource, zSource,
+                                                &estimateTimes,
+                                                applyCorrection);
+            }
+            catch (const std::exception &e)
+            {
+                logger->error(e.what());
+            }
+            // Write the catalog
             int iArrival = 0;
-            for (const auto &newArrival : newArrivals)
+            for (const auto &arrival : origin.getArrivals())
             {
                 // r = obs - est = obs - (tt + ot) = obs - tt - ot
                 // tt = obs - r - ot
-                double travelTime = newArrival.getTime()
-                                  - newArrival.getResidual()
-                                  - newOrigin.getTime();
+                double uncorrectedTravelTime = estimateTimes.at(iArrival);
                 outCatalog << std::setprecision(16) 
                            << origin.getIdentifier() << "," 
-                           << newEpicenter.getLatitude() << ","
-                           << newEpicenter.getLongitude() << ","
-                           << newDepth << ","
-                           << newOrigin.getTime() << ","
-                           << newArrival.getStationReference().getNetwork() << ","
-                           << newArrival.getStationReference().getName() << ","
-                           << newArrival.getPhase() << ","
-                           << newArrival.getTime() << ","
-                           << newArrival.getStandardError() << ","
-                           << residuals[iArrival] << "," //newArrival.getResidual() << ","
-                           << travelTime << ","
-                           << newArrival.getDistance() << ","
-                           << eventType << ","
+                           << origin.getEpicenter().getLatitude() << ","
+                           << origin.getEpicenter().getLongitude() << ","
+                           << origin.getDepth() << ","
+                           << origin.getTime() << ","
+                           << arrival.getStationReference().getNetwork() << ","
+                           << arrival.getStationReference().getName() << ","
+                           << arrival.getPhase() << ","
+                           << arrival.getTime() << ","
+                           << arrival.getStandardError() << ","
+                           << arrival.getResidual() << ","
+                           << uncorrectedTravelTime << ","
+                           << arrival.getDistance() << ","
+                           << ::eventTypeToString(origin.getEventType()) << ","
                            << nObjectiveFunctionEvaluations << ","
-                           << weightedRMS << std::endl;
-                iArrival = iArrival + 1;
+                           << origin.getWeightedRootMeanSquaredError() << std::endl;
+                  iArrival = iArrival + 1;
             }
-            //for (const auto &a : newArrivals){std::cout << a.getResidual() << std::endl;}
-        }
-        catch (const std::exception &e)
-        {
-            logger->error("Failed to locate: "
-                        + std::to_string(origin.getIdentifier())
-                        + " Failed with: " + std::string {e.what()});
-            auto eventType = "eq";
-            if (origin.getEventType() == Origin::EventType::QuarryBlast)
-            {
-                eventType = "qb";
-            }
-            locationFailures << origin.getIdentifier() << ","
-                             << origin.getEpicenter().getLatitude() << ","
-                             << origin.getEpicenter().getLongitude() << ","
-                             << origin.getDepth() << ","
-                             << eventType << ","
-                             << "\"" << e.what() << "\""
-                             << std::endl;
-            continue;
         }
     } 
     outCatalog.close();
-    locationFailures.close();
     return EXIT_SUCCESS;
 }

@@ -6,7 +6,7 @@
 #include <random>
 #include "uLocator/corrections/static.hpp"
 #include "uLocator/corrections/sourceSpecific.hpp"
-#include "uLocator/position/utah.hpp"
+#include "uLocator/position/utahRegion.hpp"
 #include "weightedMean.hpp"
 #include "weightedMedian.hpp"
 #include <gtest/gtest.h>
@@ -106,7 +106,7 @@ TEST(ULocatorCorrections, SourceSpecific)
     std::mt19937 rng(86754309);
     std::uniform_real_distribution<double> distribution(-0.5, 0.5);
     std::uniform_int_distribution<int> intDistribution(-500, 500);
-    ULocator::Position::Utah utah;
+    ULocator::Position::UtahRegion utah;
     SourceSpecific correction; 
   
     std::string network{"UU"};

@@ -7,7 +7,7 @@
 #ifndef NDEBUG
 #include <cassert>
 #endif
-#include "../objectiveFunctions.hpp"
+#include "optimizers/objectiveFunctions.hpp"
 #include "uLocator/travelTimeCalculatorMap.hpp"
 #include "uLocator/position/geographicRegion.hpp"
 #include "uLocator/topography/topography.hpp"
@@ -33,8 +33,16 @@ struct NLOptProblem3DAndTime : public ::Problem3DAndTime
         if (gradient == nullptr)
         {
             mObjectiveFunctionEvaluations = mObjectiveFunctionEvaluations + 1;
-            objectiveFunction
-                =-::Problem3DAndTime::logLikelihood(n, x);
+            try
+            {
+                objectiveFunction
+                    =-::Problem3DAndTime::logLikelihood(n, x);
+            }
+            catch (const std::exception &e)
+            {
+                std::cerr << "NLOpt3DProblem: " << e.what() << std::endl;
+                objectiveFunction = std::numeric_limits<double>::max();
+            }
         }
         else
         {
@@ -60,7 +68,7 @@ struct NLOptProblem3DAndTime : public ::Problem3DAndTime
     /// @result The location vector converted to an origin.
     [[nodiscard]] ULocator::Origin
     locationToOrigin(const std::vector<double> &xLocation,
-                     const ULocator::Position::IGeographicRegion &region)
+                     const ULocator::Position::IGeographicRegion &region) const
     {
         ULocator::Origin origin; 
         // Extract the origin information
@@ -216,8 +224,16 @@ struct NLOptProblem2DAndTimeAndFixedDepth :
         if (gradient == nullptr)
         {
             mObjectiveFunctionEvaluations = mObjectiveFunctionEvaluations + 1;
-            objectiveFunction
-                =-::Problem2DAndTimeAndFixedDepth::logLikelihood(n, x);
+            try
+            {
+                objectiveFunction
+                    =-::Problem2DAndTimeAndFixedDepth::logLikelihood(n, x);
+            }
+            catch (const std::exception &e)
+            {
+                std::cerr << "NLOpt fixed depth problem: " << e.what() << std::endl;
+                objectiveFunction = std::numeric_limits<double>::max();
+            }
         }
         else
         {
@@ -243,7 +259,7 @@ struct NLOptProblem2DAndTimeAndFixedDepth :
     }
     [[nodiscard]] ULocator::Origin
     locationToOrigin(const std::vector<double> &xLocation,
-                     const ULocator::Position::IGeographicRegion &region)
+                     const ULocator::Position::IGeographicRegion &region) const
     {   
         ULocator::Origin origin; 
         // Extract the origin information
@@ -386,8 +402,16 @@ struct NLOptProblem2DAndTimeAndDepthAtFreeSurface :
         if (gradient == nullptr)
         {
             mObjectiveFunctionEvaluations = mObjectiveFunctionEvaluations + 1;
-            objectiveFunction
-                =-::Problem2DAndTimeAndDepthAtFreeSurface::logLikelihood(n, x);
+            try
+            {
+                objectiveFunction
+                    =-::Problem2DAndTimeAndDepthAtFreeSurface::logLikelihood(n, x);
+            }
+            catch (const std::exception &e)
+            {
+                std::cerr << "NLOpt free-surface problem: " << e.what()  << std::endl;
+                objectiveFunction = std::numeric_limits<double>::max();
+            }
         }
         else
         {
@@ -413,7 +437,7 @@ struct NLOptProblem2DAndTimeAndDepthAtFreeSurface :
     }
     [[nodiscard]] ULocator::Origin
     locationToOrigin(const std::vector<double> &xLocation,
-                     const ULocator::Position::IGeographicRegion &region)
+                     const ULocator::Position::IGeographicRegion &region) const
     {   
         ULocator::Origin origin; 
         // Extract the origin information

@@ -73,17 +73,11 @@ set(LIBRARY_SRC lib/version.cpp
                 lib/arrival.cpp
                 ##src/direct.cpp
                 ##src/directOptions.cpp
-                #src/firstArrivalRayTracer.cpp
-                ##src/hamiltonianMonteCarlo.cpp
-                ##src/hamiltonianMonteCarloOptions.cpp
-                ##src/lineSearchOptions.cpp
-                #src/nlopt.cpp
-                #src/nloptOptions.cpp
                 lib/origin.cpp
-                #src/quarry.cpp
                 #src/staticCorrection.cpp
                 #src/sourceSpecificStationCorrection.cpp
                 lib/optimizers/optimizer.cpp
+                lib/rayTracer.cpp
                 lib/station.cpp
                 lib/travelTimeCalculator.cpp
                 lib/travelTimeCalculatorMap.cpp
@@ -99,24 +93,28 @@ set(LIBRARY_SRC lib/version.cpp
                 #src/objectiveFunctions/objectiveFunction.cpp
                 lib/position/geographicPoint.cpp
                 lib/position/wgs84.cpp
-                lib/position/utah.cpp
+                lib/position/utahRegion.cpp
                 lib/position/utahQuarry.cpp
-                lib/position/ynp.cpp
+                lib/position/ynpRegion.cpp
                 lib/corrections/static.cpp
                 lib/corrections/sourceSpecific.cpp
                 )
 if (${pagmo_FOUND})
    set(LIBRARY_SRC ${LIBRARY_SRC}
-       src/optimizers/pagmo/particleSwarm.cpp)
+       lib/optimizers/pagmo/particleSwarm.cpp)
 endif()
 if (${prima_FOUND})
    set(LIBRARY_SRC ${LIBRARY_SRC}
       # src/optimizers/prima/cobyla.cpp
+      lib/optimizers/prima/boundOptimizationByQuadraticApproximation.cpp
       )
 endif()
 if (${NLopt_FOUND})
    set(LIBRARY_SRC ${LIBRARY_SRC}
-       src/optimizers/nlopt/dividedRectangles.cpp)
+       lib/optimizers/nlopt/boundOptimizationByQuadraticApproximation.cpp
+       lib/optimizers/nlopt/dividedRectangles.cpp
+       lib/optimizers/nlopt/methodOfMovingAsymptotes.cpp
+       lib/optimizers/nlopt/stochasticGradientOptimization.cpp)
 endif()
 if (NOT ${USE_UMPS})
    set(LIBRARY_SRC ${LIBRARY_SRC} src/logging/standardOut.cpp)
@@ -140,7 +138,7 @@ target_link_libraries(uLocator
                               hdf5::hdf5
                               NLopt::nlopt
                               TBB::tbb
-                              Boost::program_options 
+                              Boost::program_options Boost::boost
                               prima::primac
                               Pagmo::pagmo
                               #${MCMC_LIBRARY} ttimes
@@ -169,6 +167,8 @@ set(TEST_SRC
     testing/topography.cpp
     testing/corrections.cpp
     testing/objectiveFunctions.cpp
+    testing/utahQuarryBlastTravelTimeDatabase.cpp
+    testing/pagmo.cpp
     #testing/halfSpace.cpp
     #testing/nlopt.cpp
     #testing/homogeneous.cpp
@@ -186,11 +186,12 @@ set_target_properties(unitTests PROPERTIES
                       CXX_STANDARD 20
                       CXX_STANDARD_REQUIRED YES
                       CXX_EXTENSIONS NO)
-target_link_libraries(unitTests PRIVATE uLocator ${GTEST_BOTH_LIBRARIES} ${UMPS_LIBRARY} Threads::Threads)# nlohmann_json::nlohmann_json)
+target_link_libraries(unitTests PRIVATE uLocator ${GTEST_BOTH_LIBRARIES} ${UMPS_LIBRARY} Boost::boost Threads::Threads)# nlohmann_json::nlohmann_json)
 target_include_directories(unitTests
                            PRIVATE ${GTEST_INCLUDE_DIRS}
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/lib>
+                           PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
                            PRIVATE $<BUILD_INTERFACE:${UMPS_INCLUDE_DIR}>)
 add_test(NAME unitTests 
          COMMAND unitTests)
@@ -198,45 +199,46 @@ add_test(NAME unitTests
 ##########################################################################################
 #                                        Executables                                     #
 ##########################################################################################
-#set(UTAH_SRC)
-#add_executable(ulocate src/ulocate.cpp)
-#set_target_properties(ulocate PROPERTIES
-#                      CXX_STANDARD 20
-#                      CXX_STANDARD_REQUIRED YES 
-#                      CXX_EXTENSIONS NO) 
-#target_link_libraries(ulocate
-#                      PRIVATE uLocator Threads::Threads
-#                      Boost::program_options TBB::tbb
-#                      ${UMPS_LIBRARY})
-#target_include_directories(ulocate
-#                           PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-#                           PRIVATE $<BUILD_INTERFACE:${UMPS_INCLUDE_DIR}>)
+add_executable(ulocate src/ulocate.cpp)
+set_target_properties(ulocate PROPERTIES
+                      CXX_STANDARD 20
+                      CXX_STANDARD_REQUIRED YES 
+                      CXX_EXTENSIONS NO) 
+target_link_libraries(ulocate
+                      PRIVATE uLocator Threads::Threads
+                      Boost::program_options Boost::boost TBB::tbb
+                      ${UMPS_LIBRARY})
+target_include_directories(ulocate
+                           PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+                           PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/lib>
+                           PRIVATE $<BUILD_INTERFACE:${UMPS_INCLUDE_DIR}>)
 
-#add_executable(computeCorrections src/computeCorrections.cpp)
-#set_target_properties(computeCorrections PROPERTIES
-#                      CXX_STANDARD 20
-#                      CXX_STANDARD_REQUIRED YES
-#                      CXX_EXTENSIONS NO)
-#target_include_directories(computeCorrections
-#                           PRIVATE Boost::program_options ${oneDAL_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/include)
-#message(" ${oneDAL_INCLUDE_DIRS}")
-#message(" ${DAL_LIBRARIES}")
-#message(" ${DAL_LIBS}")
-#target_link_libraries(computeCorrections
-#                      ${DAL_LIBS} Boost::program_options uLocator)
+# DOWNLOAD UTAH/YNP topography:
+#file(DOWNLOAD "https://docs.google.com/uc?export=download&id=1WdZ5CWsCkWr19lXlQd7S_fLuuW_SCUGU" utahTopography.h5)
+#file(DOWNLOAD "https://docs.google.com/uc?export=download&id=1HjwoDcWPz4Pj1JwJTijRvXH85hevMs_O" ynpTopography.h5)
+add_executable(computeCorrections src/computeCorrections.cpp)
+set_target_properties(computeCorrections PROPERTIES
+                      CXX_STANDARD 20
+                      CXX_STANDARD_REQUIRED YES
+                      CXX_EXTENSIONS NO)
+target_include_directories(computeCorrections
+                           PRIVATE Boost::program_options ${oneDAL_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/lib)
+target_link_libraries(computeCorrections
+                      ${DAL_LIBS} Boost::program_options uLocator)
 
-#add_executable(estimateVelocities
-#               src/estimateVelocities.cpp)
-#set_target_properties(estimateVelocities PROPERTIES
-#                      CXX_STANDARD 20
-#                      CXX_STANDARD_REQUIRED YES
-#                      CXX_EXTENSIONS NO)
-#target_link_libraries(estimateVelocities
-#                      uLocator Boost::program_options TBB::tbb ${UMPS_LIBRARY}
-#                      NLopt::nlopt)
-#target_include_directories(estimateVelocities
-#                           PRIVATE Boost::program_options ${CMAKE_SOURCE_DIR}/include
-#                                   ${UMPS_INCLUDE_DIR})
+add_executable(estimateVelocities src/estimateVelocities.cpp)
+set_target_properties(estimateVelocities PROPERTIES
+                      CXX_STANDARD 20
+                      CXX_STANDARD_REQUIRED YES
+                      CXX_EXTENSIONS NO)
+target_link_libraries(estimateVelocities
+                      uLocator Boost::program_options TBB::tbb ${UMPS_LIBRARY}
+                      NLopt::nlopt prima::primac)
+target_include_directories(estimateVelocities
+                           PRIVATE Boost::program_options
+                                   ${CMAKE_SOURCE_DIR}/include
+                                   ${CMAKE_SOURCE_DIR}/lib
+                                   ${UMPS_INCLUDE_DIR} NLopt::nlopt prima::primac)
 
 #add_executable(evaluateCorrections
 #               src/evaluateCorrections.cpp)
@@ -254,7 +256,9 @@ if (${WRAP_PYTHON})
    find_package(pybind11 REQUIRED)
    add_library(pyulocator MODULE
                python/pyulocator.cpp
-               python/dataStructures.cpp)
+               python/dataStructures.cpp
+               python/position.cpp
+               python/topography.cpp)
    set_target_properties(pyulocator PROPERTIES
                          PREFIX ""
                          CXX_STANDARD 20

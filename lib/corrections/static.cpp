@@ -377,7 +377,7 @@ void Static::load(const std::string &fileName)
         H5Gclose(stationGroup);
         H5Fclose(file);
         throw std::runtime_error(std::string{STATIC_CORRECTION_GROUP_NAME}
-                               + " correction group doesn't exist");
+                               + " static correction group doesn't exist");
     }
     auto staticCorrectionGroup
         = H5Gopen(stationGroup, STATIC_CORRECTION_GROUP_NAME, H5P_DEFAULT);
@@ -388,7 +388,7 @@ void Static::load(const std::string &fileName)
         H5Gclose(stationGroup);
         H5Fclose(file);
         throw std::runtime_error(std::string{STATIC_CORRECTION_NAME}
-                              + " dataset doesn't exist");
+                              + " static correction dataset doesn't exist");
     }
     const std::array<size_t, 1> onesDimension{1};
     auto scalarSpace = H5Screate_simple(1, onesDimension.data(), nullptr);
@@ -406,7 +406,7 @@ void Static::load(const std::string &fileName)
     H5Fclose(file);
     if (status != 0)
     {
-        throw std::runtime_error("Failed t load static correction");
+        throw std::runtime_error("Failed to load static correction");
     }
     setCorrection(staticCorrection); 
 #endif

@@ -3,7 +3,7 @@
 #include "uLocator/arrival.hpp"
 #include "uLocator/station.hpp"
 #include "uLocator/position/wgs84.hpp"
-#include "uLocator/position/utah.hpp"
+#include "uLocator/position/utahRegion.hpp"
 #include <gtest/gtest.h>
 
 using namespace ULocator;
@@ -21,7 +21,7 @@ ULocator::Arrival toArrival(const std::string &network,
                             const double standardError, 
                             const int utmZone = 12) 
 {
-    ULocator::Position::Utah utah;
+    ULocator::Position::UtahRegion utah;
     ULocator::Station station;
     station.setNetwork(network);
     station.setName(name);
@@ -34,6 +34,14 @@ ULocator::Arrival toArrival(const std::string &network,
     arrival.setPhase(phase);
     arrival.setTime(arrivalTime);
     arrival.setStandardError(standardError);
+    if (phase == "P")
+    {
+        arrival.setResidual(0.1);
+    }
+    else
+    {
+        arrival.setResidual(0.2);
+    }
     return arrival;
 }
 
@@ -81,6 +89,8 @@ TEST(ULocator, Origin)
     EXPECT_EQ(copy.getEventType(), Origin::EventType::Earthquake);
     EXPECT_NEAR(copy.getTime(), time, 1.e-4);
     EXPECT_EQ(copy.getArrivals().size(), arrivals.size());
+    EXPECT_NEAR(copy.getWeightedRootMeanSquaredError(),
+                0.12139539573337683, 1.e-12);
     EXPECT_NEAR(copy.getAzimuthalGap(), 107.820850789, 1.e-5);
     EXPECT_NEAR(copy.getNearestStationDistance(), 1046.187573, 1.e-5);
 

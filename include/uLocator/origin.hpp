@@ -119,6 +119,12 @@ public:
     /// @name Derivative Products
     /// @{
 
+    /// @result The weighted root-mean-squared error in seconds.
+    /// @throws std::runtime_error if \c haveWeightedRootMeanSquaredError()
+    ///         is false.
+    [[nodiscard]] double getWeightedRootMeanSquaredError() const;
+    /// @result True indicates the weighted root-mean-squared exists.
+    [[nodiscard]] bool haveWeightedRootMeanSquaredError() const noexcept;
     /// @result For the given arrivals and epicenter this is the largest 
     ///         azimuthal gap in station coverage in degrees.
     /// @throws std::runtime_error if \c haveAzimuthalGap() is false.

@@ -1,6 +1,6 @@
 #include "uLocator/position/wgs84.hpp"
-#include "uLocator/position/utah.hpp"
-#include "uLocator/position/ynp.hpp"
+#include "uLocator/position/utahRegion.hpp"
+#include "uLocator/position/ynpRegion.hpp"
 #include "uLocator/position/utahQuarry.hpp"
 #include <gtest/gtest.h>
 
@@ -58,9 +58,9 @@ TEST(ULocatorPosition, DistanceAzimuthBackAzimuth)
     EXPECT_NEAR(backAzimuth, backAzimuthRef, 1.e-10);
 }
 
-TEST(ULocatorPosition, Utah)
+TEST(ULocatorPosition, UtahRegion)
 {
-    Position::Utah utah;
+    Position::UtahRegion utah;
     const double centerLatitude{39.625};
     const double centerLongitude{-111.5};
     auto localCoordinates
@@ -80,9 +80,9 @@ TEST(ULocatorPosition, Utah)
     EXPECT_NEAR(minMaxY.second,  379402.8900178153, 1.e-3);
 }
 
-TEST(ULocatorPosition, YNP)
+TEST(ULocatorPosition, YNPRegion)
 {
-    Position::YNP ynp;
+    Position::YNPRegion ynp;
     const double centerLatitude{44.5};
     const double centerLongitude{-110.75};
     auto localCoordinates
@@ -107,17 +107,20 @@ TEST(ULocatorPosition, UtahQuarry)
     const std::string name{"Bingham"};
     constexpr double latitude{40.529800};
     constexpr double longitude{-112.147700};
-    Position::Utah utah;
+    constexpr double elevation{1654};
+    Position::UtahRegion utah;
     auto localCoordinates  
          = utah.geographicToLocalCoordinates(latitude, longitude);
  
     Position::UtahQuarry bingham;
     bingham.setName(name);
+    bingham.setElevation(elevation);
     bingham.setGeographicCoordinates(latitude, longitude);
 
     auto copy = bingham;
     EXPECT_NEAR(copy.getGeographicCoordinates().first,  latitude,  1.e-10);
     EXPECT_NEAR(copy.getGeographicCoordinates().second, longitude, 1.e-10);
+    EXPECT_NEAR(copy.getElevation(), elevation, 1.e-10);
     EXPECT_EQ(copy.getName(), name);
     EXPECT_NEAR(copy.getLocalCoordinates().first,
                 localCoordinates.first, 1.e-10);
@@ -127,6 +130,7 @@ TEST(ULocatorPosition, UtahQuarry)
     auto move = std::move(bingham);
     EXPECT_NEAR(move.getGeographicCoordinates().first,  latitude,  1.e-10);
     EXPECT_NEAR(move.getGeographicCoordinates().second, longitude, 1.e-10);
+    EXPECT_NEAR(move.getElevation(), elevation, 1.e-10);
     EXPECT_EQ(move.getName(), name);
 
     auto clone = move.clone();

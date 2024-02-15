@@ -8,7 +8,7 @@ namespace ULocator::Position
 }
 namespace ULocator::Topography
 {
-/// @class Gridded "topgraphy.hpp" "uLocator/topography.hpp"
+/// @class Gridded "gridded.hpp" "uLocator/topography/gridded.hpp"
 /// @brief This is a topography function interpolator that operates on
 ///        a regular grid.  Effectively, it takes a latitude, longitude pair
 ///        and returns the linearly interpolated elevation e.g.,
@@ -46,6 +46,7 @@ public:
     /// @param[in] x           The positions of the x grid points in meters.
     /// @param[in] ny          The number of y grid points.
     /// @param[in] y           The positions of the y grid points in meters.
+    /// @param[in] nGrid       The number of grid points.  This must equal nx*ny.
     /// @param[in] elevation   The elevation in meters with respect to
     ///                        sea-level at the specified (x, y).
     ///                        This is an array whose dimension is

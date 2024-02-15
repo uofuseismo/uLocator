@@ -31,10 +31,18 @@ public:
     /// @}
 
     /// @brief Adds a travel time calculator.
+    /// @param[in] station     The station information (primarily the network
+    ///                        code and station name).
+    /// @param[in] phase       The phase - e.g., P or S.
+    /// @param[in] calculator  The travel time calculator for this
+    ///                        station/phase pair.  Note, calculator's 
+    ///                        behavior will be undefined after this class
+    ///                        takes ownership.
     void insert(const Station &station,
                 const std::string &phase,
                 std::unique_ptr<const ITravelTimeCalculator> &&calculator);
-    /// @param[in] stationPhase  The station/phase name pair.
+    /// @param[in] station   The station information (network code and name).
+    /// @param[in] phase     The phase.
     /// @result True indicates the map contains the given station, phase pair.
     [[nodiscard]] bool contains(const Station &station, const std::string &phase) const;
 

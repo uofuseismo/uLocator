@@ -31,7 +31,7 @@ public:
     std::shared_ptr<UMPS::Logging::ILog> mLogger{nullptr};
     double mMaximumDepth{65000}; // Maximum event depth
     double mInitialDepth{6000}; // Initial depth guess
-    double mTimeWindow{100}; // The time window to search
+    double mTimeWindow{120}; // The time window to search
     double mLocationTolerance{1}; // 1 meter is close enough
     double mOriginTimeTolerance{0.01}; // This is fine 
     double mOptimalValue{std::numeric_limits<double>::max()};
@@ -74,9 +74,28 @@ int DividedRectangles::getMaximumNumberOfObjectiveFunctionEvaluations() const no
     return pImpl->mMaximumObjectiveFunctionEvaluations;
 }
 
+/// Model tolerance
+void DividedRectangles::setOriginTimeTolerance(const double tolerance)
+{
+    if (tolerance < 0)
+    {
+        throw std::invalid_argument("Origin time tolerance must be positive");
+    }
+    pImpl->mOriginTimeTolerance = tolerance;
+}
+
 double DividedRectangles::getOriginTimeTolerance() const noexcept
 {
     return pImpl->mOriginTimeTolerance;
+}
+
+void DividedRectangles::setLocationTolerance(const double tolerance)
+{
+    if (tolerance < 0)
+    {
+        throw std::invalid_argument("Location tolerance must be positive");
+    }
+    pImpl->mLocationTolerance = tolerance;
 }
 
 double DividedRectangles::getLocationTolerance() const noexcept
@@ -116,7 +135,21 @@ bool DividedRectangles::normalize() const noexcept
     return pImpl->mNormalize;
 }
 
-/// Sets the model tolerance
+void DividedRectangles::setOriginTimeSearchWindowDuration(
+    const double duration)
+{
+    if (duration <= 0)
+    {
+        throw std::invalid_argument("Duration must be positive");
+    }
+    pImpl->mTimeWindow = duration;
+}
+
+double DividedRectangles::getOriginTimeSearchWindowDuration() const noexcept
+{
+    return pImpl->mTimeWindow;
+}
+
 /// Locates 
 void DividedRectangles::locate(
     const ULocator::Origin &initialGuess,
@@ -136,30 +169,18 @@ void DividedRectangles::locate(
     {
         throw std::runtime_error("No arrivals");
     }
-    // Extract and reduce observations
-    std::vector<std::pair<ULocator::Station, std::string>>
-        stationPhases(arrivals.size());
-    std::vector<double> weights(arrivals.size());
-    std::vector<double> observations(arrivals.size());
-    std::vector<double> estimateArrivalTimes(arrivals.size(), 0); 
-    for (int i = 0; i < static_cast<int> (arrivals.size()); ++i)
-    {   
-        stationPhases[i]
-            = std::pair{arrivals[i].getStation(), arrivals[i].getPhase()};
-        weights[i] = 1./arrivals[i].getStandardError();
-        observations[i] = arrivals[i].getTime();
-    }
-
+   
     // Figure out the bounds
     double z0 =-ULocator::Optimizers::IOptimizer::getTopography()->
                 getMinimumAndMaximumElevation().first;
     double z1 = pImpl->mMaximumDepth;
-    double t0 =-pImpl->mTimeWindow;
+    double t0 =-getOriginTimeSearchWindowDuration(); //pImpl->mTimeWindow;
     double t1 = 0; // Reduced arrival time - first arrival is t = 0
     auto [x0, x1] = region->getExtentInX();
     auto [y0, y1] = region->getExtentInY();
 
     // Figure out the directAlgorithm
+    std::vector<double> estimateArrivalTimes;
     auto directAlgorithm = nlopt::GN_DIRECT_L;
     if (normalize())
     {
@@ -261,7 +282,8 @@ void DividedRectangles::locate(
         // Convergence criteria
         optimizer.setMaximumNumberOfObjectiveFunctionEvaluations(
             getMaximumNumberOfObjectiveFunctionEvaluations());
-        optimizer.mOptimizer.set_xtol_abs(getLocationTolerance());
+        optimizer.setLocationAndTimeTolerance(getLocationTolerance(),
+                                              getOriginTimeTolerance());
         // Copy observations/weights/etc.
         optimizer.fillObservationsWeightsStationPhasesArraysFromArrivals(
              arrivals, reduceTimes);
@@ -318,7 +340,8 @@ void DividedRectangles::locate(
         // Convergence criteria
         optimizer.setMaximumNumberOfObjectiveFunctionEvaluations(
             getMaximumNumberOfObjectiveFunctionEvaluations());
-        optimizer.mOptimizer.set_xtol_abs(getLocationTolerance());
+        optimizer.setLocationAndTimeTolerance(getLocationTolerance(),
+                                              getOriginTimeTolerance());
         // Initial guess
         auto xLocation = optimizer.createInitialGuess(initialGuess, *region);
         double sourceDepth = std::min(std::max(z0, pImpl->mInitialDepth), z1);
@@ -382,7 +405,7 @@ void DividedRectangles::locate(
     for (int i = 0; i < static_cast<int> (newArrivals.size()); ++i)
     {
         newArrivals[i].setResidual(arrivals[i].getTime()
-                                 - estimateArrivalTimes[i]);
+                                 - estimateArrivalTimes.at(i));
     }   
     origin.setArrivals(std::move(newArrivals));
     // Sets the origin
@@ -398,4 +421,25 @@ DividedRectangles::~DividedRectangles() = default;
 bool DividedRectangles::haveOrigin() const noexcept
 {
     return pImpl->mHaveOrigin;
+}
+
+/// Objective function evaluations
+int DividedRectangles::getNumberOfObjectiveFunctionEvaluations() const
+{
+    if (!haveOrigin()){throw std::runtime_error("Event not located");}
+    return pImpl->mNumberOfObjectiveFunctionEvaluations;
+}
+
+/// Gradient evaluations
+int DividedRectangles::getNumberOfGradientEvaluations() const
+{
+    if (!haveOrigin()){throw std::runtime_error("Event not located");}
+    return pImpl->mNumberOfGradientEvaluations;
+}
+
+/// Optimal objective function value
+double DividedRectangles::getOptimalObjectiveFunction() const
+{
+    if (!haveOrigin()){throw std::runtime_error("Event not located");}
+    return pImpl->mOptimalValue;
 }
