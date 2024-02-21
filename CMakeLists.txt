@@ -14,7 +14,11 @@ find_package(GTest REQUIRED)
 find_package(GeographicLib REQUIRED)
 
 find_package(prima)
-find_package(pagmo)
+if (${BUILD_UUSS})
+    find_package(pagmo REQUIRED)
+else()
+    find_package(pagmo)
+endif()
 
 find_package(Boost COMPONENTS program_options REQUIRED)
 find_package(Eigen3 3.3 REQUIRED Dense)

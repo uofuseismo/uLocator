@@ -1,13 +1,14 @@
 #include <string>
 #include <uLocator/origin.hpp>
 #include <uLocator/position/wgs84.hpp>
-#include <uLocator/position/utah.hpp>
+#include <uLocator/position/utahRegion.hpp>
 #include <uLocator/station.hpp>
 #include <uLocator/arrival.hpp>
 #include <uLocator/uussRayTracer.hpp>
 #include <uLocator/travelTimeCalculatorMap.hpp>
 #include <uLocator/topography/constant.hpp>
 #include <uLocator/optimizers/nlopt/dividedRectangles.hpp>
+#include <uLocator/optimizers/nlopt/stochasticGradientOptimization.hpp>
 #include <gtest/gtest.h>
 
 namespace
@@ -23,7 +24,7 @@ ULocator::Arrival toArrival(const std::string &network,
                             const double standardError, 
                             const int utmZone = 12) 
 {
-    ULocator::Position::Utah utah;
+    ULocator::Position::UtahRegion utah;
     ULocator::Station station;
     station.setNetwork(network);
     station.setName(name);
@@ -80,6 +81,7 @@ std::vector<ULocator::Arrival> createQuarryBlastArrivals()
 
 TEST(ULocatorNLOptDividedRectangles, FixedDepthLp)
 {
+// TODO redo this with the original UUSS velocity models
     ULocator::Origin referenceOrigin;
     referenceOrigin.setTime(1646479475.880001);
     referenceOrigin.setEpicenter(ULocator::Position::WGS84 {38.5615, -112.2196667} );
@@ -113,7 +115,7 @@ TEST(ULocatorNLOptDividedRectangles, FixedDepthLp)
     topography->set(4000);
  
     ULocator::Optimizers::NLOpt::DividedRectangles direct;
-    direct.setGeographicRegion(ULocator::Position::Utah {});
+    direct.setGeographicRegion(ULocator::Position::UtahRegion {});
     direct.setTravelTimeCalculatorMap(std::move(calculatorMap));
     direct.setTopography(std::move(topography));
     direct.setArrivals(arrivals);
@@ -125,14 +127,6 @@ TEST(ULocatorNLOptDividedRectangles, FixedDepthLp)
 
     ULocator::Origin noGuess;
     EXPECT_NO_THROW(direct.setMaximumNumberOfObjectiveFunctionEvaluations(2500));
-/*
-    direct.locate(noGuess,
-                  ULocator::Optimizers::IOptimizer::LocationProblem::ThreeDimensionsAndTime,
-                  ULocator::Optimizers::IOptimizer::Norm::LeastSquares);
-
-    auto origin = direct.getOrigin();
-    std::cout << std::setprecision(12) << origin.getEpicenter().getLatitude() << " " << origin.getEpicenter().getLongitude() << " " << " " << origin.getDepth() << " " << origin.getTime() << std::endl;
-*/
     EXPECT_NO_THROW(
         direct.locateEventWithFixedDepth(
             referenceOrigin.getDepth(),
@@ -157,6 +151,7 @@ TEST(ULocatorNLOptDividedRectangles, FixedDepthLp)
 
 TEST(ULocatorNLOptDividedRectangles, BlastLp)
 {
+// TODO redo this with the original UUSS velocity models
     ULocator::Origin referenceOrigin;
     referenceOrigin.setTime(1646684876.8099976);
     referenceOrigin.setEpicenter(ULocator::Position::WGS84 {40.5151667, -112.1455} );
@@ -190,7 +185,7 @@ TEST(ULocatorNLOptDividedRectangles, BlastLp)
     topography->set(2000);
 
     ULocator::Optimizers::NLOpt::DividedRectangles direct;
-    direct.setGeographicRegion(ULocator::Position::Utah {});
+    direct.setGeographicRegion(ULocator::Position::UtahRegion {});
     direct.setTravelTimeCalculatorMap(std::move(calculatorMap));
     direct.setTopography(std::move(topography));
     direct.setArrivals(arrivals);
@@ -208,6 +203,8 @@ TEST(ULocatorNLOptDividedRectangles, BlastLp)
             ULocator::Optimizers::IOptimizer::Norm::LeastSquares )
     );
     EXPECT_TRUE(direct.haveOrigin());
+    EXPECT_EQ(direct.getNumberOfGradientEvaluations(), 0);
+
     auto origin = direct.getOrigin();
     auto dLatitude = referenceOrigin.getEpicenter().getLatitude()
                    - origin.getEpicenter().getLatitude();
@@ -219,6 +216,81 @@ TEST(ULocatorNLOptDividedRectangles, BlastLp)
     EXPECT_NEAR(dLongitude, 0, 1.e-2);
     EXPECT_NEAR(dDepth,     0, 1.e-14);
     EXPECT_NEAR(dTime,      0, 0.2);
+std::cout << direct.getOptimalObjectiveFunction() << std::endl;
+ULocator::Origin newOrigin;
+newOrigin.setEpicenter(origin.getEpicenter());
+newOrigin.setDepth(origin.getDepth());
+std::cout << direct.evaluateObjectiveFunction(newOrigin, ULocator::Optimizers::IOptimizer::Norm::LeastSquares) << std::endl;
+std::cout << direct.evaluateObjectiveFunction(newOrigin, ULocator::Optimizers::IOptimizer::Norm::L1) << std::endl;
+std::cout << direct.evaluateObjectiveFunction(newOrigin, ULocator::Optimizers::IOptimizer::Norm::Lp) << std::endl;
+}
+
+TEST(ULocatorNLOptDividedRectangles, StoGoLp)
+{
+// TODO redo this with the original UUSS velocity models
+    ULocator::Origin referenceOrigin;
+    referenceOrigin.setTime(1646479475.880001);
+    referenceOrigin.setEpicenter(ULocator::Position::WGS84 {38.5615, -112.2196667} );
+    referenceOrigin.setDepth(2000);
+
+    auto arrivals = createEarthquakeArrivals();
+    auto calculatorMap = std::make_unique<ULocator::TravelTimeCalculatorMap> ();
+    for (const auto &arrival : arrivals)
+    {
+        std::unique_ptr<ULocator::ITravelTimeCalculator> calculator;
+        if (arrival.getPhase() == "P")
+        {
+            calculator
+                = std::make_unique<ULocator::UUSSRayTracer>
+                  (arrival.getStation(),
+                   ULocator::UUSSRayTracer::Phase::P,
+                   ULocator::UUSSRayTracer::Region::Utah);
+        }
+        else
+        {
+            calculator
+                = std::make_unique<ULocator::UUSSRayTracer>
+                  (arrival.getStation(),
+                   ULocator::UUSSRayTracer::Phase::S,
+                   ULocator::UUSSRayTracer::Region::Utah);
+        }
+        calculatorMap->insert(arrival.getStation(), arrival.getPhase(),
+                              std::move(calculator));
+    }
+    auto topography = std::make_unique<ULocator::Topography::Constant> ();
+    topography->set(4000);
+
+    ULocator::Optimizers::NLOpt::StochasticGradientOptimization stogo;
+    stogo.setGeographicRegion(ULocator::Position::UtahRegion {});
+    stogo.setTravelTimeCalculatorMap(std::move(calculatorMap));
+    stogo.setTopography(std::move(topography));
+    stogo.setArrivals(arrivals);
+    EXPECT_TRUE(stogo.randomize());
+    EXPECT_NEAR(stogo.getLocationTolerance(), 1, 1.e-8);
+    EXPECT_NEAR(stogo.getOriginTimeTolerance(), 0.01, 1.e-8);
+    EXPECT_EQ(stogo.getMaximumNumberOfObjectiveFunctionEvaluations(), 5000);
+
+    ULocator::Origin noGuess;
+    noGuess.setEpicenter(referenceOrigin.getEpicenter());
+    noGuess.setTime(referenceOrigin.getTime());
+    noGuess.setDepth(2000);
+    stogo.locate(referenceOrigin,
+                 ULocator::Optimizers::IOptimizer::LocationProblem::ThreeDimensionsAndTime,
+                 ULocator::Optimizers::IOptimizer::Norm::Lp);
+    EXPECT_EQ(stogo.getNumberOfObjectiveFunctionEvaluations(), 0);
+    EXPECT_TRUE(stogo.getNumberOfGradientEvaluations() > 0);
+ 
+    EXPECT_TRUE(stogo.haveOrigin());
+    auto origin = stogo.getOrigin();
+    auto dLatitude = referenceOrigin.getEpicenter().getLatitude()
+                   - origin.getEpicenter().getLatitude();
+    auto dLongitude = referenceOrigin.getEpicenter().getLongitude()
+                    - origin.getEpicenter().getLongitude();
+    auto dDepth = referenceOrigin.getDepth() - origin.getDepth();
+    auto dTime = referenceOrigin.getTime() - origin.getTime();
+std::cout << dLatitude << " " << dLongitude << " " << dDepth << " " << dTime << std::endl;
+
+
 }
 
 }
