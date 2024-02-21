@@ -172,15 +172,14 @@ set(TEST_SRC
     testing/rayTracer.cpp
     testing/corrections.cpp
     testing/objectiveFunctions.cpp
-    testing/utahQuarryBlastTravelTimeDatabase.cpp
-    testing/pagmo.cpp
+    testing/travelTimeDatabase.cpp
     #testing/halfSpace.cpp
     #testing/nlopt.cpp
     #testing/homogeneous.cpp
     #testing/example.cpp
     )
 if (${pagmo_FOUND})
-   #set(TEST_SRC ${TEST_SRC} testing/pagmo.cpp)
+   set(TEST_SRC ${TEST_SRC} testing/pagmo.cpp)
 endif()
 if (${NLopt_FOUND})
    set(TEST_SRC ${TEST_SRC} testing/nlopt.cpp)

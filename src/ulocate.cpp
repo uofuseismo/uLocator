@@ -32,7 +32,7 @@
 #include "uLocator/corrections/sourceSpecific.hpp"
 #include "loadCatalog.hpp"
 #include "utahQuarries.hpp"
-#include "utahQuarryBlastTravelTimeDatabase.hpp"
+#include "travelTimeDatabase.hpp"
 #include "originTime.hpp"
 #include "searchStations.hpp"
 
