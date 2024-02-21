@@ -653,7 +653,6 @@ int main(int argc, char *argv[])
             ULocator::Origin bestInitialOrigin;
             double bestInitialObjectiveFunction{std::numeric_limits<double>::max()};
             ULocator::Optimizers::IOptimizer::LocationProblem problem;
-            //std::vector<double> trialDepths;
             // For quarry blasts we fix the depth and call it a day
             if (origin.getEventType() ==
                 ULocator::Origin::EventType::QuarryBlast)
@@ -694,7 +693,6 @@ int main(int argc, char *argv[])
                 }
                 // Locate for real
                 logger->info("Fine-tuning quarry blast location...");
-                //trialDepths.push_back(bestInitialOrigin.getDepth());
             }
             else
             {
@@ -790,35 +788,6 @@ int main(int argc, char *argv[])
                 }
                 // Locate for real
                 logger->info("Fine-tuning earthquake location...");
-/*
-                //trialDepths.push_back(bestInitialOrigin.getDepth());
-                if (programOptions.region == "utah")
-                {
-                    auto interfaces = ULocator::UUSSRayTracer::getInterfaces(
-                        ULocator::UUSSRayTracer::Region::Utah);
-                    for (int layer = 0;
-                         layer < static_cast<int> (interfaces.size()) - 1;
-                         ++layer)
-                    {
-                        auto averageDepth = 0.5*(interfaces[layer]
-                                               + interfaces[layer + 1]);
-                        trialDepths.push_back( std::max(-800., averageDepth) );
-                    }
-                }
-                else
-                {
-                    auto interfaces = ULocator::UUSSRayTracer::getInterfaces(
-                        ULocator::UUSSRayTracer::Region::YNP);
-                    for (int layer = 0;
-                         layer < static_cast<int> (interfaces.size()) - 1;
-                         ++layer)
-                    {
-                        auto averageDepth = 0.5*(interfaces[layer]
-                                               + interfaces[layer + 1]);
-                        trialDepths.push_back( std::max(-1200., averageDepth) );
-                    }
-                }
-*/
                 // Define search depths
                 problem = ULocator::Optimizers::IOptimizer::LocationProblem::ThreeDimensionsAndTime;
             }
@@ -884,71 +853,6 @@ int main(int argc, char *argv[])
             travelTimeCalculators = pso.releaseTravelTimeCalculatorMap();
             topography = pso.releaseTopography();
 
-/*
-            ULocator::Optimizers::Prima::
-                BoundOptimizationByQuadraticApproximation bobyqa(logger);
-            bobyqa.setMaximumNumberOfObjectiveFunctionEvaluations(2500);
-            bobyqa.setLocationTolerance(1.e-1); ////bobyqa.setLocationTolerance(1);
-            bobyqa.setOriginTimeTolerance(1.e-3);
-            bobyqa.setOriginTimeTolerance(0.001);
-            bobyqa.setOriginTimeSearchWindowDuration(timeWindow);
-            bobyqa.setTravelTimeCalculatorMap(std::move(travelTimeCalculators));
-            bobyqa.setGeographicRegion(*programOptions.geographicRegion);
-            bobyqa.setExtentInX(newExtentInX);
-            bobyqa.setExtentInY(newExtentInY);
-            bobyqa.setTopography(std::move(topography));
-            bobyqa.setArrivals(arrivals);
-            // Iterate through the velocity model and locate at different depths
-            bool reducedObjectiveFunction{false};
-            auto optimalOrigin = bestInitialOrigin;
-            double optimalDepthObjectiveFunction{bestInitialObjectiveFunction};
-std::cout << bestInitialObjectiveFunction << std::endl;
-            for (const auto &trialDepth : trialDepths)
-            {
-//std::cout << trialDepth << std::endl;
-                ULocator::Origin trialOrigin{optimalOrigin};
-                trialOrigin.setDepth(trialDepth);
-                try
-                {
-                    bobyqa.locate(trialOrigin,
-                                  problem,
-                                  ULocator::Optimizers::IOptimizer::Norm::Lp);
-                }
-                catch (const std::exception &e)
-                {
-                    logger->warn("BOBYQA problem detected: "
-                               + std::string {e.what()} + " at depth "
-                               + std::to_string(trialDepth) + "; skipping...");
-                    continue;
-                } 
-                double objectiveFunctionThisDepth
-                    = bobyqa.getOptimalObjectiveFunction();
-std::cout<<objectiveFunctionThisDepth<<std::endl;
-                nObjectiveFunctionEvaluations 
-                    = nObjectiveFunctionEvaluations 
-                    + bobyqa.getNumberOfObjectiveFunctionEvaluations();
-                if (objectiveFunctionThisDepth < optimalDepthObjectiveFunction)
-                {
-                    optimalOrigin = bobyqa.getOrigin();
-                    optimalDepthObjectiveFunction = objectiveFunctionThisDepth;
-                    reducedObjectiveFunction = true;
-                }
-            }
-            travelTimeCalculators = bobyqa.releaseTravelTimeCalculatorMap();
-            topography = bobyqa.releaseTopography();
-            if (!reducedObjectiveFunction)
-            {
-                logger->warn("Using initial solution for event "
-                           + std::to_string(origins[iOrigin].getIdentifier()));
-            }
-            else
-            {
-                logger->debug("Using BOBYQA solution for "
-                            + std::to_string(origins[iOrigin].getIdentifier()));
-            }
-*/
-//std::cout << "Done" << std::endl;
-            // Note something for my own edification
 /*
 //std::cout << origin.getEpicenter().getLatitude() << " " << origin.getEpicenter().getLongitude() << std::endl;
 std::cout << "initial solution: " << bestInitialOrigin.getEpicenter().getLatitude() << " " << bestInitialOrigin.getEpicenter().getLongitude() << " " << bestInitialOrigin.getDepth() << std::endl;
