@@ -165,6 +165,7 @@ set(TEST_SRC
     testing/arrival.cpp
     testing/origin.cpp
     testing/topography.cpp
+    testing/rayTracer.cpp
     testing/corrections.cpp
     testing/objectiveFunctions.cpp
     testing/utahQuarryBlastTravelTimeDatabase.cpp
