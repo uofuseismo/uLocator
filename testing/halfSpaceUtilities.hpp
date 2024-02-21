@@ -11,7 +11,7 @@
 #include "uLocator/arrival.hpp"
 #include "uLocator/station.hpp"
 #include "uLocator/position/wgs84.hpp"
-#include "uLocator/position/utah.hpp"
+#include "uLocator/position/utahRegion.hpp"
 #include "uLocator/travelTimeCalculator.hpp"
 #include "uLocator/topography/constant.hpp"
 
@@ -88,7 +88,7 @@ public:
     {
          return evaluate(x, y, nullptr, nullptr); 
     }
-    ULocator::Position::Utah mRegion;
+    ULocator::Position::UtahRegion mRegion;
     std::array<double, 9> mElevations{0, 0, 0, 0, 0, 0, 0, 0, 4000};
     std::array<std::pair<int, int>, 9> mNodes{ std::pair{1, 1},
                                                std::pair{3, 1},
@@ -177,7 +177,7 @@ ULocator::Station toStation(const std::string &network,
                             const double elevation,
                             const int utmZone = 12) 
 {
-    ULocator::Position::Utah utah;
+    ULocator::Position::UtahRegion utah;
     ULocator::Station station;
     station.setNetwork(network);
     station.setName(name);
@@ -244,7 +244,7 @@ for (int j = 0; j < ny; ++j)
 //outfl.close();
 }
 */
-    ULocator::Position::Utah utah;
+    ULocator::Position::UtahRegion utah;
     const double eventLatitude{41.9576667};
     const double eventLongitude{-112.8155};
     const double eventDepth{5000};

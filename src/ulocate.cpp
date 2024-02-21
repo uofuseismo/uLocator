@@ -416,6 +416,7 @@ int main(int argc, char *argv[])
     {
         if (programOptions.region == "utah")
         {
+            logger->info("Making Utah event travel time database...");
             utahEventDatabase = std::make_unique<::UtahEventTravelTimeDatabase> ();
             if (programOptions.doStaticCorrections)
             {
@@ -430,6 +431,7 @@ int main(int argc, char *argv[])
         }
         else
         {
+            logger->info("Making YNP event travel time database...");
             ynpEventDatabase = std::make_unique<::YNPEventTravelTimeDatabase> ();
             if (programOptions.doStaticCorrections)
             {
@@ -627,15 +629,27 @@ int main(int argc, char *argv[])
             }
             // First we build an initial solution.  Effectively, we will
             // always check quarries and sometimes check earthquake locations.
-            logger->debug("Performing quarry optimization...");
-            auto [bestQuarryIndex, bestQuarryOrigin,
-                  bestQuarryObjectiveFunction]
-                = quarryLocator->findBestQuarry(
-                     origin,
-                     ULocator::Optimizers::IOptimizer::Norm::Lp,
-                     programOptions.pNorm,
-                     timeWindow);
-            auto bestQuarryName = quarryLocator->at(bestQuarryIndex).getName();
+            double bestQuarryObjectiveFunction
+                = std::numeric_limits<double>::max();
+            ULocator::Origin bestQuarryOrigin;
+            std::string bestQuarryName{"Undefined"};
+            if (quarryLocator)
+            {
+                logger->debug("Performing quarry optimization...");
+                //auto [bestQuarryIndex, bestQuarryOrigin,
+                //      bestQuarryObjectiveFunction]
+                auto bestQuarryLocatorResult
+                    = quarryLocator->findBestQuarry(
+                         origin,
+                         ULocator::Optimizers::IOptimizer::Norm::Lp,
+                         programOptions.pNorm,
+                         timeWindow);
+                auto bestQuarryIndex = std::get<0> (bestQuarryLocatorResult);
+                bestQuarryOrigin = std::get<1> (bestQuarryLocatorResult);
+                bestQuarryObjectiveFunction
+                    = std::get<2> (bestQuarryLocatorResult);
+                bestQuarryName = quarryLocator->at(bestQuarryIndex).getName();
+            }
             ULocator::Origin bestInitialOrigin;
             double bestInitialObjectiveFunction{std::numeric_limits<double>::max()};
             ULocator::Optimizers::IOptimizer::LocationProblem problem;
@@ -729,7 +743,7 @@ int main(int argc, char *argv[])
                 // Do a crude (x,y,t) search with a fixed depth
                 logger->info("Performing initial earthquake search...");
                 ULocator::Optimizers::NLOpt::DividedRectangles direct(logger);
-                direct.setMaximumNumberOfObjectiveFunctionEvaluations(1500);
+                direct.setMaximumNumberOfObjectiveFunctionEvaluations(1200);
                 direct.setLocationTolerance(1000); // Doesn't matter
                 direct.setOriginTimeTolerance(1); // Doesn't matter
                 direct.setOriginTimeSearchWindowDuration(timeWindow);
@@ -819,15 +833,26 @@ int main(int argc, char *argv[])
                       initialLatitude, initialLongitude);
             auto [x0, x1] = programOptions.geographicRegion->getExtentInX();
             auto [y0, y1] = programOptions.geographicRegion->getExtentInY();
-            std::pair<double, double> newExtentInX {std::max(x0, initialX - 50000),
-                                                    std::min(x1, initialX + 50000)};
-            std::pair<double, double> newExtentInY {std::max(y0, initialY - 50000),
-                                                    std::min(y1, initialY + 50000)};
+            double refineX{50000};
+            double refineY{50000};
+            int nParticles{20};
+            int nGenerations{140};
+            if (programOptions.region == "ynp")
+            {
+                refineX = 35000;
+                refineY = 35000;
+                nParticles = 15;
+                nGenerations = 120;
+            }
+            std::pair<double, double> newExtentInX {std::max(x0, initialX - refineX),
+                                                    std::min(x1, initialX + refineX)};
+            std::pair<double, double> newExtentInY {std::max(y0, initialY - refineY),
+                                                    std::min(y1, initialY + refineY)};
             ULocator::Optimizers::Pagmo::ParticleSwarm pso(logger);
             pso.setTravelTimeCalculatorMap(std::move(travelTimeCalculators));
             pso.setTopography(std::move(topography));
-            pso.setNumberOfParticles(20);
-            pso.setNumberOfGenerations(150);
+            pso.setNumberOfParticles(nParticles);
+            pso.setNumberOfGenerations(nGenerations);
             pso.setOriginTimeSearchWindowDuration(timeWindow);
             pso.setGeographicRegion(*programOptions.geographicRegion);
             pso.setExtentInX(newExtentInX);
@@ -953,7 +978,7 @@ std::cout << "real solution: " << origins[iOrigin].getEpicenter().getLatitude() 
                          origin.getEpicenter().getLatitude(),
                          origin.getEpicenter().getLongitude());
                 travelTimeCalculators->evaluate(stationPhases,
-                                                origin.getTime(), 
+                                                0, //origin.getTime(), 
                                                 xSource, ySource,
                                                 origin.getDepth(),
                                                 &estimateTimes,
@@ -1024,7 +1049,7 @@ std::cout << "real solution: " << origins[iOrigin].getEpicenter().getLatitude() 
                 // Uncorrected estimate times
                 applyCorrection = false;
                 travelTimeCalculators->evaluate(stationPhases,
-                                                origin.getTime(),
+                                                0, //origin.getTime(),
                                                 xSource, ySource, zSource,
                                                 &estimateTimes,
                                                 applyCorrection);

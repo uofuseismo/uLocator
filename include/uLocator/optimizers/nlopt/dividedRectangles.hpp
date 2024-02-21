@@ -38,15 +38,19 @@ public:
     /// @brief The algorithm will terminate if the event's hypocentral positions
     ///        are moving less than this tolerance. 
     /// @param[in] tolerance  The tolerance in meters.
+    /// @bug I don't think NLOpt uses this.
     void setLocationTolerance(double tolerance);
     /// @result The location tolerance in meters.
+    /// @bug I don't think NLOpt uses this.
     [[nodiscard]] double getLocationTolerance() const noexcept;
 
     /// @brief The algorithm will terminate if the event's origin times
     ///        are moving less than this tolerance.
     /// @param[in] tolerance  The tolerance in seconds.
+    /// @bug I don't think NLOpt uses this.
     void setOriginTimeTolerance(double tolerance);
     /// @result The origin time tolerance in seconds.
+    /// @bug I don't think NLOpt uses this.
     [[nodiscard]] double getOriginTimeTolerance() const noexcept;
 
     /// @brief Enables normalization of the simple box-boundaries.
@@ -70,6 +74,13 @@ public:
     /// @result Indicates whether or not to use the locally biased DIRECT
     ///         algorithm.
     [[nodiscard]] bool locallyBias() const noexcept;
+
+    /// @brief Sets the origin time search window duration.
+    /// @param[in] duration   The duration in seconds.  
+    /// @throw std::invalid_argument if duration is not positive.
+    void setOriginTimeSearchWindowDuration(double duration); 
+    /// @result The origin time search window duration in seconds.
+    [[nodiscard]] double getOriginTimeSearchWindowDuration() const noexcept;
     /// @}
 
 
@@ -84,7 +95,18 @@ public:
                 ULocator::Optimizers::IOptimizer::Norm norm = ULocator::Optimizers::IOptimizer::Norm::LeastSquares) final;
     /// @result True indicates the origin is available.
     [[nodiscard]] bool haveOrigin() const noexcept final;
- 
+    /// @result The number of objective function evaluations during
+    ///         optimization.
+    /// @throws std::runtime_error if \c haveOrigin() is false.
+    [[nodiscard]] int getNumberOfObjectiveFunctionEvaluations() const;
+    /// @result The number of gradient evaluations during optimization.
+    /// @note This will be 0 because DIRECT Is derivative-free.
+    /// @throws std::runtime_error if \c haveOrigin() is false.
+    [[nodiscard]] int getNumberOfGradientEvaluations() const;
+    /// @result The objective function at the optimum location.
+    /// @throws std::runtime_error if \c haveOrigin() is false.
+    [[nodiscard]] double getOptimalObjectiveFunction() const;
+
     /// @name Destructors
     /// @{
 

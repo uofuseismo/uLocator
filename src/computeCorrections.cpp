@@ -837,8 +837,8 @@ int main(int argc, char *argv[])
     double maximumWeightedRMS = programOptions.maximumWeightedRMS;
     int minimumObservationsForStaticCorrection = programOptions.minimumObservationsForStaticCorrection; //{20};
     // Parameters for KNN and SSST
-    const int64_t nFolds = programOptions.nFolds; //{5}; // n-fold cross-validation for KNN fitting
-    const int64_t minObservationsForSSSC = programOptions.minimumObservationsForSSSC;// {250}; // 250 observations for KNN fitting
+    const int64_t nFolds = programOptions.nFolds; // n-fold cross-validation for KNN fitting
+    const int64_t minObservationsForSSSC = programOptions.minimumObservationsForSSSC;// 250 observations for KNN fitting
     int seed = 86332;
     constexpr int64_t nFeatures{3}; // UTM X, UTM Y, Depth
     const std::vector<int> nNeighborsSearch = std::vector<int>{//100,  

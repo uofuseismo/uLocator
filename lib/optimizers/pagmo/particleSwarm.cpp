@@ -226,14 +226,14 @@ void ParticleSwarm::locate(
         auto populationSize = static_cast<size_t> (getNumberOfParticles());
         pagmo::population population{problem, populationSize};
         // Evolve the population
+        pImpl->mLogger->debug("Beginning PSO for 3D and time");
         auto newPopulation = algorithm.evolve(population);
+        pImpl->mLogger->debug("PSO finished!");
         // Pick a winner and extract the hypocenter and origin time
-        pImpl->mLogger->info("Beginning PSO for 3D and time");
         auto optimumLocation = newPopulation.champion_x();
-        pImpl->mLogger->info("Finished!");
         pImpl->mOptimalObjectiveFunction = newPopulation.champion_f().at(0);
         // Extract origin and Compute the theoretical arrivals
-        pImpl->mLogger->info("Computing estimate travel times");
+        pImpl->mLogger->debug("Computing estimate travel times");
         auto fitnessPtr
             = reinterpret_cast<const ::PagmoProblem3DAndTime *>
               (problem.get_ptr());
@@ -271,21 +271,20 @@ void ParticleSwarm::locate(
         auto populationSize = static_cast<size_t> (getNumberOfParticles());
         pagmo::population population{problem, populationSize};
         // Evolve the population
-        pImpl->mLogger->info("Beginning PSO for free-surface problem");
+        pImpl->mLogger->debug("Beginning PSO for free-surface problem");
         auto newPopulation = algorithm.evolve(population);
-        pImpl->mLogger->info("Finished!");
+        pImpl->mLogger->info("PSO finished!");
         // Pick a winner and extract the hypocenter and origin time
         auto optimumLocation = newPopulation.champion_x();
         pImpl->mOptimalObjectiveFunction = newPopulation.champion_f().at(0);
-std::cout << pImpl->mOptimalObjectiveFunction <<std::endl;
         // Extract the origin information and compute travel times 
+        pImpl->mLogger->info("Computing estimate travel times");
         auto fitnessPtr
             = reinterpret_cast<
                  const ::PagmoProblem2DAndTimeAndDepthAtFreeSurface *>
               (problem.get_ptr());
         origin = fitnessPtr->locationToOrigin(optimumLocation, *region);
         // Compute the theoretical arrivals
-        pImpl->mLogger->info("Computing estimate travel times");
         fitnessPtr->mTravelTimeCalculatorMap->evaluate(
             fitnessPtr->mStationPhases,
             origin.getTime(),
@@ -324,18 +323,17 @@ std::cout << pImpl->mOptimalObjectiveFunction <<std::endl;
         // Evolve the population
         pImpl->mLogger->info("Beginning PSO for fixed-depth problem");
         auto newPopulation = algorithm.evolve(population);
-        pImpl->mLogger->info("Finished!");
+        pImpl->mLogger->info("PSO finished!");
         // Pick a winner and extract the hypocenter and origin time
         auto optimumLocation = newPopulation.champion_x();
         pImpl->mOptimalObjectiveFunction = newPopulation.champion_f().at(0);
-std::cout << pImpl->mOptimalObjectiveFunction <<std::endl;
         // Extract the origin information and compute theoretical times
+         pImpl->mLogger->info("Computing estimate travel times");
         auto fitnessPtr
             = reinterpret_cast<
                  const ::PagmoProblem2DAndTimeAndFixedDepth *>
               (problem.get_ptr());
         origin = fitnessPtr->locationToOrigin(optimumLocation, *region);
-        pImpl->mLogger->info("Computing estimate travel times");
         fitnessPtr->mTravelTimeCalculatorMap->evaluate(
             fitnessPtr->mStationPhases,
             origin.getTime(),
