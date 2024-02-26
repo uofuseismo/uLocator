@@ -263,14 +263,12 @@ public:
             double dsdxi{0};
             double dsdyi{0};
             double dsdzi{0};
-            double dtdti{0};
             if (mEvaluationMethod == EvaluationMethod::WeightedAverage)
             {
                 for (int j = 0; j < static_cast<int> (mNeighbors); ++j)
                 {
                     auto trainingRow
                          = static_cast<int> (std::round(rowValues[j]));
-                    auto iSrcFeatures = mFeatures*trainingRow;
                     auto iSrcTargets = 2*trainingRow;
                     double residual = mTrainingTargetsMatrix[iSrcTargets];
                     double weight = mTrainingTargetsMatrix[iSrcTargets + 1];
