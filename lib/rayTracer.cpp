@@ -180,7 +180,7 @@ double RayTracer::evaluate(
                                                      pImpl->mStationDepth);
         pImpl->mLayerSolver.setSourceDepth(sourceDepthToUse);
         constexpr bool doReflections{false};
-        pImpl->mLayerSolver.solve(false);
+        pImpl->mLayerSolver.solve(doReflections);
     }
     catch (const std::exception &e)
     {

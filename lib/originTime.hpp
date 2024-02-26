@@ -19,6 +19,7 @@ namespace
 {
 
 template<typename T>
+[[nodiscard]] [[maybe_unused]]
 std::vector<T> computeResiduals(const std::vector<T> &observations,
                                 const std::vector<T> &estimates)
 {
@@ -43,6 +44,7 @@ std::vector<T> computeResiduals(const std::vector<T> &observations,
 ///                          value then we terminate early.
 /// @result result.first is the left bracket and result.second is the right
 ///         bracket.
+[[nodiscard]] [[maybe_unused]]
 std::pair<double, double> 
     goldenSectionSearch(const std::function<double (double x)> &f,
                         const double leftBracket,
@@ -93,6 +95,7 @@ std::pair<double, double>
 /// @param[in] weights        The corresponding weights.
 /// @result The origin time, UTC, in seconds since the epoch to add to the 
 ///         estimates.
+[[nodiscard]] [[maybe_unused]]
 double optimizeOriginTimeL1(const std::vector<double> &observations,
                             const std::vector<double> &estimates,
                             const std::vector<double> &weights)
@@ -114,6 +117,7 @@ double optimizeOriginTimeL1(const std::vector<double> &observations,
     return ::weightedMedian(residuals, weights, workSpace); 
 }
 
+[[nodiscard]] [[maybe_unused]]
 double optimizeOriginTimeL1(const ULocator::Origin &origin,
                             const std::vector<double> &estimates)
 {
@@ -159,6 +163,7 @@ double optimizeOriginTimeLeastSquares(const std::vector<double> &observations,
     return ::weightedMean(residuals, weights);
 }
 
+[[nodiscard]] [[maybe_unused]]
 double optimizeOriginTimeLeastSquares(const ULocator::Origin &origin,
                                       const std::vector<double> &estimates)
 {
@@ -188,6 +193,7 @@ double optimizeOriginTimeLeastSquares(const ULocator::Origin &origin,
 ///                           terminated.
 /// @result The origin time, UTC, in seconds since the epoch to add to the 
 ///         estimates.
+[[nodiscard]] [[maybe_unused]]
 double optimizeOriginTimeLp(const std::vector<double> &observations,
                             const std::vector<double> &estimates,
                             const std::vector<double> &weights,
@@ -261,17 +267,16 @@ double optimizeOriginTimeLp(const std::vector<double> &observations,
     };
     OriginTimeObjectiveFunction
         objectiveFunction{observations, estimates, weights, p};
-    constexpr int bits{std::numeric_limits<double>::digits/2};
     double tMax = *std::min_element(observations.begin(),
                                     observations.end());
     double tMin = tMax - timeWindow;
-    uintmax_t iterations{static_cast<uintmax_t> (maxIterations)};
     auto bracket
         = ::goldenSectionSearch(objectiveFunction.f, tMin, tMax,
                                 maxIterations);
     return 0.5*(bracket.first + bracket.second);
 }
 
+[[nodiscard]] [[maybe_unused]]
 double optimizeOriginTimeLp(const ULocator::Origin &origin,
                             const std::vector<double> &estimates,
                             const double p = 1.5,
