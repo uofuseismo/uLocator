@@ -3,7 +3,10 @@
 #include <memory>
 #include <vector>
 #include <uLocator/optimizers/optimizer.hpp>
-#include <umps/logging/log.hpp>
+namespace UMPS::Logging
+{
+ class ILog;
+}
 namespace ULocator
 {
  class Origin;

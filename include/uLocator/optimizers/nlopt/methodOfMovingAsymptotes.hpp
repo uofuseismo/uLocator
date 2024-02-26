@@ -2,7 +2,10 @@
 #define ULOCATOR_OPTIMIZERS_NLOPT_MMA_HPP
 #include <memory>
 #include <uLocator/optimizers/optimizer.hpp>
-#include <umps/logging/log.hpp>
+namespace UMPS::Logging
+{
+ class ILog;
+}
 namespace ULocator::Optimizers::NLOpt
 {
 /// @class MethodOfMovingAsymptotes "methodOfMovingAsymtotes.hpp" "uLocator/optimizers/nlopt/methodOfMovingAsymtotes.hpp"

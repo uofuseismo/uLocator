@@ -2,7 +2,10 @@
 #define ULOCATOR_OPTIMIZERS_PRIMA_BoundOptimizationByQuadraticApproximation_HPP
 #include <memory>
 #include <uLocator/optimizers/optimizer.hpp>
-#include <umps/logging/log.hpp>
+namespace UMPS::Logging
+{
+ class ILog;
+}
 namespace ULocator::Optimizers::Prima
 {
 /// @class BoundOptimizationByQuadraticApproximation "boundOptimizationByQuadraticApproximation.hpp" "uLocator/optimizers/prima/boundOptimizationByQuadraticApproximation.hpp"

@@ -2,7 +2,10 @@
 #define ULOCATOR_OPTIMIZERS_OPTIMIZER_HPP
 #include <memory>
 #include <vector>
-#include <umps/logging/log.hpp>
+namespace UMPS::Logging
+{
+ class ILog;
+}
 namespace ULocator
 {
  class Arrival;

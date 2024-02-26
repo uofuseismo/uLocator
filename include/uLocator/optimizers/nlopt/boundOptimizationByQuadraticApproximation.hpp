@@ -2,7 +2,10 @@
 #define ULOCATOR_OPTIMIZERS_NLOPT_BOBYQA_HPP
 #include <memory>
 #include <uLocator/optimizers/optimizer.hpp>
-#include <umps/logging/log.hpp>
+namespace UMPS::Logging
+{
+ class ILog;
+}
 namespace ULocator::Optimizers::NLOpt
 {
 /// @class BoundOptimizationByQuadraticApproximation "methodOfMovingAsymtotes.hpp" "uLocator/optimizers/nlopt/methodOfMovingAsymtotes.hpp"

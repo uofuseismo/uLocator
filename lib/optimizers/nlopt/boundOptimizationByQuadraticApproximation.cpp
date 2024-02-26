@@ -3,7 +3,11 @@
 #ifndef NDEBUG
 #include <cassert>
 #endif
+#ifdef WITH_UMPS
 #include <umps/logging/standardOut.hpp>
+#else
+#include "logging/standardOut.hpp"
+#endif
 #include <nlopt.hpp>
 #include "uLocator/optimizers/nlopt/boundOptimizationByQuadraticApproximation.hpp" 
 #include "uLocator/arrival.hpp"

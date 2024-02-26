@@ -7,7 +7,11 @@
 #include <pagmo/problem.hpp>
 #include <pagmo/population.hpp>
 #include <pagmo/algorithms/pso.hpp>
+#ifdef WITH_UMPS
 #include <umps/logging/standardOut.hpp>
+#else
+#include "logging/standardOut.hpp"
+#endif
 #include "uLocator/optimizers/pagmo/particleSwarm.hpp"
 #include "uLocator/position/wgs84.hpp"
 #include "fitnessFunctions.hpp"

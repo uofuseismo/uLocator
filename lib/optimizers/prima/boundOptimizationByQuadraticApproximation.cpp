@@ -2,7 +2,11 @@
 #include <string>
 #include <limits>
 #include <prima/prima.h>
+#ifdef WITH_UMPS
 #include <umps/logging/standardOut.hpp>
+#else
+#include "logging/standardOut.hpp"
+#endif
 #include "uLocator/optimizers/prima/boundOptimizationByQuadraticApproximation.hpp"
 #include "uLocator/origin.hpp"
 #include "uLocator/arrival.hpp"

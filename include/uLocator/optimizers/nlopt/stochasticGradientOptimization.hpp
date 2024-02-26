@@ -2,7 +2,10 @@
 #define ULOCATOR_OPTIMIZERS_NLOPT_STOGO_HPP
 #include <memory>
 #include <uLocator/optimizers/optimizer.hpp>
-#include <umps/logging/log.hpp>
+namespace UMPS::Logging
+{
+ class ILog;
+}
 namespace ULocator::Optimizers::NLOpt
 {
 /// @class StochasticGradientOptimization "dividedRectangles.hpp" "uLocator/optimizers/nlopt/dividedRectangles.hpp"
