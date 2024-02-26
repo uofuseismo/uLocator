@@ -21,7 +21,7 @@ else()
 endif()
 
 find_package(Boost COMPONENTS program_options REQUIRED)
-find_package(Eigen3 3.3 REQUIRED Dense)
+#find_package(Eigen3 3.3 REQUIRED Dense)
 find_package(Threads REQUIRED)
 find_package(NLopt REQUIRED)
 find_package(TBB)
@@ -138,8 +138,7 @@ set_target_properties(uLocator PROPERTIES
                       CXX_STANDARD_REQUIRED YES 
                       CXX_EXTENSIONS NO) 
 target_link_libraries(uLocator
-                      PRIVATE Eigen3::Eigen
-                              hdf5::hdf5
+                      PRIVATE hdf5::hdf5
                               NLopt::nlopt
                               TBB::tbb
                               Boost::program_options Boost::boost
