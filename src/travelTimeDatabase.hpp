@@ -7,7 +7,11 @@
 #include <string>
 #include <map>
 #include <filesystem>
+#ifdef WITH_UMPS
 #include <umps/logging/standardOut.hpp>
+#else
+#include "logging/standardOut.hpp"
+#endif
 #ifndef NDEBUG
 #include <cassert>
 #endif
