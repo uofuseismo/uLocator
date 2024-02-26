@@ -18,8 +18,6 @@ public:
     {
         if (mEpicenter.havePosition())
         {
-            auto latitude = mEpicenter.getLatitude();
-            auto longitude = mEpicenter.getLongitude();
             for (auto &arrival : mArrivals)
             {
                 const auto &station = arrival.getStationReference();
