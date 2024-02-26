@@ -142,8 +142,6 @@ target_link_libraries(uLocator
                               NLopt::nlopt
                               TBB::tbb
                               Boost::program_options Boost::boost
-                              prima::primac
-                              Pagmo::pagmo
                               #${MCMC_LIBRARY} ttimes
                               GeographicLib::GeographicLib ${UMPS_LIBRARY}
                               ${EIKONALXX_LIBRARY} ${DAL_LIBS})
@@ -152,10 +150,22 @@ target_include_directories(uLocator
                            PRIVATE ${CMAKE_SOURCE_DIR}/lib
                                    ${UMPS_INCLUDE_DIR} ${MCMC_INCLUDE_DIR}
                                    ${NLOPT_INCLUDE_DIRS} ${EIKONALXX_INCLUDE_DIR}
-                                   ${oneDAL_INCLUDE_DIRS} hdf5::hdf5 NLopt::nlopt spdlog::spdlog prima::primac Pagmo::pagmo
+                                   ${oneDAL_INCLUDE_DIRS} hdf5::hdf5
                                    #ttimes
                            PUBLIC $<INSTALL_INTERFACE:${CMAKE_SOURCE_DIR}/include/umps>)
 
+if (${pagmo_FOUND})
+   target_include_directories(uLocator PRIVATE Pagmo::pagmo)
+   target_link_libraries(uLocator PRIVATE Pagmo::pagmo)
+endif()
+if (${prima_FOUND})
+   target_include_directories(uLocator PRIVATE prima::primac)
+   target_link_libraries(uLocator PRIVATE prima::primac)
+endif()
+if (${NLopt_FOUND})
+   target_include_directories(uLocator PRIVATE NLopt::nlopt)
+   target_link_libraries(uLocator PRIVATE NLopt::nlopt)
+endif() 
 
 ##########################################################################################
 #                                         Unit Tests                                     #
@@ -229,20 +239,21 @@ target_include_directories(computeCorrections
 target_link_libraries(computeCorrections
                       ${DAL_LIBS} Boost::program_options uLocator)
 
-add_executable(estimateVelocities src/estimateVelocities.cpp)
-set_target_properties(estimateVelocities PROPERTIES
-                      CXX_STANDARD 20
-                      CXX_STANDARD_REQUIRED YES
-                      CXX_EXTENSIONS NO)
-target_link_libraries(estimateVelocities
-                      uLocator Boost::program_options TBB::tbb ${UMPS_LIBRARY}
-                      NLopt::nlopt prima::primac)
-target_include_directories(estimateVelocities
+if (${BUILD_UUSS})
+   add_executable(estimateVelocities src/estimateVelocities.cpp)
+   set_target_properties(estimateVelocities PROPERTIES
+                         CXX_STANDARD 20
+                         CXX_STANDARD_REQUIRED YES
+                         CXX_EXTENSIONS NO)
+   target_link_libraries(estimateVelocities
+                         uLocator Boost::program_options TBB::tbb ${UMPS_LIBRARY}
+                         NLopt::nlopt prima::primac)
+   target_include_directories(estimateVelocities
                            PRIVATE Boost::program_options
                                    ${CMAKE_SOURCE_DIR}/include
                                    ${CMAKE_SOURCE_DIR}/lib
                                    ${UMPS_INCLUDE_DIR} NLopt::nlopt prima::primac)
-
+endif()
 #add_executable(evaluateCorrections
 #               src/evaluateCorrections.cpp)
 #set_target_properties(evaluateCorrections PROPERTIES
