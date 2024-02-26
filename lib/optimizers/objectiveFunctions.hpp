@@ -81,7 +81,7 @@ void restoreTimes(const std::vector<T> &reducedArrivals,
 
 /// @brief This is a convience utility for extracting the observations and
 ///        weights from a well-formed origin. 
-[[nodiscard]]
+[[nodiscard]] [[maybe_unused]]
 std::pair<std::vector<double>, std::vector<double>>
 originToObservationsAndWeights(const ULocator::Origin &origin)
 {
@@ -98,7 +98,7 @@ originToObservationsAndWeights(const ULocator::Origin &origin)
 }
 
 template<typename T>
-[[nodiscard]] 
+[[nodiscard]] [[maybe_unused]]
 T leastSquares(const std::vector<T> &weights,
                const std::vector<T> &observations,
                const std::vector<T> &estimates,
@@ -138,7 +138,7 @@ T leastSquares(const std::vector<T> &weights,
     return static_cast<T> (sumSquaredOfResiduals);
 }
 
-[[nodiscard]]
+[[nodiscard]] [[maybe_unused]]
 double leastSquares(const ULocator::Origin &origin,
                     const std::vector<double> &estimates,
                     const Measurement measurement)
@@ -148,7 +148,7 @@ double leastSquares(const ULocator::Origin &origin,
 }
 
 template<typename T>
-[[nodiscard]]
+[[nodiscard]] [[maybe_unused]]
 T l1(const std::vector<T> &weights,
      const std::vector<T> &observations,
      const std::vector<T> &estimates,
@@ -195,7 +195,7 @@ T l1(const std::vector<T> &weights,
      return static_cast<T> (sumAbsoluteResiduals);
 }
 
-[[nodiscard]]
+[[nodiscard]] [[maybe_unused]]
 double l1(const ULocator::Origin &origin,
           const std::vector<double> &estimates,
           const Measurement measurement)
@@ -206,7 +206,7 @@ double l1(const ULocator::Origin &origin,
 
 
 template<typename T>
-[[nodiscard]] 
+[[nodiscard]] [[maybe_unused]]
 T lp(const std::vector<T> &weights,
      const std::vector<T> &observations,
      const std::vector<T> &estimates,
@@ -258,7 +258,7 @@ T lp(const std::vector<T> &weights,
      return std::pow(sumAbsoluteResidualsToP, 1./p);;
 }
 
-[[nodiscard]]
+[[nodiscard]] [[maybe_unused]]
 double lp(const ULocator::Origin &origin,
           const std::vector<double> &estimates,
           const double p,
