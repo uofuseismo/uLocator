@@ -125,10 +125,10 @@ if (NOT ${USE_UMPS})
 endif()
 if (NOT ${USE_EIKONALXX})
    set(LIBRARY_SRC ${LIBRARY_SRC}
-       src/ray/layerSolver.cpp
-       src/ray/point2d.cpp
-       src/ray/segment2d.cpp
-       src/ray/path2d.cpp)
+       lib/ray/layerSolver.cpp
+       lib/ray/point2d.cpp
+       lib/ray/segment2d.cpp
+       lib/ray/path2d.cpp)
 endif()
 set(BUILD_SHARED_LIBS YES)
 add_library(uLocator ${LIBRARY_SRC} ${UUSS_SRC})
