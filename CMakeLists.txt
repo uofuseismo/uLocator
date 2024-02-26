@@ -121,7 +121,7 @@ if (${NLopt_FOUND})
        lib/optimizers/nlopt/stochasticGradientOptimization.cpp)
 endif()
 if (NOT ${USE_UMPS})
-   set(LIBRARY_SRC ${LIBRARY_SRC} src/logging/standardOut.cpp)
+   set(LIBRARY_SRC ${LIBRARY_SRC} lib/logging/standardOut.cpp)
 endif()
 if (NOT ${USE_EIKONALXX})
    set(LIBRARY_SRC ${LIBRARY_SRC}
