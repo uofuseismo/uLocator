@@ -60,7 +60,15 @@ public:
     /// @brief Sets the station offset, in meters, and the station depth
     ///        in meters.
     void setStationOffsetAndDepth(double offset, double depth);
+    /// @result True indicates the station offset and depth were set.
     [[nodiscard]] bool haveStationOffsetAndDepth() const noexcept;
+
+    /// @brief Sets the ray hit tolerance.
+    void setRayHitTolerance(double tolerance);
+    /// @result If the distance between the ray and the receiver is less than
+    ///         this horizontal offset, in meters, then the ray is said to
+    ///         have converged.
+    [[nodiscard]] double getRayHitTolerance() const noexcept;
 
     /// @brief Shoots rays through the model at the given take-off angle.
     /// @param[in] takeOffAngle  The take-off angle at which to shoot in
