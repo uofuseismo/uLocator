@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(ULocator VERSION 0.4.0 LANGUAGES C CXX)
+project(uLocator VERSION 0.4.0 LANGUAGES C CXX)
 enable_testing()
 
 # Some options
@@ -291,6 +291,34 @@ endif()
 #                                   GeographicLib::GeographicLib
 #                                   ${UMPS_INCLUDE_DIR} hdf5::hdf5 ${EIKONALXX_INCLUDE_DIR})
 
+
+##########################################################################################
+#                                      Installation                                      #
+##########################################################################################
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+configure_package_config_file(
+    cmake/uLocatorConfig.cmake.in "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
+    INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake"
+    VERSION "${version}"
+    COMPATIBILITY AnyNewerVersion
+)
+#set(EXECUTABLES uOperator uKeyPair uUserTable uLocalCommand uRemoteCommand)
+if (${WRAP_PYTHON})
+   install(TARGETS uLocator pyulocator
+           RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+           LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+           ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+           PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+else()
+   install(TARGETS uLocator
+           RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+           LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+           ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+           PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+endif()
 
 ##########################################################################################
 #                                     CPACK Packaging                                    #
