@@ -24,23 +24,6 @@
 #include "weightedMedian.hpp"
 #include "originTime.hpp"
 
-namespace
-{
-std::vector<double> computeResiduals(const std::vector<double> &observations,
-                                     const std::vector<double> &estimates)
-{
-#ifndef NDEBUG
-    assert(observations.size() == estimates.size());
-#endif
-    std::vector<double> residuals(observations.size());
-    for (int i = 0; i < static_cast<int> (observations.size()); ++i)
-    {
-        residuals[i] = observations[i] - estimates[i];
-    } 
-    return residuals;
-}
-}
-
 using namespace ULocator::Optimizers;
 
 class IOptimizer::IOptimizerImpl
