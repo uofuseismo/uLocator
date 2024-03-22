@@ -173,10 +173,12 @@ void computeTakeOffAngles(
     }
     auto dTheta = (theta1 - theta0)/(n - 1);
     auto *__restrict__ takeOffAnglePointer = takeOffAngles->data();
-    for (int i = 0; i < n; ++i)
+    takeOffAnglePointer[0] = theta0;
+    for (int i = 1; i < n - 1; ++i)
     {
         takeOffAnglePointer[i] = theta0 + dTheta*i;
     }
+    takeOffAnglePointer[n - 1] = theta1;
 }
 
 /*
@@ -342,7 +344,7 @@ std::vector<EikonalXX::Ray::Path2D>
     objectiveFunction.keepRayPath = false;
     // Make a bunch of take-off angles
     constexpr int nInitialAngles{90};
-    constexpr double thetaMin{ 90.0001};
+    constexpr double thetaMin{ 90.00001};
     constexpr double thetaMax{180};
     std::vector<double> takeOffAngles;
     ::computeTakeOffAngles(nInitialAngles, thetaMin, thetaMax, &takeOffAngles);
@@ -616,7 +618,7 @@ std::vector<EikonalXX::Ray::Path2D>
     // Make a bunch of take-off angles
     constexpr int nInitialAngles{90};
     constexpr double thetaMin{0};
-    constexpr double thetaMax{90.0001};
+    constexpr double thetaMax{89.99999};
     std::vector<double> takeOffAngles;
     ::computeTakeOffAngles(nInitialAngles, thetaMin, thetaMax, &takeOffAngles);
     // Shoot these rays
