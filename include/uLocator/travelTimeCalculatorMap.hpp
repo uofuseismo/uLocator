@@ -78,6 +78,15 @@ public:
                   std::vector<double> *dtdy,
                   std::vector<double> *dtdz,
                   bool applyCorrection = true) const;
+    [[nodiscard]] double computeDistance(const Station &station, const std::string &phase,
+                                         double xSource, double ySource) const;
+    [[nodiscard]] double computeDistance(const Station &station, const std::string &phase,
+                                         double xSource, double ySource, double zSource) const;
+    [[nodiscard]] std::vector<double> computeDistance(const std::vector<std::pair<Station, std::string>> &stationPhase,
+                                                      double xSource, double ySource) const;
+    [[nodiscard]] std::vector<double> computeDistance(const std::vector<std::pair<Station, std::string>> &stationPhase,
+                                                      double xSource, double ySource, double zSource) const;
+
 
     /// @name Destructors
     /// @{

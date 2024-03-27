@@ -197,6 +197,36 @@ void TravelTimeCalculatorMap::evaluate(
 #endif
 }
 
+std::vector<double> TravelTimeCalculatorMap::computeDistance(
+    const std::vector<std::pair<Station, std::string>> &stationPhases,
+    const double xSource, const double ySource) const
+{
+    std::vector<double> distances(stationPhases.size(), 0);
+    for (size_t i = 0; i < stationPhases.size(); ++i)
+    {
+        distances[i]
+            = this->computeDistance(stationPhases[i].first,
+                                    stationPhases[i].second,
+                                    xSource, ySource);
+    }
+    return distances; 
+}
+
+std::vector<double> TravelTimeCalculatorMap::computeDistance(
+    const std::vector<std::pair<Station, std::string>> &stationPhases,
+    const double xSource, const double ySource, const double zSource) const
+{
+    std::vector<double> distances(stationPhases.size(), 0); 
+    for (size_t i = 0; i < stationPhases.size(); ++i)
+    {   
+        distances[i]
+            = this->computeDistance(stationPhases[i].first,
+                                    stationPhases[i].second,
+                                    xSource, ySource, zSource);
+    }   
+    return distances; 
+}
+
 double TravelTimeCalculatorMap::evaluate(
     const Station &station, const std::string &phase,
     const double originTime,
@@ -217,6 +247,20 @@ double TravelTimeCalculatorMap::evaluate(
     return at(station, phase)->evaluate(originTime, xSource, ySource, zSource,
                                         dtdt0, dtdx, dtdy, dtdz,
                                         applyCorrection);
+}
+
+double TravelTimeCalculatorMap::computeDistance(
+    const Station &station, const std::string &phase,
+    const double xSource, const double ySource) const
+{
+    return at(station, phase)->computeDistance(xSource, ySource);
+}
+
+double TravelTimeCalculatorMap::computeDistance(
+    const Station &station, const std::string &phase,
+    const double xSource, const double ySource, const double zSource) const
+{
+    return at(station, phase)->computeDistance(xSource, ySource, zSource);
 }
 
 /// Insert

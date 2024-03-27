@@ -162,6 +162,22 @@ public:
         if (dtdz != nullptr){*dtdz =-dz/(distance*mVelocity);}
         return originTime + distance/mVelocity;
     }   
+    double computeDistance(const double xSource, const double ySource)
+         const override
+    {   
+        auto dx = mStationX - xSource;
+        auto dy = mStationY - ySource;
+        return std::hypot(dx, dy);
+    }
+    double computeDistance(const double xSource, const double ySource, const double zSource)
+         const override
+    {   
+        auto dx = mStationX - xSource;
+        auto dy = mStationY - ySource;
+        auto dz = mStationZ - zSource;
+        return std::sqrt( dx*dx + dy*dy + dz*dz );
+    }
+
     ULocator::Station mStation;
     std::string mPhase;
     double mStationX;

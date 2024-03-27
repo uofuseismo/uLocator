@@ -76,6 +76,16 @@ public:
     /// @param[in] z       The z position of the source in meters.
     /// @result The source-to-receiver travel time in seconds.
     [[nodiscard]] virtual double operator()(double x, double y, double z, bool applyCorrection = true) const;
+    /// @result The source-receiver epicentral distance in meters.
+    /// @param[in] x       The x position of the source in meters.
+    /// @param[in] y       The y position of the source in meters.
+    [[nodiscard]] virtual double computeDistance(double x, double y) const = 0;
+    /// @result The source-receiver distance in meters.
+    /// @param[in] x       The x position of the source in meters.
+    /// @param[in] y       The y position of the source in meters.
+    /// @param[in] z       The z position of the source in meters.
+    [[nodiscard]] virtual double computeDistance(double x, double y, double z) const = 0;
+
 };
 }
 #endif

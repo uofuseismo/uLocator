@@ -143,7 +143,32 @@ RayTracer::RayTracer(const Station &station,
 {
 }
 
+/// Source-receiver distance
+double RayTracer::computeDistance(const double x, const double y) const
+{
+    if (!pImpl->mLayerSolver.haveVelocityModel())
+    {   
+        throw std::runtime_error("Solver not initialized");
+    }   
+    double dx = pImpl->mStationX - x; // Ray points source to receiver
+    double dy = pImpl->mStationY - y;
+    return std::hypot(dx, dy);
+}
 
+double RayTracer::computeDistance(
+    const double x, const double y, const double z) const
+{
+    if (!pImpl->mLayerSolver.haveVelocityModel())
+    {   
+        throw std::runtime_error("Solver not initialized");
+    }   
+    double dx = pImpl->mStationX - x; // Ray points source to receiver
+    double dy = pImpl->mStationY - y;
+    double dz = pImpl->mStationDepth - z;
+    return std::sqrt(dx*dx + dy*dy + dz*dz);
+}
+
+/// Apply the solver
 double RayTracer::evaluate(
     const double t0, const double x, const double y, const double z,
     double *dtdt0, double *dtdx, double *dtdy, double *dtdz,

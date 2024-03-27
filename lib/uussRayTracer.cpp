@@ -223,4 +223,15 @@ double UUSSRayTracer::evaluate(
                                        applyCorrection);
 }
 
+double UUSSRayTracer::computeDistance(const double x, const double y) const
+{
+    return pImpl->mRayTracer->computeDistance(x, y);
+}
+
+double UUSSRayTracer::computeDistance(
+    const double x, const double y, const double z) const
+{
+    return pImpl->mRayTracer->computeDistance(x, y, z); 
+}
+
 UUSSRayTracer::~UUSSRayTracer() = default;

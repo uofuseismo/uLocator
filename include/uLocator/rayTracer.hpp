@@ -96,6 +96,10 @@ public:
     [[nodiscard]] double evaluate(double t0, double x, double y, double z,
                                   double *dtdt0, double *dtdx, double *dtdy, double *dtdz,
                                   bool applyCorrection) const final;
+    /// @result The source-receiver epicentral distance in meters.
+    [[nodiscard]] double computeDistance(double x, double y) const final;
+    /// @result The distance between the source and receiver in meters.
+    [[nodiscard]] double computeDistance(double x, double y, double z) const final;
     /// @brief Destructor. 
     ~RayTracer() override; 
     RayTracer() = delete;
