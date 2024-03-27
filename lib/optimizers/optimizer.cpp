@@ -12,6 +12,7 @@
 #include "logging/standardOut.hpp"
 #endif
 #include "uLocator/optimizers/optimizer.hpp"
+#include "uLocator/optimizers/originTime.hpp"
 #include "uLocator/origin.hpp"
 #include "uLocator/travelTimeCalculatorMap.hpp"
 #include "uLocator/topography/topography.hpp"
@@ -22,7 +23,7 @@
 #include "objectiveFunctions.hpp"
 #include "weightedMean.hpp"
 #include "weightedMedian.hpp"
-#include "originTime.hpp"
+//#include "originTime.hpp"
 
 using namespace ULocator::Optimizers;
 
@@ -344,11 +345,31 @@ double IOptimizer::evaluateObjectiveFunction(
         estimates.push_back(estimate);
         weights.push_back(1./arrival.getStandardError());
     }
+    if (estimateSourceTime)
+    {
+        OriginTime originTimeCalculator;
+        originTimeCalculator.enableTimeReduction();
+        originTimeCalculator.setNorm(norm, 1.5);
+        originTimeCalculator.setTolerance(1e-5);
+        originTimeCalculator.setTimeWindow(200); // TODO make timewindow part of base class?
+        originTimeCalculator.setArrivalTimes(observations, weights); 
+        originTimeCalculator.setTravelTimes(estimates);
+        originTimeCalculator.optimize();
+        double originTime = originTimeCalculator.getTime();
+        // Add origin time back in
+        std::transform(estimates.begin(), estimates.end(), estimates.begin(),
+                       [&](const double t)
+                       {
+                           return originTime + t;
+                       });
+    }
     double objectiveFunction{0};
     if (norm == Norm::L1)
     {
+        /*
         if (estimateSourceTime)
         {
+           
             auto originTime = ::optimizeOriginTimeL1(observations,
                                                      estimates,
                                                      weights);
@@ -357,6 +378,7 @@ double IOptimizer::evaluateObjectiveFunction(
                 estimates[i] = estimates[i] + originTime;
             }
         }
+        */
         objectiveFunction = ::l1(weights, 
                                  observations,
                                  estimates,
@@ -364,6 +386,7 @@ double IOptimizer::evaluateObjectiveFunction(
     }
     else if (norm == Norm::LeastSquares)
     {
+        /*
         if (estimateSourceTime)
         {
             auto originTime = ::optimizeOriginTimeLeastSquares(observations,
@@ -374,6 +397,7 @@ double IOptimizer::evaluateObjectiveFunction(
                 estimates[i] = estimates[i] + originTime;
             }
         }
+        */
         objectiveFunction = ::leastSquares(weights,
                                            observations,
                                            estimates,
@@ -382,6 +406,7 @@ double IOptimizer::evaluateObjectiveFunction(
     else if (norm == Norm::Lp)
     { 
         constexpr double p{1.5};
+        /*
         if (estimateSourceTime)
         {
             double timeWindow{200}; // FIXME make timewindow part of base class?  
@@ -395,6 +420,7 @@ double IOptimizer::evaluateObjectiveFunction(
                 estimates[i] = estimates[i] + originTime;
             }
         }
+        */
         objectiveFunction = ::lp(weights,
                                  observations,
                                  estimates,

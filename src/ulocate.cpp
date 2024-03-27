@@ -222,9 +222,9 @@ Allowed options)""");
     if (vm.count("catalog_version"))
     {
         auto version = vm["catalog_version"].as<int> ();
-        if (version < 1 || version > 3)
+        if (version < 1 || version > 4)
         {
-            throw std::invalid_argument("catalog_version must be 1, 2, or 3");
+            throw std::invalid_argument("catalog_version must be 1, 2, 3, or 4");
         }
         options.catalogVersion = version;
     }

@@ -73,36 +73,27 @@ configure_file(${CMAKE_SOURCE_DIR}/include/private/version.hpp.in
                ${CMAKE_SOURCE_DIR}/include/uLocator/version.hpp)
 
 set(LIBRARY_SRC lib/version.cpp
-                #src/homogeneous.cpp
                 lib/arrival.cpp
-                ##src/direct.cpp
-                ##src/directOptions.cpp
                 lib/origin.cpp
-                #src/staticCorrection.cpp
-                #src/sourceSpecificStationCorrection.cpp
                 lib/optimizers/optimizer.cpp
+                lib/optimizers/originTime.cpp
                 lib/rayTracer.cpp
                 lib/station.cpp
                 lib/travelTimeCalculator.cpp
                 lib/travelTimeCalculatorMap.cpp
-                lib/uussRayTracer.cpp
                 lib/topography/constant.cpp
                 lib/topography/gridded.cpp
-                #src/travelTimeCalculatorMap.cpp
-                #src/uussTravelTimeCaclulator.cpp
-                #src/objectiveFunctions/l1.cpp
-                #src/objectiveFunctions/lp.cpp
-                #src/objectiveFunctions/doubleDifferenceL1.cpp
-                #src/objectiveFunctions/leastSquares.cpp
-                #src/objectiveFunctions/objectiveFunction.cpp
                 lib/position/geographicPoint.cpp
                 lib/position/wgs84.cpp
-                lib/position/utahRegion.cpp
-                lib/position/utahQuarry.cpp
-                lib/position/ynpRegion.cpp
                 lib/corrections/static.cpp
                 lib/corrections/sourceSpecific.cpp
                 )
+set(UTAH_SRC lib/uussRayTracer.cpp
+             lib/position/knownUtahQuarry.cpp
+             lib/position/utahRegion.cpp
+             lib/position/utahQuarry.cpp
+             lib/position/ynpRegion.cpp)
+set(LIBRARY_SRC ${LIBRARY_SRC} ${UTAH_SRC})
 if (${pagmo_FOUND})
    set(LIBRARY_SRC ${LIBRARY_SRC}
        lib/optimizers/pagmo/particleSwarm.cpp)
@@ -142,7 +133,6 @@ target_link_libraries(uLocator
                               NLopt::nlopt
                               TBB::tbb
                               Boost::program_options Boost::boost
-                              #${MCMC_LIBRARY} ttimes
                               GeographicLib::GeographicLib ${UMPS_LIBRARY}
                               ${EIKONALXX_LIBRARY} ${DAL_LIBS})
 target_include_directories(uLocator
@@ -151,7 +141,6 @@ target_include_directories(uLocator
                                    ${UMPS_INCLUDE_DIR} ${MCMC_INCLUDE_DIR}
                                    ${NLOPT_INCLUDE_DIRS} ${EIKONALXX_INCLUDE_DIR}
                                    ${oneDAL_INCLUDE_DIRS} hdf5::hdf5
-                                   #ttimes
                            PUBLIC $<INSTALL_INTERFACE:${CMAKE_SOURCE_DIR}/include/umps>)
 
 if (${pagmo_FOUND})
@@ -181,6 +170,7 @@ set(TEST_SRC
     testing/rayTracer.cpp
     testing/corrections.cpp
     testing/objectiveFunctions.cpp
+    testing/originTime.cpp
     testing/travelTimeDatabase.cpp
     #testing/halfSpace.cpp
     #testing/nlopt.cpp
@@ -212,32 +202,36 @@ add_test(NAME unitTests
 ##########################################################################################
 #                                        Executables                                     #
 ##########################################################################################
-add_executable(ulocate src/ulocate.cpp)
-set_target_properties(ulocate PROPERTIES
-                      CXX_STANDARD 20
-                      CXX_STANDARD_REQUIRED YES 
-                      CXX_EXTENSIONS NO) 
-target_link_libraries(ulocate
-                      PRIVATE uLocator Threads::Threads
-                      Boost::program_options Boost::boost TBB::tbb
-                      ${UMPS_LIBRARY})
-target_include_directories(ulocate
-                           PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-                           PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/lib>
-                           PRIVATE $<BUILD_INTERFACE:${UMPS_INCLUDE_DIR}>)
+if (${BUILD_UUSS})
+   add_executable(ulocate src/ulocate.cpp)
+   set_target_properties(ulocate PROPERTIES
+                         CXX_STANDARD 20
+                         CXX_STANDARD_REQUIRED YES 
+                         CXX_EXTENSIONS NO) 
+   target_link_libraries(ulocate
+                         PRIVATE uLocator Threads::Threads
+                         Boost::program_options Boost::boost TBB::tbb
+                         ${UMPS_LIBRARY})
+   target_include_directories(ulocate
+                              PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+                              PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/lib>
+                              PRIVATE $<BUILD_INTERFACE:${UMPS_INCLUDE_DIR}>)
+endif()
 
 # DOWNLOAD UTAH/YNP topography:
 #file(DOWNLOAD "https://docs.google.com/uc?export=download&id=1WdZ5CWsCkWr19lXlQd7S_fLuuW_SCUGU" utahTopography.h5)
 #file(DOWNLOAD "https://docs.google.com/uc?export=download&id=1HjwoDcWPz4Pj1JwJTijRvXH85hevMs_O" ynpTopography.h5)
-add_executable(computeCorrections src/computeCorrections.cpp)
-set_target_properties(computeCorrections PROPERTIES
-                      CXX_STANDARD 20
-                      CXX_STANDARD_REQUIRED YES
-                      CXX_EXTENSIONS NO)
-target_include_directories(computeCorrections
-                           PRIVATE Boost::program_options ${oneDAL_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/lib)
-target_link_libraries(computeCorrections
-                      ${DAL_LIBS} Boost::program_options uLocator)
+if (${BUILD_UUSS})
+   add_executable(computeCorrections src/computeCorrections.cpp)
+   set_target_properties(computeCorrections PROPERTIES
+                         CXX_STANDARD 20
+                         CXX_STANDARD_REQUIRED YES
+                         CXX_EXTENSIONS NO)
+   target_include_directories(computeCorrections
+                              PRIVATE Boost::program_options ${oneDAL_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/lib)
+   target_link_libraries(computeCorrections
+                         ${DAL_LIBS} Boost::program_options uLocator)
+endif()
 
 if (${BUILD_UUSS})
    add_executable(estimateVelocities src/estimateVelocities.cpp)

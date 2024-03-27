@@ -143,6 +143,7 @@ std::vector<ULocator::Origin>
         double eventLon;
         double eventDepth;
         double originTime;
+        double sourceReceiverDistance{0};
         std::string eventType;
         if (catalogVersion == 1)
         {
@@ -182,7 +183,7 @@ std::vector<ULocator::Origin>
             originTime = std::stod(splitLine[17]);
             eventType = splitLine[21];
         }
-        else if (catalogVersion == 3)
+        else if (catalogVersion == 3 || catalogVersion == 4)
         {
 //   0             1          2           3        4         5     6                  7       8       9       10            11    12           13           14      15       16               17                 18
 //event_identifier,event_type,origin_time,latitude,longitude,depth,arrival_identifier,network,station,channel,location_code,phase,arrival_time,first_motion,quality,residual,station_latitude,station_longitude,station_elevation
@@ -197,11 +198,32 @@ std::vector<ULocator::Origin>
             stationName = splitLine[8];
             phase = splitLine[11];
             time = std::stod(splitLine[12]);
-            uncertainty = ::qualityToStandardError(std::stod(splitLine[14]));
+            if (catalogVersion == 3)
+            {
+                uncertainty = ::qualityToStandardError(std::stod(splitLine[14]));
+            }
+            else
+            {
+                uncertainty = std::stod(splitLine[14]);
+            }
             residual = std::stod(splitLine[15]);
             stationLat = std::stod(splitLine[16]);
             stationLon = std::stod(splitLine[17]);
             stationElev = std::stod(splitLine[18]);
+            // Compute distance
+            if (catalogVersion == 4)
+            {
+                ULocator::Position::WGS84
+                     sourceLocation{eventLat, eventLon, utmZone};
+                ULocator::Position::WGS84
+                     receiverLocation{stationLat, stationLon, utmZone};
+                ULocator::Position::computeDistanceAzimuth(sourceLocation,
+                                                           receiverLocation,
+                                                           nullptr,
+                                                           &sourceReceiverDistance,
+                                                           nullptr,
+                                                           nullptr);
+            }
         }
         else
         {
@@ -284,7 +306,7 @@ std::vector<ULocator::Origin>
                             + "; skipping...");
             }
         }
-        if (!exists)
+        if (!exists && sourceReceiverDistance < 300000)
         {
             arrivals.push_back(std::move(arrival));
         }

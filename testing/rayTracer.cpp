@@ -85,7 +85,6 @@ TEST(ULocatorRayTracer, UncorrectedTravelTimes)
                                       utahInterfaces,
                                       utahPVelocities);
         constexpr bool applyCorrection{false};
-        const double t0{referenceOrigin.getTime()};
         auto travelTime = rayTracer.evaluate(0, xSource, ySource, 
                                              referenceOrigin.getDepth(),
                                              nullptr, nullptr, nullptr, nullptr,
