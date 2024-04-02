@@ -11,6 +11,12 @@ namespace ULocator::Corrections
 class SourceSpecific
 {
 public:
+    /// @brief Optimization algorithm.
+    enum class OptimizationAlgorithm
+    {
+         KDTree = 0, /*!< Use a KD-tree.  This is way faster than brute froce. */
+         BruteForce  /*!< Compute nearest neighbors with brute force. */
+    };
     /// @brief This defines the interpolation scheme used during model
     ///        evaluation.
     enum class EvaluationMethod : int
@@ -113,6 +119,11 @@ public:
     /// @note If the model is trained, saved, then loaded then the evaluation
     ///       method will be set corresponding to that training procedure.
     [[nodiscard]] EvaluationMethod getEvaluationMethod() const noexcept;
+
+    /// @brief Optimization algorithm
+    void setOptimizationAlgorithm(OptimizationAlgorithm algorithm) noexcept;
+    /// @result The optimization algorithm.
+    [[nodiscard]] OptimizationAlgorithm getOptimizationAlgorithm() const noexcept;
     /// @}
      
     /// @name Training

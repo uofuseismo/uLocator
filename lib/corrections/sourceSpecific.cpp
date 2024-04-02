@@ -23,6 +23,7 @@
 #define NEIGHBORS_NAME "NumberOfNeighbors"
 #define MAXIMUM_DISTANCE_NAME "MaximumDistance"
 #define EVALUATION_METHOD_NAME "EvaluationMethod"
+#define OPTIMIZATION_ALGORITHM_NAME "OptimizationAlgorithm"
 
 using namespace ULocator::Corrections;
 
@@ -82,11 +83,19 @@ public:
     /// Make a descriptor
     void makeDescriptor(const int nNeighbors)
     {
-        mDescriptor
+        mKDTreeDescriptor
             = std::make_unique<oneapi::dal::knn::descriptor
               <
                  double,
                  oneapi::dal::knn::method::kd_tree,
+                 oneapi::dal::knn::task::search,
+                 oneapi::dal::minkowski_distance::descriptor<double>>
+              > (nNeighbors);
+        mBruteForceDescriptor
+            = std::make_unique<oneapi::dal::knn::descriptor
+              <
+                 double,
+                 oneapi::dal::knn::method::brute_force,
                  oneapi::dal::knn::task::search,
                  oneapi::dal::minkowski_distance::descriptor<double>>
               > (nNeighbors);
@@ -216,7 +225,16 @@ public:
             = oneapi::dal::homogen_table::wrap<double>
               (mTrainingFeaturesMatrix.data(), nTrainingObservations, nFeatures);
         makeDescriptor(mNeighbors);
-        mKNNModel = oneapi::dal::train(*mDescriptor, XTrain).get_model();
+        if (mOptimizationAlgorithm == OptimizationAlgorithm::KDTree)
+        {
+            mKNNModel
+               = oneapi::dal::train(*mKDTreeDescriptor, XTrain).get_model();
+        }
+        else
+        {
+            mKNNModel
+               = oneapi::dal::train(*mBruteForceDescriptor, XTrain).get_model();
+        }
         mHaveModel = true;
     }
     /// Predict
@@ -240,9 +258,22 @@ public:
         const auto X
             = oneapi::dal::homogen_table::wrap<double>
               (mFeaturesMatrix.data(), nObservations, mFeatures);
-        const auto testResult = oneapi::dal::infer(*mDescriptor, X, mKNNModel);
+        oneapi::dal::table trainingIndices;
+        if (mOptimizationAlgorithm == OptimizationAlgorithm::KDTree)
+        {
+            const auto testResult
+                = oneapi::dal::infer(*mKDTreeDescriptor, X, mKNNModel);
+            trainingIndices = testResult.get_indices(); 
+        }
+        else
+        {
+            const auto testResult
+                = oneapi::dal::infer(*mBruteForceDescriptor, X, mKNNModel);
+            trainingIndices = testResult.get_indices();
+        }
+        //const auto testResult = oneapi::dal::infer(*mKDTreeDescriptor, X, mKNNModel);
         // Extract result
-        const auto &trainingIndices = testResult.get_indices();
+        //const auto &trainingIndices = testResult.get_indices();
 #ifndef NDEBUG
         assert(trainingIndices.get_row_count() == nObservations);
         assert(trainingIndices.get_column_count() == mNeighbors);
@@ -398,7 +429,18 @@ public:
             oneapi::dal::knn::task::search,
             oneapi::dal::minkowski_distance::descriptor<double>
         >
-    > mDescriptor{nullptr};
+    > mKDTreeDescriptor{nullptr};
+    std::unique_ptr
+    <    
+        oneapi::dal::knn::descriptor
+        <
+            double,
+            oneapi::dal::knn::method::brute_force,
+            oneapi::dal::knn::task::search,
+            oneapi::dal::minkowski_distance::descriptor<double>
+        >
+    > mBruteForceDescriptor{nullptr};
+
     std::string mNetwork;
     std::string mStation;
     std::string mPhase;
@@ -410,6 +452,7 @@ public:
     int64_t mNeighbors{5}; // Number of nearest neighbors
     int mFeatures{3};  // X, Y, Z
     EvaluationMethod mEvaluationMethod{EvaluationMethod::InverseDistanceWeighted};
+    OptimizationAlgorithm mOptimizationAlgorithm{OptimizationAlgorithm::KDTree};
     bool mInitialized{false};
     bool mHaveModel{false};
 };
@@ -459,9 +502,21 @@ SourceSpecific& SourceSpecific::operator=(const SourceSpecific &correction)
         pImpl->mEvaluationMethod = correction.pImpl->mEvaluationMethod;
         pImpl->mInitialized = correction.pImpl->mInitialized;
         pImpl->mHaveModel = correction.pImpl->mHaveModel;
-        if (correction.pImpl->mDescriptor != nullptr)
+        pImpl->mOptimizationAlgorithm
+             = correction.pImpl->mOptimizationAlgorithm;
+        if (pImpl->mOptimizationAlgorithm == OptimizationAlgorithm::KDTree)
         {
-            pImpl->makeDescriptor(pImpl->mNeighbors);
+            if (correction.pImpl->mKDTreeDescriptor != nullptr)
+            {
+                pImpl->makeDescriptor(pImpl->mNeighbors);
+            }
+        }
+        else
+        {
+            if (correction.pImpl->mBruteForceDescriptor != nullptr)
+            {
+                pImpl->makeDescriptor(pImpl->mNeighbors);
+            }
         }
         if (pImpl->mInitialized)
         {
@@ -758,6 +813,14 @@ void SourceSpecific::save(const std::string &fileName) const
              H5P_DEFAULT, &evaluationMethod);
     H5Dclose(dataSet);
 
+    dataSet = H5Dcreate2(knnGroup, OPTIMIZATION_ALGORITHM_NAME,
+                         H5T_NATIVE_INT, scalarSpace,
+                         H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    int optimizationMethod = static_cast<int> (getOptimizationAlgorithm());
+    H5Dwrite(dataSet, H5T_NATIVE_INT, H5S_ALL, scalarSpace,
+             H5P_DEFAULT, &optimizationMethod);
+    H5Dclose(dataSet);
+
     dataSet = H5Dcreate2(knnGroup, MAXIMUM_DISTANCE_NAME,
                          H5T_NATIVE_DOUBLE, scalarSpace,
                          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
@@ -899,6 +962,27 @@ void SourceSpecific::load(const std::string &fileName)
     }
     setEvaluationMethod(static_cast<EvaluationMethod> (iEvaluationMethod));
 
+    if (H5Lexists(knnGroup, OPTIMIZATION_ALGORITHM_NAME, H5P_DEFAULT))
+    {
+        dataSet = H5Dopen2(knnGroup, OPTIMIZATION_ALGORITHM_NAME, H5P_DEFAULT);
+        dataSpace = H5Dget_space(dataSet);
+        int iOptimizationAlgorithm{0};
+        status = H5Dread(dataSet, H5T_NATIVE_INT, scalarSpace, dataSpace,
+                         H5P_DEFAULT, &iOptimizationAlgorithm);
+        H5Sclose(dataSpace);
+        H5Dclose(dataSet);
+        if (status < 0) 
+        {    
+            H5Sclose(scalarSpace);
+            H5Gclose(knnGroup);
+            H5Gclose(stationGroup);
+            H5Fclose(file);
+            throw std::runtime_error("Failed to read optimization algorithm");
+        }    
+        setOptimizationAlgorithm(static_cast<OptimizationAlgorithm>
+                                 (iOptimizationAlgorithm));
+    }
+
     double maximumDistance{-1};
     dataSet = H5Dopen2(knnGroup, MAXIMUM_DISTANCE_NAME, H5P_DEFAULT);
     dataSpace = H5Dget_space(dataSet);
@@ -1038,6 +1122,19 @@ void SourceSpecific::setNumberOfNeighbors(const int nNeighbors)
 int SourceSpecific::getNumberOfNeighbors() const noexcept
 {
     return static_cast<int> (pImpl->mNeighbors);
+}
+
+/// Optimization algorithm
+void SourceSpecific::setOptimizationAlgorithm(
+    const OptimizationAlgorithm algorithm) noexcept
+{
+    pImpl->mOptimizationAlgorithm = algorithm;
+}
+
+SourceSpecific::OptimizationAlgorithm 
+    SourceSpecific::getOptimizationAlgorithm() const noexcept
+{
+    return pImpl->mOptimizationAlgorithm;
 }
 
 /// Maximum distance
