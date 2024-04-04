@@ -1,6 +1,7 @@
 #include <string>
 #include "uLocator/position/utahQuarry.hpp"
 #include "uLocator/position/utahRegion.hpp"
+#include "utahQuarries.hpp"
 
 using namespace ULocator::Position;
 

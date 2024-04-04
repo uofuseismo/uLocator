@@ -31,7 +31,6 @@
 #include "uLocator/corrections/static.hpp"
 #include "uLocator/corrections/sourceSpecific.hpp"
 #include "loadCatalog.hpp"
-#include "utahQuarries.hpp"
 #include "travelTimeDatabase.hpp"
 #include "originTime.hpp"
 #include "searchStations.hpp"

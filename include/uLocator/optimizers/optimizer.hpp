@@ -98,9 +98,15 @@ public:
     /// @name Travel Time Calculator
     /// @{
 
+    /// @brief Sets the travel time calculator map.
+    /// @param[in,out] calculatorMap  The travel time calculator map.  On exit,
+    ///                               calculatorMap's behavior is undefined.
     virtual void setTravelTimeCalculatorMap(std::unique_ptr<ULocator::TravelTimeCalculatorMap> &&calculatorMap);
+    /// @result True indicates the travel time calculator map was set.
     virtual bool haveTravelTimeCalculatorMap() const noexcept; 
+    /// @result A pointer to the travel time calculator map.
     [[nodiscard]] virtual const ULocator::TravelTimeCalculatorMap *getTravelTimeCalculatorMap() const;
+    /// @result Releases the travel time calculator map.
     [[nodiscard]] std::unique_ptr<ULocator::TravelTimeCalculatorMap> releaseTravelTimeCalculatorMap();
     /// @}
 

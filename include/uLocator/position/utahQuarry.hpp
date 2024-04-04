@@ -2,6 +2,7 @@
 #define ULOCATOR_POSITION_UTAH_QUARRY_HPP
 #include <memory>
 #include <string>
+#include <vector>
 #include <uLocator/position/geographicPoint.hpp>
 namespace ULocator::Position
 {
@@ -86,5 +87,7 @@ private:
     class UtahQuarryImpl;
     std::unique_ptr<UtahQuarryImpl> pImpl;
 };
+/// @result The quarries in Utah.
+[[nodiscard]] std::vector<UtahQuarry> getUtahQuarries();
 }
 #endif

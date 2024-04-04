@@ -2,10 +2,7 @@
 #define UTAH_QUARRIES_HPP
 #include <vector>
 #include <uLocator/position/utahQuarry.hpp>
-namespace
-{
-[[nodiscard]]
-std::vector<ULocator::Position::UtahQuarry> getUtahQuarries()
+std::vector<ULocator::Position::UtahQuarry> ULocator::Position::getUtahQuarries()
 {
      std::vector<ULocator::Position::UtahQuarry> quarries{
         ULocator::Position::UtahQuarry{38.500100, -113.304900, 1943.620153, "INDIAN QUEEN"},
@@ -496,6 +493,5 @@ std::vector<ULocator::Position::UtahQuarry> getUtahQuarries()
         ULocator::Position::UtahQuarry{42.708300, -111.487000, 2156.830923, "Trail Canyon ID"},
     };
     return quarries; 
-}
 }
 #endif

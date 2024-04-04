@@ -91,6 +91,15 @@ public:
     [[nodiscard]] double evaluate(double t0, double x, double y, double z,
                                   double *dtdt0, double *dtdx, double *dtdy, double *dtdz,
                                   bool applyCorrection) const final;
+    /// @result The source-receiver epicentral distance in meters.
+    /// @param[in] x       The x position of the source in meters.
+    /// @param[in] y       The y position of the source in meters.
+    [[nodiscard]] double computeDistance(double x, double y) const final;
+    /// @result The source-receiver distance in meters.
+    /// @param[in] x       The x position of the source in meters.
+    /// @param[in] y       The y position of the source in meters.
+    /// @param[in] z       The z position of the source in meters.
+    [[nodiscard]] double computeDistance(double x, double y, double z) const final;
     /// @result The layer interfaces in the specified 1D model.
     [[nodiscard]] static std::vector<double> getInterfaces(Region region);
     /// @result The P velocity (m/s) in each layer of the specified 1D model.

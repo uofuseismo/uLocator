@@ -149,7 +149,7 @@ int ParticleSwarm::getNumberOfGenerations() const noexcept
 {
     return pImpl->mGenerations;
 }
- 
+
 /// Locates the event
 void ParticleSwarm::locate(
     const ULocator::Origin &initialGuess,
@@ -277,12 +277,12 @@ void ParticleSwarm::locate(
         // Evolve the population
         pImpl->mLogger->debug("Beginning PSO for free-surface problem");
         auto newPopulation = algorithm.evolve(population);
-        pImpl->mLogger->info("PSO finished!");
+        pImpl->mLogger->debug("PSO finished!");
         // Pick a winner and extract the hypocenter and origin time
         auto optimumLocation = newPopulation.champion_x();
         pImpl->mOptimalObjectiveFunction = newPopulation.champion_f().at(0);
         // Extract the origin information and compute travel times 
-        pImpl->mLogger->info("Computing estimate travel times");
+        pImpl->mLogger->debug("Computing estimate travel times");
         auto fitnessPtr
             = reinterpret_cast<
                  const ::PagmoProblem2DAndTimeAndDepthAtFreeSurface *>
@@ -325,14 +325,14 @@ void ParticleSwarm::locate(
         auto populationSize = static_cast<size_t> (getNumberOfParticles());
         pagmo::population population{problem, populationSize};
         // Evolve the population
-        pImpl->mLogger->info("Beginning PSO for fixed-depth problem");
+        pImpl->mLogger->debug("Beginning PSO for fixed-depth problem");
         auto newPopulation = algorithm.evolve(population);
-        pImpl->mLogger->info("PSO finished!");
+        pImpl->mLogger->debug("PSO finished!");
         // Pick a winner and extract the hypocenter and origin time
         auto optimumLocation = newPopulation.champion_x();
         pImpl->mOptimalObjectiveFunction = newPopulation.champion_f().at(0);
         // Extract the origin information and compute theoretical times
-         pImpl->mLogger->info("Computing estimate travel times");
+         pImpl->mLogger->debug("Computing estimate travel times");
         auto fitnessPtr
             = reinterpret_cast<
                  const ::PagmoProblem2DAndTimeAndFixedDepth *>

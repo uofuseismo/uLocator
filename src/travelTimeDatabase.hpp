@@ -15,11 +15,12 @@
 #ifndef NDEBUG
 #include <cassert>
 #endif
-#include "utahQuarries.hpp"
+//#include "utahQuarries.hpp"
 #include "originTime.hpp"
 #include "optimizers/objectiveFunctions.hpp"
 #include "uLocator/corrections/static.hpp"
 #include "uLocator/corrections/sourceSpecific.hpp"
+#include "uLocator/position/utahQuarry.hpp"
 #include "uLocator/position/utahRegion.hpp"
 #include "uLocator/position/ynpRegion.hpp"
 #include "uLocator/position/wgs84.hpp"
@@ -845,7 +846,8 @@ public:
         return mQuarries.at(index);
     }
 private:
-    std::vector<ULocator::Position::UtahQuarry> mQuarries{::getUtahQuarries()};
+    std::vector<ULocator::Position::UtahQuarry>
+        mQuarries{ULocator::Position::getUtahQuarries()};
 };
 
 #include "knownEvents.hpp"
