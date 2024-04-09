@@ -210,13 +210,15 @@ double RayTracer::evaluate(
     catch (const std::exception &e)
     {
          auto errorMessage = "Failed to compute ray paths for "
-                           + pImpl->mStation.getNetwork() + "." 
-                           + pImpl->mStation.getName() + "." 
-                           + pImpl->mPhase
-                           + ".  Failed with: "
-                           + std::string {e.what()}
-                           +  ".  Source depth is: " 
-                           + std::to_string(sourceDepthToUse);
+                       + pImpl->mStation.getNetwork() + "." 
+                       + pImpl->mStation.getName() + "." 
+                       + pImpl->mPhase
+                       + ".  Failed with: "
+                       + std::string {e.what()}
+                       +  ".  Source (sourceDepth,offset,stationDepth) is: ("
+                       + std::to_string(sourceDepthToUse) + ","
+                       + std::to_string(offset) + ","
+                       + std::to_string(pImpl->mStationDepth) + ")";
          pImpl->mLogger->error(errorMessage);
          throw std::runtime_error(errorMessage);
     }
