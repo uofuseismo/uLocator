@@ -132,7 +132,7 @@ set_target_properties(uLocator PROPERTIES
                       CXX_STANDARD_REQUIRED YES 
                       CXX_EXTENSIONS NO) 
 target_link_libraries(uLocator
-                      PRIVATE hdf5::hdf5
+                      PRIVATE ${HDF5_LIBRARIES}
                               NLopt::nlopt
                               TBB::tbb
                               Boost::program_options Boost::boost
@@ -143,7 +143,7 @@ target_include_directories(uLocator
                            PRIVATE ${CMAKE_SOURCE_DIR}/lib
                                    ${UMPS_INCLUDE_DIR} ${MCMC_INCLUDE_DIR}
                                    ${NLOPT_INCLUDE_DIRS} ${EIKONALXX_INCLUDE_DIR}
-                                   ${oneDAL_INCLUDE_DIRS} hdf5::hdf5
+                                   ${oneDAL_INCLUDE_DIRS} ${HDF5_INCLUDE_DIRS}
                            PUBLIC $<INSTALL_INTERFACE:${CMAKE_SOURCE_DIR}/include/umps>)
 
 if (${pagmo_FOUND})
