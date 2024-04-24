@@ -1,6 +1,7 @@
 #ifndef LOAD_CATALOG_HPP
 #define LOAD_CATALOG_HPP
 #include <cmath>
+#include <boost/tokenizer.hpp>
 #include <uLocator/arrival.hpp>
 #include <uLocator/origin.hpp>
 #include <uLocator/station.hpp>

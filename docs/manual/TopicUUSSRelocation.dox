@@ -208,7 +208,241 @@ Though the optimization was performed in the 1.5-norm and locations are from a l
 
 \subsection TopicUUSSRelocation_ComputingCorrections Computing Corrections
 
-With velocity models in hand we now begin the activity of computing corrections.  This is an iterative process since the corrections influence the locations and the (re)locations influence the (new) corrections.  We perform four iterations of (re)location followed by optimizing for corrections and choose a final model based on the validation dataset.  Afterwards, we summarize our results on the test dataset. 
+With velocity models in hand we now begin the activity of computing corrections.  This is an iterative process since the corrections influence the locations and the (re)locations influence the (new) corrections.  We perform four iterations of (re)location followed by optimizing for corrections and choose a final model based on the validation dataset.  Afterwards, we summarize our results on the test dataset.   For Utah, this is summarized by the following script
+
+~~~~~~~~~~~~~{.sh}
+#!/usr/bin/bash
+# Purpose: Drive the Utah locator and correction code for the reviewed
+#          pick catalog.
+# Author: Ben Baker (University of Utah) distributed under the MIT license.
+target=utah
+root_directory=/PATH/TO/ULOCATOR # TODO
+executable_directory=/usr/local/bin
+locator=${executable_directory}/ulocate
+corrector=${executable_directory}/computeCorrections
+
+# Inputs
+region=utah
+catalog_file=${root_directory}/examples/uuss/${target}ReviewedCatalog.csv
+events_training_file=${root_directory}/examples/uuss/${target}ReviewedTrainingEvents.csv
+events_validation_file=${root_directory}/examples/uuss/${target}ReviewedValidationEvents.csv
+topography_file=${root_directory}/examples/uuss/${target}Topography.h5
+
+# Fitting options
+n_folds=5
+max_residual_for_p=0.7
+max_residual_for_s=1.4
+min_observations_for_static=20
+# Undefined means do a median static correction (alternative is --do_mean_static for a mean static correction)
+do_mean_static=""
+min_observations_for_static=30
+min_observations_for_ssst=250
+
+# Outputs
+result_directory=${root_directory}/examples/uuss/${target}Results
+
+if [ ! -d ${result_directory} ]; then
+   mkdir -p ${result_directory}
+fi
+
+# Need a baseline evaluation
+echo "----------------------------------------------------------------"
+echo "                    Initial Validation Step                     "
+echo "----------------------------------------------------------------"
+locator_validation_output_file=${result_directory}/${target}ValidationCatalog.0.csv
+locator_executable_string="${locator} --catalog_file=${catalog_file} --events_file=${events_validation_file} --output_file=${locator_validation_output_file} --region=${region}"
+echo ${locator_executable_string}
+${locator_executable_string} &> ${result_directory}/validation.0.txt
+
+# Idea here is we want to really promote our initial catalog locations
+# so we compute corrections given event locations
+echo "----------------------------------------------------------------"
+echo "                       Initialization                           "
+echo "----------------------------------------------------------------"
+locator_training_output_file=${result_directory}/${target}ForwardOnlyTrainingCatalog.csv
+locator_executable_string="${locator} --catalog_file=${catalog_file} --events_file=${events_training_file} --output_file=${locator_training_output_file} --region=${region} --predict"
+echo ${locator_executable_string}
+${locator_executable_string} &> ${result_directory}/forwardOnly.txt
+
+corrections_file=${result_directory}/${target}Corrections.0.h5
+correction_executable_string="${corrector} --events_file=${locator_training_output_file} --corrections_file=${corrections_file} --maximum_residual_for_p=${max_residual_for_p} --maximum_residual_f
+or_s=${max_residual_for_s} --min_observations_for_static=${min_observations_for_static} --min_observations_for_ssst=${min_observations_for_ssst} --n_folds=${n_folds} ${do_mean_static} --region=${
+region}"
+echo ${correction_executable_string}
+${correction_executable_string} &> ${result_directory}/corrections.0.txt
+
+counter=1
+n_iterations=4
+while [ ${counter} -le ${n_iterations} ];
+do
+    ((counterm1=${counter}-1))
+    echo "----------------------------------------------------------------"
+    echo "                 Iteration: ${counter}                          "
+    echo "----------------------------------------------------------------"
+    # Run the locator with the corrections from the previous iteration
+    locator_training_output_file=${result_directory}/${target}TrainingCatalog.${counter}.csv
+    locator_executable_string="${locator} --catalog_file=${catalog_file} --events_file=${events_training_file} --output_file=${locator_training_output_file} --corrections_file=${result_directory}
+/${target}Corrections.${counterm1}.h5 --region=${region}"
+    echo ${locator_executable_string}
+    ${locator_executable_string} &> ${result_directory}/location.${counter}.txt
+
+    # Run the corrections utility 
+    corrections_file=${result_directory}/${target}Corrections.${counter}.h5
+    correction_executable_string="${corrector} --events_file=${locator_training_output_file} --corrections_file=${corrections_file} --maximum_residual_for_p=${max_residual_for_p} --maximum_residu
+al_for_s=${max_residual_for_s} --min_observations_for_static=${min_observations_for_static} --min_observations_for_ssst=${min_observations_for_ssst} --n_folds=${n_folds} ${do_mean_static} --regio
+n=${region}"
+    echo ${correction_executable_string}
+    ${correction_executable_string} &> ${result_directory}/corrections.${counter}.txt
+
+    # Run the validation step
+    correction_string=" --corrections_file=${corrections_file}"
+    locator_validation_output_file=${result_directory}/${target}ValidationCatalog.${counter}.csv
+    locator_executable_string="${locator} --catalog_file=${catalog_file} --events_file=${events_validation_file} --output_file=${locator_validation_output_file} --region=${region} ${correction_st
+ring}"
+    echo ${locator_executable_string}
+    ${locator_executable_string} &> ${result_directory}/validation.${counter}.txt
+
+    # Update the iterations
+    ((counter++))
+done
+~~~~~~~~~~~~~
+
+Likewise, for Yellowstone we have
+
+~~~~~~~~~~~~~{.sh}
+#!/usr/bin/bash
+# Purpose: Drive the YNP locator and correction code.
+# Author: Ben Baker (University of Utah) distributed under the MIT license.
+target=ynp
+root_directory=/PATH/TO/ULOCATOR # TODO
+executable_directory=/usr/local/bin
+locator=${executable_directory}/ulocate
+corrector=${executable_directory}/computeCorrections
+
+# Inputs
+region=${target}
+catalog_file=${root_directory}/examples/uuss/${target}ReviewedCatalog.csv
+events_training_file=${root_directory}/examples/uuss/${target}ReviewedTrainingEvents.csv
+events_validation_file=${root_directory}/examples/uuss/${target}ReviewedValidationEvents.csv
+topography_file=${root_directory}/examples/uuss/${target}Topography.h5
+
+# Fitting options
+n_folds=5
+max_residual_for_p=0.7
+max_residual_for_s=1.4
+min_observations_for_static=20
+do_mean_static=""
+min_observations_for_static=30
+min_observations_for_ssst=250
+
+# Outputs
+result_directory=${root_directory}/examples/uuss/${target}Results
+
+
+if [ ! -d ${result_directory} ]; then
+   mkdir -p ${result_directory}
+fi
+
+# Need a baseline evaluation
+echo "----------------------------------------------------------------"
+echo "                    Initial Validation Step                     "
+echo "----------------------------------------------------------------"
+locator_validation_output_file=${result_directory}/${target}ValidationCatalog.0.csv
+locator_executable_string="${locator} --catalog_file=${catalog_file} --events_file=${events_validation_file} --output_file=${locator_validation_output_file} --topography_file=${topography_file} -
+-region=${region}"
+echo ${locator_executable_string}
+${locator_executable_string} &> ${result_directory}/validation.0.txt
+
+# Idea here is we want to really promote our initial catalog locations
+# so we compute corrections given event locations
+echo "----------------------------------------------------------------"
+echo "                       Initialization                           "
+echo "----------------------------------------------------------------"
+locator_training_output_file=${result_directory}/${target}ForwardOnlyTrainingCatalog.csv
+locator_executable_string="${locator} --catalog_file=${catalog_file} --events_file=${events_training_file} --output_file=${locator_training_output_file} --topography_file=${topography_file} --reg
+ion=${region} --predict"
+echo ${locator_executable_string}
+${locator_executable_string} &> ${result_directory}/forwardOnly.txt
+
+corrections_file=${result_directory}/${target}Corrections.0.h5
+correction_executable_string="${corrector} --events_file=${locator_training_output_file} --corrections_file=${corrections_file} --maximum_residual_for_p=${max_residual_for_p} --maximum_residual_f
+or_s=${max_residual_for_s} --min_observations_for_static=${min_observations_for_static} --min_observations_for_ssst=${min_observations_for_ssst} --n_folds=${n_folds} ${do_mean_static} --region=${
+region}"
+echo ${correction_executable_string}
+${correction_executable_string} &> ${result_directory}/corrections.0.txt
+
+exit 0
+
+counter=1
+n_iterations=4
+while [ ${counter} -le ${n_iterations} ];
+do
+    ((counterm1=${counter}-1))
+    echo "----------------------------------------------------------------"
+    echo "                 Iteration: ${counter}                          "
+    echo "----------------------------------------------------------------"
+    # Run the locator with the corrections from the previous iteration
+    locator_training_output_file=${result_directory}/${target}TrainingCatalog.${counter}.csv
+    locator_executable_string="${locator} --catalog_file=${catalog_file} --events_file=${events_training_file} --output_file=${locator_training_output_file} --corrections_file=${result_directory}
+/${target}Corrections.${counterm1}.h5 --topography_file=${topography_file} --region=${region}"
+    echo ${locator_executable_string}
+    ${locator_executable_string} &> ${result_directory}/location.${counter}.txt
+
+    # Run the corrections utility 
+    corrections_file=${result_directory}/${target}Corrections.${counter}.h5
+    correction_executable_string="${corrector} --events_file=${locator_training_output_file} --corrections_file=${corrections_file} --maximum_residual_for_p=${max_residual_for_p} --maximum_residu
+al_for_s=${max_residual_for_s} --min_observations_for_static=${min_observations_for_static} --min_observations_for_ssst=${min_observations_for_ssst} --n_folds=${n_folds} ${do_mean_static} --regio
+n=${region}"
+    echo ${correction_executable_string}
+    ${correction_executable_string} &> ${result_directory}/corrections.${counter}.txt
+
+    # Run the validation step
+    correction_string=" --corrections_file=${corrections_file}"
+    locator_validation_output_file=${result_directory}/${target}ValidationCatalog.${counter}.csv
+    locator_executable_string="${locator} --catalog_file=${catalog_file} --events_file=${events_validation_file} --output_file=${locator_validation_output_file} --topography_file=${topography_fil
+e} --region=${region} ${correction_string}"
+    echo ${locator_executable_string}
+    ${locator_executable_string} &> ${result_directory}/validation.${counter}.txt
+
+    # Update the iterations
+    ((counter++))
+done
+~~~~~~~~~~~~~
+
+To proceed, we use the validation dataset to select a set of model corrections.  For Utah we look at a combination of event location consistency with the catalog and travel time misfit.  
+
+\image html utahValidationEarthquakeBoxPlots.jpeg "Comparison of location errors for earthquakes in latitude, longitude, depth, and origin time for the validation dataset when compared to the UUSS authorative catalog in Utah." width=520cm
+
+\image html utahValidationQuarryBlastBoxPlots.jpeg "Comparison of location errors for earthquakes in latitude, longitude, depth, and origin time for the validation dataset when compared to the UUSS authorative catalog in Utah." width=520cm
+
+\image html utahValidationTravelTimeResidualBoxPlots.jpeg "Travel time residuals for the validation dataset tabulated at every iteration of the optmization." width=520cm
+
+I ended up choosing the corrections at the end of the second iteration.  The most important factor for me on this iteration was predicting arrivals; particularly S.  On the second iteration, the validation S performance was ever-so-sleightly better than the first iteration.  It could be argued that iteration was plenty sufficient.  This is particularly evident on the event locations.  Note, however, that the whiskers on the box-and-whisker plots are at the 5th and 95th percentiles and the earthquake location errors are tiny the second iteration really is not much a step back from the first iteration in terms of earthquake location.  It is also not necessarily true that the catalog locations are perfect.  The quarry blast event locations are fairly stable.  The reason for the strange quarry blast depth residual distribution is at some point the UUSS catalog switched from letting the depth be free to fixing the depths to -2000 m.  Notice, that I require the quarry blasts to be at the free-surface which is a function of Utah's topography.   
+
+We play a similar game for YNP
+
+\image html ynpValidationEarthquakeBoxPlots.jpeg "Comparison of location errors for earthquakes in latitude, longitude, depth, and origin time for the validation dataset when compared to the UUSS authorative catalog in Utah." width=520cm
+
+\image html ynpValidationQuarryBlastBoxPlots.jpeg "Comparison of location errors for earthquakes in latitude, longitude, depth, and origin time for the validation dataset when compared to the UUSS authorative catalog in Utah." width=520cm
+
+\image html ynpValidationTravelTimeResidualBoxPlots.jpeg "Travel time residuals for the validation dataset tabulated at every iteration of the optmization." width=520cm
+
+Again, I choose the second iteration because this appears to best predict travel times for both P and, more importantly, S.  Unlike in Utah, the event locations do lose some consistency with the catalog after the first iteration.  But, as previously noted, the catalog locations are not necessarily perfect. 
+
+\subsection TopicUUSSRelocation_CatalogEnhancement Enhancing the Catalog
+
+Ultimately, our goal is to use this locator on real-time streaming data.  There are two major challenges.  First, the pick arrival times will be automatically generated.  Second, there will be many more S arrivals than P arrivals.  Such is the nature of deep-learning phase detectors.  To account for this, we run Alysha's P and S phase detectors and MultiSWAG pickers on the AQMS event-based waveform snippets.  When running the detectors we use and on-trigger threshold of 0.75 and off-trigger threshold of 0.65 for both P and S.  These relatively low tolerances will cast a fairly large net.  Additionally, we require the P arrivals from the detectors to be within 0.4 seconds of the computed arrival time for the original catalog event and the S arrival to be within 0.75 seconds of the estimated arrival time for the original catalog event.  These detections are passed to Alysha's MultiSWAG utilities to generate P and S picks with measures of uncertainty.  Next, we perform a catalog merge.  That is to say, in the rare instances that an automatic pick does not exist but a catalog pick does exist we save the catalog pick.  For the common scenario when both an automatic and catalog pick exists we retain the automatic pick.  Lastly, for the scenario that multiple automatic picks exist in the accepted time window we retain the pick on the preferred channel (e.g., HH, EH, BH, HN, then EN) that also has the lowest uncertainty.  The standard and enhanced catalog then look like
+
+Region    |P Standard          | S Standard | P Enhanced          | S Enhanced
+----------|--------------------| -----------| --------------------|-----------
+Utah      | 358,204 (247,679)  | 54,821     | 498,850 (319,338)   | 158,625
+YNP       | 219,594            | 56,643     | 257,656             | 177,995
+
+Note, the parentheticals are the number of earthquake-only P arrivals.
+
+\subsection TopicUUSSRelocation_EnhancementCorrections Enhanced Corrections
+
+Using the same optimization strategy as before, we can compute P and S corrections for the enhanced catalogs in Utah and YNP.
 
 \subsection TopicUUSSRelocation_SearchLocations Search Locations
 

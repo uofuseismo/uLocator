@@ -90,6 +90,8 @@ set(LIBRARY_SRC lib/version.cpp
                 )
 set(UTAH_SRC lib/uussRayTracer.cpp
              lib/position/knownUtahQuarry.cpp
+             lib/position/knownUtahEvent.cpp
+             lib/position/knownYNPEvent.cpp
              lib/position/utahRegion.cpp
              lib/position/utahQuarry.cpp
              lib/position/ynpRegion.cpp)
