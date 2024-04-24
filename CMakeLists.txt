@@ -21,6 +21,7 @@ else()
 endif()
 
 find_package(Boost COMPONENTS program_options REQUIRED)
+find_package(HDF5 COMPONENTS C)
 #find_package(Eigen3 3.3 REQUIRED Dense)
 find_package(Threads REQUIRED)
 find_package(NLopt REQUIRED)
