@@ -142,7 +142,7 @@ target_include_directories(uLocator
                                    ${UMPS_INCLUDE_DIR} ${MCMC_INCLUDE_DIR}
                                    ${NLOPT_INCLUDE_DIRS} ${EIKONALXX_INCLUDE_DIR}
                                    ${oneDAL_INCLUDE_DIRS} ${HDF5_C_INCLUDE_DIRS}
-                           PUBLIC $<INSTALL_INTERFACE:${CMAKE_SOURCE_DIR}/include/umps>)
+                           PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include/umps>)
 
 if (${pagmo_FOUND})
    target_include_directories(uLocator PRIVATE Pagmo::pagmo)
@@ -310,20 +310,32 @@ write_basic_package_version_file(
     VERSION "${version}"
     COMPATIBILITY AnyNewerVersion
 )
-#set(EXECUTABLES uOperator uKeyPair uUserTable uLocalCommand uRemoteCommand)
 if (${WRAP_PYTHON})
    install(TARGETS uLocator pyulocator
+           EXPORT ${PROJECT_NAME}-targets
            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
            PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 else()
    install(TARGETS uLocator
+           EXPORT ${PROJECT_NAME}-targets
            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
            PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 endif()
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/uLocator
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+export(EXPORT ${PROJECT_NAME}-targets
+       FILE "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Targets.cmake")
+install(EXPORT ${PROJECT_NAME}-targets
+        FILE ${PROJECT_NAME}Targets.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
+install(FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
 
 ##########################################################################################
 #                                     CPACK Packaging                                    #
