@@ -701,7 +701,6 @@ std::vector<double> augmentInterfacesVector(const std::vector<double> &x)
 }
 
 /// Traces a direct wave when the source and receiver are in the smae layer.
-[[nodiscard]]
 ReturnCode
     traceDirectSameLayer(const std::vector<double> &interfaces,
                          const std::vector<double> &slownesses,
