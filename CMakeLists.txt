@@ -21,8 +21,6 @@ else()
 endif()
 
 find_package(Boost COMPONENTS program_options REQUIRED)
-find_package(HDF5 COMPONENTS C)
-#find_package(Eigen3 3.3 REQUIRED Dense)
 find_package(Threads REQUIRED)
 find_package(NLopt REQUIRED)
 find_package(TBB)
@@ -132,7 +130,7 @@ set_target_properties(uLocator PROPERTIES
                       CXX_STANDARD_REQUIRED YES 
                       CXX_EXTENSIONS NO) 
 target_link_libraries(uLocator
-                      PRIVATE ${HDF5_LIBRARIES}
+                      PRIVATE ${HDF5_C_LIBRARIES}
                               NLopt::nlopt
                               TBB::tbb
                               Boost::program_options Boost::boost
@@ -143,7 +141,7 @@ target_include_directories(uLocator
                            PRIVATE ${CMAKE_SOURCE_DIR}/lib
                                    ${UMPS_INCLUDE_DIR} ${MCMC_INCLUDE_DIR}
                                    ${NLOPT_INCLUDE_DIRS} ${EIKONALXX_INCLUDE_DIR}
-                                   ${oneDAL_INCLUDE_DIRS} ${HDF5_INCLUDE_DIRS}
+                                   ${oneDAL_INCLUDE_DIRS} ${HDF5_C_INCLUDE_DIRS}
                            PUBLIC $<INSTALL_INTERFACE:${CMAKE_SOURCE_DIR}/include/umps>)
 
 if (${pagmo_FOUND})
