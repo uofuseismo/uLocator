@@ -9,7 +9,6 @@
 #include <oneapi/dal/table/homogen.hpp>
 #include <oneapi/dal/table/row_accessor.hpp>
 #include <hdf5.h>
-#include <daal.h>
 #ifndef NDEBUG
 #include <cassert>
 #endif
