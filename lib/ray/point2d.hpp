@@ -78,6 +78,7 @@ private:
     class Point2DImpl;
     std::unique_ptr<Point2DImpl> pImpl;
 };
+void swap(Point2D &lhs, Point2D &rhs) noexcept;
 std::ostream& operator<<(std::ostream &os, const Point2D &point);
 }
 #endif 

@@ -124,6 +124,7 @@ private:
     class Segment2DImpl;
     std::unique_ptr<Segment2DImpl> pImpl;
 };
+void swap(Segment2D &lhs, Segment2D &rhs) noexcept;
 std::ostream& operator<<(std::ostream &os, const Segment2D &segment);
 }
 #endif
