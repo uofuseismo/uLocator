@@ -25,8 +25,10 @@ find_package(Threads REQUIRED)
 find_package(NLopt REQUIRED)
 find_package(TBB)
 #find_package(zfp)
+set(ONEDAL_LINK dynamic)
 set(ONEDAL_USE_DPCPP no) 
 set(ONEDAL_INTERFACE yes)
+set(ONEDAL_SET_TBB_MANUALLY yes)
 find_package(oneDAL REQUIRED)
 if (BUILD_UUSS)
    find_package(HDF5 COMPONENTS C REQUIRED)
@@ -134,8 +136,9 @@ target_link_libraries(uLocator
                               NLopt::nlopt
                               TBB::tbb
                               Boost::program_options Boost::boost
-                              GeographicLib::GeographicLib ${UMPS_LIBRARY}
-                              ${EIKONALXX_LIBRARY} ${DAL_LIBS})
+                              GeographicLib::GeographicLib
+                              oneDAL::onedal oneDAL::onedal_core oneDAL::onedal_parameters oneDAL::onedal_thread
+                              ${UMPS_LIBRARY} ${EIKONALXX_LIBRARY})
 target_include_directories(uLocator
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
                            PRIVATE ${CMAKE_SOURCE_DIR}/lib
