@@ -1,6 +1,7 @@
 #ifndef ULOCATOR_ORIGIN_HPP
 #define ULOCATOR_ORIGIN_HPP
 #include <memory>
+#include <vector>
 namespace ULocator
 {
  class Arrival;
@@ -38,6 +39,9 @@ public:
     Origin(Origin &&origin) noexcept;
     /// @}
 
+    /// @name Origin Time
+    /// @{
+
     /// @brief Sets the origin time.
     /// @param[in] time  The origin time (UTC) measured in seconds since the
     ///                  epoch.
@@ -46,15 +50,23 @@ public:
     [[nodiscard]] double getTime() const;
     /// @result True indicates the origin time was set.
     [[nodiscard]] bool haveTime() const noexcept;
+    /// @}
+
+    /// @name Epicenter
+    /// @{
 
     /// @brief Sets the event epicenter.
     /// @throws std::invalid_argument if the latitude or longitude is not set.
-    void setEpicenter(const Position::WGS84 &epicenter);
+    void setEpicenter(const ULocator::Position::WGS84 &epicenter);
     /// @result The epicenter.
     /// @throws std::runtime_error if \c haveEpicenter() is false.
-    [[nodiscard]] Position::WGS84 getEpicenter() const;
+    [[nodiscard]] ULocator::Position::WGS84 getEpicenter() const;
     /// @result True indicates the epicenter was set.
     [[nodiscard]] bool haveEpicenter() const noexcept;
+    /// @}
+
+    /// @name Depth
+    /// @{
 
     /// @brief Sets the event depth.
     /// @param[in] depth  The event depth in meters measured on the WGS84
@@ -64,9 +76,6 @@ public:
     /// @throws std::invalid_argument if this exceeds the 6,400,000 
     ///         which is approximately the radius of the earth.
     void setDepth(double depth, bool isFixed = false);
-    /// @brief Affixes the event depth to the surface of the earth.  This is
-    ///        useful for quarry blasts.
-    void setDepthToFreeSurface() noexcept;
     /// @result The event depth in meters.  This uses the WGS84 reference
     ///         ellipsoid so 0 is sea level.
     [[nodiscard]] double getDepth() const;
@@ -74,11 +83,19 @@ public:
     [[nodiscard]] bool haveDepth() const noexcept;
     /// @result True indicates the depth is fixed.
     [[nodiscard]] bool isFixedDepth() const noexcept;
+    /// @}
+
+    /// @name Event Identifier
+    /// @{
 
     /// @brief Sets the origin identifier.
     void setIdentifier(int64_t identifier) noexcept;
     /// @result The origin identifier.
     [[nodiscard]] int64_t getIdentifier() const noexcept;
+    /// @}
+
+    /// @name Arrivals
+    /// @{
 
     /// @brief Sets the arrivals afixed to this origin.
     /// @param[in] arrivals  The arrivals.  This must have the station
@@ -88,11 +105,38 @@ public:
     [[nodiscard]] std::vector<Arrival> getArrivals() const;
     /// @result A reference to the underlying arrivals.
     [[nodiscard]] const std::vector<Arrival> &getArrivalsReference() const;
+    /// @}
+
+    /// @name Event Type
+    /// @{
 
     /// @brief Sets the event type.
     void setEventType(EventType eventType) noexcept;
     /// @result The event type.  By default this is unknown.
     [[nodiscard]] EventType getEventType() const noexcept;
+    /// @}
+
+    /// @name Derivative Products
+    /// @{
+
+    /// @result The weighted root-mean-squared error in seconds.
+    /// @throws std::runtime_error if \c haveWeightedRootMeanSquaredError()
+    ///         is false.
+    [[nodiscard]] double getWeightedRootMeanSquaredError() const;
+    /// @result True indicates the weighted root-mean-squared exists.
+    [[nodiscard]] bool haveWeightedRootMeanSquaredError() const noexcept;
+    /// @result For the given arrivals and epicenter this is the largest 
+    ///         azimuthal gap in station coverage in degrees.
+    /// @throws std::runtime_error if \c haveAzimuthalGap() is false.
+    [[nodiscard]] double getAzimuthalGap() const;
+    /// @result True indicates the azimuthal gap was computed.
+    [[nodiscard]] bool haveAzimuthalGap() const noexcept;
+    /// @result The smallest source-station distance in meters.
+    /// @throws std::runtime_error if \c haveNearestStationDistance() is false.
+    [[nodiscard]] double getNearestStationDistance() const;
+    /// @result True indicates
+    [[nodiscard]] bool haveNearestStationDistance() const noexcept;
+    /// @}
 
     /// @name Operators
     /// @{

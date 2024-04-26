@@ -9,7 +9,7 @@ namespace ULocator
 namespace ULocator
 {
 /// @class Arrival "arrival.hpp" "uLocator/arrival.hpp"
-/// @brief Defines an arrival time.
+/// @brief Defines an arrival's time and phase.
 /// @copyright Ben Baker (University of Utah) distributed under the MIT license.
 class Arrival
 {
@@ -17,8 +17,8 @@ public:
     /// @brief A convenience utility for defining P and S phase types.
     enum class PhaseType
     {
-        P = 0,
-        S = 1
+        P = 0, /*!< A primary (direct compressional wave) arrival. */
+        S = 1  /*!< A secondary (direct shearing wave) arrival. */
     };
 public:
     /// @name Constructors

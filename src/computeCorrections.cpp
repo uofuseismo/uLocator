@@ -23,8 +23,10 @@
 #include <daal.h>
 #include <boost/tokenizer.hpp>
 #include "uLocator/position/wgs84.hpp"
-#include "uLocator/staticCorrection.hpp"
-#include "uLocator/sourceSpecificStationCorrection.hpp"
+#include "uLocator/position/utahRegion.hpp"
+#include "uLocator/position/ynpRegion.hpp"
+#include "uLocator/corrections/static.hpp"
+#include "uLocator/corrections/sourceSpecific.hpp"
 #include "weightedMedian.hpp"
 #include "weightedMean.hpp"
 
@@ -81,7 +83,6 @@ loadTable(const std::string &fileName,
           const double maximumResidualForS = 1.4,
           const double maximumWeightedRMS = 0.8)
 {
-    //event_identifier,latitude,longitude,depth,origin_time,network,station,phase,arrival_time,standard_error,residual,uncorrected_travel_time,event_type
     // Get training events
     std::string line;
     std::vector<int64_t> trainingEventIdentifiers;
@@ -214,26 +215,27 @@ void getWeightsAndResidualsForStaticCorrection(
 }
 
 void getFeaturesAndTargets(
+    const ULocator::Position::IGeographicRegion &region,
     const std::string &name,
     const std::vector<::Row> &table,
-    std::vector<double> *latitudes,
-    std::vector<double> *longitudes,
-    std::vector<double> *depths,
+    std::vector<double> *xSources,
+    std::vector<double> *ySources,
+    std::vector<double> *zSources,
     std::vector<double> *observedArrivalTimes,
     std::vector<double> *predictedArrivalTimes,
     std::vector<double> *weights,
-    const ULocator::StaticCorrection &correction)
+    const ULocator::Corrections::Static &correction)
 {
-    latitudes->clear();
-    longitudes->clear();
-    depths->clear();
+    xSources->clear();
+    ySources->clear();
+    zSources->clear();
     observedArrivalTimes->clear();
     predictedArrivalTimes->clear();
     weights->clear();
  
-    latitudes->reserve(table.size());
-    longitudes->reserve(table.size());
-    depths->reserve(table.size());
+    xSources->reserve(table.size());
+    ySources->reserve(table.size());
+    zSources->reserve(table.size());
     observedArrivalTimes->reserve(table.size());
     predictedArrivalTimes->reserve(table.size());
     weights->reserve(table.size());
@@ -242,18 +244,22 @@ void getFeaturesAndTargets(
         if (row.getName() == name)
         {
             auto tObs = row.arrivalTime;
-            auto tEst = row.originTime + row.uncorrectedTravelTime;
-            latitudes->push_back(row.latitude);
-            longitudes->push_back(row.longitude);
-            depths->push_back(row.depth);
+            auto tEst = row.originTime
+                      + correction.evaluate(row.uncorrectedTravelTime);
+            auto [xSource, ySource]
+                = region.geographicToLocalCoordinates(row.latitude,
+                                                      row.longitude);
+            xSources->push_back(xSource);
+            ySources->push_back(ySource);
+            zSources->push_back(row.depth);
             observedArrivalTimes->push_back(tObs);
-            predictedArrivalTimes->push_back(correction.evaluate(tEst));
+            predictedArrivalTimes->push_back(tEst);
             weights->push_back(row.weight);
         }
     }
-
 }
 
+/*
 double computeRMSE(const std::vector<double> &observed,
                    const std::vector<double> &estimated)
 {
@@ -267,6 +273,7 @@ double computeRMSE(const std::vector<double> &observed,
     }
     return std::sqrt(sumResidual2/std::max(0, n)); 
 }
+*/
 
 double computeRMSE(const std::vector<double> &observed,
                    const std::vector<double> &estimated,
@@ -286,42 +293,6 @@ double computeRMSE(const std::vector<double> &observed,
     }
     return std::sqrt(numerator/sumOfWeights);
 }
-
-/*
-void getFeaturesAndTargets(
-    const std::string &name,
-    const std::vector<::Row> &table,
-    std::vector<double> *features,
-    std::vector<double> *residuals,
-    const double correction = 0,
-    const int nFeatures = 3)
-{
-    if (nFeatures < 2 || nFeatures > 3)
-    {
-        throw std::invalid_argument("Numer of features must be 2 or 3");
-    }
-    constexpr int zone{12};
-    ULocator::Position::WGS84 position;
-    features->clear();
-    residuals->clear();
-    features->reserve(3*table.size());
-    residuals->reserve(table.size());
-    for (const auto &row : table)
-    {
-        if (row.getName() == name)
-        {
-            auto tObs = row.arrivalTime;
-            auto tEst = row.originTime + row.uncorrectedTravelTime;
-            ULocator::Position::WGS84 position{
-                row.latitude, row.longitude, zone};
-            features->push_back(position.getEasting()*1.e-3);
-            features->push_back(position.getNorthing()*1.e-3);
-            if (nFeatures == 3){features->push_back(row.depth*1.e-3);}
-            residuals->push_back(tObs - (tEst + correction));
-        }
-    }
-}
-*/
 
 ///
 std::vector<std::vector<int>> 
@@ -387,9 +358,9 @@ std::vector<std::vector<int>>
 /// Trains the KNN Model
 void trainKNN(const std::string &name,
               const std::string &resultsFile,
-              const std::vector<double> &latitudes,
-              const std::vector<double> &longitudes,
-              const std::vector<double> &depths,
+              const std::vector<double> &xSources,
+              const std::vector<double> &ySources,
+              const std::vector<double> &zSources,
               const std::vector<double> &observedArrivalTimes,
               const std::vector<double> &predictedArrivalTimes,
               const std::vector<double> &weights,
@@ -404,7 +375,7 @@ void trainKNN(const std::string &name,
                                                                                      35000,
                                                                                      40000,
                                                                                      50000},
-              auto method = ULocator::SourceSpecificStationCorrection::EvaluationMethod::InverseDistanceWeighted,
+              auto method = ULocator::Corrections::SourceSpecific::EvaluationMethod::InverseDistanceWeighted,
               bool verbose = true,
               const int seed = 8434)
 {
@@ -450,20 +421,20 @@ void trainKNN(const std::string &name,
                 auto nTrain = nObservations - nValidate;
                 // Extract validation features and remove validation rows from
                 // training 
-                std::vector<double> latitudesValidate(nValidate);
-                std::vector<double> longitudesValidate(nValidate);
-                std::vector<double> depthsValidate(nValidate);
+                std::vector<double> xSourcesValidate(nValidate);
+                std::vector<double> ySourcesValidate(nValidate);
+                std::vector<double> zSourcesValidate(nValidate);
                 std::vector<double> residualsValidate(nValidate);
                 std::vector<double> weightsValidate(nValidate);
                 std::vector<double> zeros(nValidate, 0.0);
                 for (int i = 0; i < nValidate; ++i)
                 {
                     auto row = fold[i];
-                    latitudesValidate[i]  = latitudes[row];
-                    longitudesValidate[i] = longitudes[row];
-                    depthsValidate[i]     = depths[row];
-                    residualsValidate[i]  = observedArrivalTimes[row]
-                                          - predictedArrivalTimes[row];
+                    xSourcesValidate[i]  = xSources[row];
+                    ySourcesValidate[i]  = ySources[row];
+                    zSourcesValidate[i]  = zSources[row];
+                    residualsValidate[i] = observedArrivalTimes[row]
+                                         - predictedArrivalTimes[row];
                     weightsValidate[i] = weights[row];
                     trainingRows.erase(std::remove(trainingRows.begin(),
                                                    trainingRows.end(), row),
@@ -473,54 +444,68 @@ void trainKNN(const std::string &name,
                 assert(static_cast<int> (trainingRows.size()) == nTrain);
 #endif
                 // Extract the testing features  
-                std::vector<double> latitudesTrain(nTrain);
-                std::vector<double> longitudesTrain(nTrain);
-                std::vector<double> depthsTrain(nTrain);
+                std::vector<double> xSourcesTrain(nTrain);
+                std::vector<double> ySourcesTrain(nTrain);
+                std::vector<double> zSourcesTrain(nTrain);
                 std::vector<double> observedArrivalTimesTrain(nTrain);
                 std::vector<double> predictedArrivalTimesTrain(nTrain);
                 std::vector<double> weightsTrain(nTrain);
                 for (int i = 0; i < nTrain; ++i)
                 {
                     auto row = trainingRows[i];
-                    latitudesTrain[i]  = latitudes[row];
-                    longitudesTrain[i] = longitudes[row];
-                    depthsTrain[i]     = depths[row];
+                    xSourcesTrain[i] = xSources[row];
+                    ySourcesTrain[i] = ySources[row];
+                    zSourcesTrain[i] = zSources[row];
                     observedArrivalTimesTrain[i] = observedArrivalTimes[row];
                     predictedArrivalTimesTrain[i] = predictedArrivalTimes[row];
                     weightsTrain[i] = weights[row];
                 }
                 // Train the model
-                ULocator::SourceSpecificStationCorrection model;
-                model.initialize(splitName[0], splitName[1], splitName[2]);
-                model.train(latitudesTrain, longitudesTrain, depthsTrain,
+                ULocator::Corrections::SourceSpecific model;
+                model.setStationNameAndPhase(splitName[0],
+                                             splitName[1],
+                                             splitName[2]);
+                model.setNumberOfNeighbors(nNeighbors);
+                model.setMaximumDistance(maximumDistance);
+                model.train(xSourcesTrain, ySourcesTrain, zSourcesTrain,
                             observedArrivalTimesTrain, 
                             predictedArrivalTimesTrain,
-                            weightsTrain,
-                            nNeighbors,
-                            maximumDistance);
+                            weightsTrain);
                 // Apply the model
-                auto weightedResiduals
-                    = model.evaluate(latitudesValidate,
-                                     longitudesValidate,
-                                     depthsValidate,
-                                     ULocator::SourceSpecificStationCorrection::
-                                     EvaluationMethod::WeightedAverage);
-                auto maxDistanceResiduals
-                    = model.evaluate(latitudesValidate,
-                                     longitudesValidate,
-                                     depthsValidate,
-                                     ULocator::SourceSpecificStationCorrection::
-                                     EvaluationMethod::MaximumDistanceWeighted);
-                auto idwResiduals
-                    = model.evaluate(latitudesValidate,
-                                     longitudesValidate,
-                                     depthsValidate,
-                                     ULocator::SourceSpecificStationCorrection::
-                                     EvaluationMethod::InverseDistanceWeighted);
+                constexpr double zeroTime{0};
+                std::vector<double> weightedResiduals(nValidate);
+                model.setEvaluationMethod(ULocator::Corrections::SourceSpecific::EvaluationMethod::WeightedAverage);
+                for (int i = 0; i < nValidate; ++i)
+                {
+                    weightedResiduals[i]
+                        = model.evaluate(xSourcesValidate[i],
+                                         ySourcesValidate[i],
+                                         zSourcesValidate[i],
+                                         zeroTime);
+                }
+                std::vector<double> maxDistanceResiduals(nValidate);
+                model.setEvaluationMethod(ULocator::Corrections::SourceSpecific::EvaluationMethod::MaximumDistanceWeighted);
+                for (int i = 0; i < nValidate; ++i)
+                {
+                    maxDistanceResiduals[i]
+                        = model.evaluate(xSourcesValidate[i],
+                                         ySourcesValidate[i],
+                                         zSourcesValidate[i],
+                                         zeroTime);
+                }
+                std::vector<double> idwResiduals(nValidate);
+                model.setEvaluationMethod(ULocator::Corrections::SourceSpecific::EvaluationMethod::InverseDistanceWeighted);
+                for (int i = 0; i < nValidate; ++i)
+                {
+                    idwResiduals[i]
+                        = model.evaluate(xSourcesValidate[i],
+                                         ySourcesValidate[i],
+                                         zSourcesValidate[i],
+                                         zeroTime);
+                }
                 // Tabulate the RMSE
                 baselineRMSE
-                    = ::computeRMSE(residualsValidate, zeros,
-                                    weightsValidate);
+                    = ::computeRMSE(residualsValidate, zeros, weightsValidate);
                 auto weightedRMSE
                     = ::computeRMSE(residualsValidate, weightedResiduals,
                                     weightsValidate);
@@ -569,12 +554,10 @@ void trainKNN(const std::string &name,
             {
                 std::cerr << "Large baseline RMSE for" << name << "!"
                           << std::endl;
-/*
-    for (int i = 0; i < observedResidualsAllFolds.size();++i)
- {
- std::cout << observedResidualsAllFolds[i] << " " << weightedResidualsAllFolds[i] << std::endl;
-}
-*/
+//    for (int i = 0; i < observedResidualsAllFolds.size();++i)
+// {
+// std::cout << observedResidualsAllFolds[i] << " " << weightedResidualsAllFolds[i] << std::endl;
+//}
             }
             if (verbose)
             {
@@ -584,15 +567,15 @@ void trainKNN(const std::string &name,
                           << maxDistanceRMSE << " " << idwRMSE << std::endl;
             }
             double preferredRMSE = weightedRMSE;
-            if (method == ULocator::SourceSpecificStationCorrection::EvaluationMethod::WeightedAverage)
+            if (method == ULocator::Corrections::SourceSpecific::EvaluationMethod::WeightedAverage)
             {
                 preferredRMSE = weightedRMSE;
             }
-            else if (method == ULocator::SourceSpecificStationCorrection::EvaluationMethod::MaximumDistanceWeighted)
+            else if (method == ULocator::Corrections::SourceSpecific::EvaluationMethod::MaximumDistanceWeighted)
             {
                 preferredRMSE = maxDistanceRMSE;
             }
-            else if (method == ULocator::SourceSpecificStationCorrection::EvaluationMethod::InverseDistanceWeighted)
+            else if (method == ULocator::Corrections::SourceSpecific::EvaluationMethod::InverseDistanceWeighted)
             {
                 preferredRMSE = idwRMSE;
             }
@@ -626,13 +609,17 @@ void trainKNN(const std::string &name,
     // Fit to everything
     if (improvementExists)
     {
-        ULocator::SourceSpecificStationCorrection model;
-        model.initialize(splitName[0], splitName[1], splitName[2]);
-        model.train(latitudes, longitudes, depths,
+        ULocator::Corrections::SourceSpecific model;
+        model.setStationNameAndPhase(splitName[0],
+                                     splitName[1],
+                                     splitName[2]);
+        model.setNumberOfNeighbors(optimumNeighbors);
+        model.setEvaluationMethod(method);
+        model.setMaximumDistance(optimumDistance);
+        model.train(xSources, ySources, zSources,
                     observedArrivalTimes,
                     predictedArrivalTimes,
-                    weights,
-                    optimumNeighbors);
+                    weights);
         try
         {
             model.save(resultsFile); 
@@ -656,189 +643,13 @@ void trainKNN(const std::string &name,
         std::cerr << "No improvement seen for " << name << std::endl;
     }
 }
-                
-/*
-/// Trains the KNN model
-void trainKNN(std::vector<double> &features,
-              std::vector<double> &targets,
-              const int nNeighbors,
-              const int nFeatures = 3,
-              const int nFolds = 10,
-              const double maxDistance = 35,
-              const int seed = 8434)
-{
-    // Split into nFolds
-    auto nObservations = static_cast<int> (targets.size());
-    auto dataFolds = ::createFolds(nObservations, nFolds, seed);
-    namespace dknn = oneapi::dal::knn;
-    daal::services::Status status;
-    double averageBaselineRMS{0};
-    double averageFoldRMS{0};
-    double averageIDWFoldRMS{0};
-    double averageClippedFoldRMS{0};
-    for (const auto &fold : dataFolds)
-    {
-        auto nValidationObservations = static_cast<int> (fold.size());
-        // Define the training rows and validation data 
-        std::vector<int> trainingRows(nObservations);
-        std::iota(trainingRows.begin(), trainingRows.end(), 0);
-        auto nTrainingObservations = nObservations - nValidationObservations;
-        std::vector<double> validationFeatures(nValidationObservations*nFeatures);
-        std::vector<double> validationTargets(nValidationObservations);
-        // Extract validation features and remove validation rows from training 
-        for (int i = 0; i < nValidationObservations; ++i)
-        {
-            auto row = fold[i];
-            validationFeatures[nFeatures*i + 0] = features[nFeatures*row + 0];
-            validationFeatures[nFeatures*i + 1] = features[nFeatures*row + 1];
-            if (nFeatures == 3)
-            {
-                validationFeatures[nFeatures*i + 2] = features[nFeatures*row + 2];
-            }
-            validationTargets[i] = targets[row];
-
-            trainingRows.erase(std::remove(trainingRows.begin(),
-                                           trainingRows.end(), row),
-                               trainingRows.end());
-        }
-#ifndef NDEBUG
-        assert(trainingRows.size() == nTrainingObservations);
-#endif
-        // Populate the training data
-        std::vector<double> trainingFeatures(nTrainingObservations*nFeatures);
-        std::vector<double> trainingTargets(nTrainingObservations);
-        // Extract validation features and remove validation rows from training 
-        for (int i = 0; i < nTrainingObservations; ++i)
-        {
-            auto row = trainingRows[i];
-            trainingFeatures[nFeatures*i + 0] = features[nFeatures*row + 0]; 
-            trainingFeatures[nFeatures*i + 1] = features[nFeatures*row + 1]; 
-            if (nFeatures == 3)
-            {
-                trainingFeatures[nFeatures*i + 2] = features[nFeatures*row + 2]; 
-            }
-            trainingTargets[i] = targets[row];
-        }
-        // Populate tables for DAL
-        auto XTrain
-            = oneapi::dal::homogen_table::wrap<double>
-              (trainingFeatures.data(), nTrainingObservations, nFeatures);
-        //auto yTrain
-        //    = oneapi::dal::homogen_table::wrap<double>
-        //      (trainingTargets.data(),  nTrainingObservations, 1);
-        const auto knnDescriptor
-            = dknn::descriptor<double,
-                               dknn::method::kd_tree,
-                               oneapi::dal::knn::task::search,
-                               oneapi::dal::minkowski_distance::descriptor<double>>
-              (nNeighbors);
-        // Train the model
-        auto trainingResult = oneapi::dal::train(knnDescriptor, XTrain);//, yTrain);
-        // Apply the model 
-        auto XValidate
-            = oneapi::dal::homogen_table::wrap<double>
-              (validationFeatures.data(), nValidationObservations, nFeatures);
-        //auto yValidate
-        //    = oneapi::dal::homogen_table::wrap<double>
-        //     (validationTargets.data(),  nValidationObservations, 1); 
-        const auto testResult
-            = oneapi::dal::infer(knnDescriptor, XValidate, trainingResult.get_model());
-        // Tabulate the RMS 
-        const auto &trainingIndices = testResult.get_indices();
-#ifndef NDEBUG
-        assert(trainingIndices.get_column_count() == nNeighbors); 
-        assert(trainingIndices.get_row_count() == nValidationObservations);
-#endif
-        std::vector<int> nearestNeighbors(nNeighbors);
-        oneapi::dal::row_accessor<const double> accessor{trainingIndices};
-        double baselineRMS = 0;
-        double foldRMS = 0;
-        double idwFoldRMS = 0;
-        double clippedFoldRMS = 0;
-        for (int64_t row = 0; row < nValidationObservations; ++row)
-        {
-            double xi = validationFeatures[nFeatures*row + 0]; 
-            double yi = validationFeatures[nFeatures*row + 1]; 
-            double zi = 0;
-            //if (nFeatures == 3){zi = validationFeatures[nFeatures*row + 2];}
-            double observedResidual = validationTargets[row]; 
-            const auto rowValues = accessor.pull({row, row + 1});
-#ifndef NDEBUG
-            assert(rowValues.get_count() == nNeighbors);
-#endif
-            double idwResidual = 0;
-            double idwSumOfWeights = 0;
-            double averageResidual = 0;
-            double clippedSumOfWeights = 0;
-            double clippedResidual = 0;
-            for (int i = 0; i < nNeighbors; ++i)
-            {
-                auto trainingRow = static_cast<int> (std::round(rowValues[i]));
-                double xk = trainingFeatures[nFeatures*trainingRow + 0];
-                double yk = trainingFeatures[nFeatures*trainingRow + 1];
-                double zk = 0;
-                if (nFeatures == 3)
-                {
-                    zk = trainingFeatures[nFeatures*trainingRow + 2];
-                }
-                double residual = trainingTargets[trainingRow];
-                // Inverse distance weighting
-                auto dx = xi - xk;
-                auto dy = yi - yk;
-                auto dz = zi - zk;
-                // Can't be closer than a meter
-                double distance
-                    = std::max(1.e-3, std::sqrt(dx*dx + dy*dy + dz*dz));
-                double idwWeight = 1/distance;
-                // Can't be further than x km
-                idwResidual = idwWeight*residual;
-                idwSumOfWeights = idwSumOfWeights + idwWeight; 
-                // Average weights
-                averageResidual = averageResidual + residual;
-                // Clipped
-                double clipWeight = 1;
-                if (distance > maxDistance){clipWeight = 0;}
-                clippedSumOfWeights = clippedSumOfWeights + clipWeight;
-                clippedResidual = clippedResidual + clipWeight*residual;
-                //std::cout << distance << " " << residual << std::endl;
-            }
-            averageResidual = averageResidual/nNeighbors;
-            idwResidual = idwResidual/idwSumOfWeights;
-            clippedResidual = clippedResidual/std::max(1.e-10, clippedSumOfWeights);
-            baselineRMS = baselineRMS
-                        + std::pow(observedResidual, 2);
-            foldRMS = foldRMS
-                    + std::pow(observedResidual - averageResidual, 2);
-            idwFoldRMS = idwFoldRMS
-                       + std::pow(observedResidual -  idwResidual, 2);
-            clippedFoldRMS = clippedFoldRMS
-                           + std::pow(observedResidual - clippedResidual, 2);
-            //std::cout << observedResidual << "," << averageResidual << "," << idwResidual << std::endl;
-        } // Loop on validation set
-        baselineRMS = std::sqrt(baselineRMS/nValidationObservations);
-        foldRMS = std::sqrt(foldRMS/nValidationObservations);
-        idwFoldRMS = std::sqrt(idwFoldRMS/nValidationObservations); 
-        clippedFoldRMS = std::sqrt(clippedFoldRMS/nValidationObservations);
-std::cout << foldRMS << std::endl;
-        averageBaselineRMS = averageBaselineRMS + baselineRMS/nFolds;
-        averageFoldRMS = averageFoldRMS + foldRMS/nFolds;
-        averageIDWFoldRMS = averageIDWFoldRMS + idwFoldRMS/nFolds;
-        averageClippedFoldRMS = averageClippedFoldRMS + clippedFoldRMS/nFolds;
-        //std::cout << "Fold RMS, IDW Fold RMS: {"
-        //          << foldRMS << "," << idwFoldRMS << "}" << std::endl;
-break;
-    }
-    std::cout << std::setprecision(8) << nFolds << " Cross-validated Baseline, Average RMS, Clipped RMS, IDW RMS: "
-              << averageBaselineRMS << "," << averageFoldRMS << ","
-              << averageClippedFoldRMS << "," << averageIDWFoldRMS
-              << " for " << nObservations << " observations " << std::endl;
-}
-*/
 
 struct ProgramOptions
 {
     std::string correctionsFile{"correctionsArchive.h5"};
     std::string eventsFile; 
+    std::unique_ptr<ULocator::Position::IGeographicRegion>
+         geographicRegion{nullptr};
     double maximumResidualForP{0.7};
     double maximumResidualForS{1.4};
     double maximumWeightedRMS{1};
@@ -873,6 +684,8 @@ Allowed options)""");
                          "The minimum number of observations required to compute a static correction")
         ("min_observations_for_ssst", boost::program_options::value<int> ()->default_value(options.minimumObservationsForSSSC),
                          "The minimum number of observations required to compute a source-specific station correction")
+        ("region", boost::program_options::value<std::string> (),//->default_value("utah"),
+                   "The region - e.g., utah or ynp")
         ("n_folds", boost::program_options::value<int> ()->default_value(options.nFolds),
                     "The number of folds in the KNN hyper-parameter optimization.")
         ("do_mean_static", "If present then the static corrections will be computed with the mean residual.  Otherwise, the static correcions will be computed with the median residual.");
@@ -962,6 +775,31 @@ Allowed options)""");
         }
         options.minimumObservationsForSSSC = minObservations;
     }
+    if (vm.count("region"))
+    {    
+        auto region = vm["region"].as<std::string> ();
+        if (region != "utah" && region != "ynp")
+        {
+            throw std::invalid_argument("Unhandled region: " + region);
+        }
+        else
+        {
+            if (region == "utah")
+            {
+                options.geographicRegion
+                    = std::make_unique<ULocator::Position::UtahRegion> ();
+            }
+            else if (region == "ynp")
+            {
+                options.geographicRegion
+                    = std::make_unique<ULocator::Position::YNPRegion> ();
+            }
+        }
+    }    
+    else 
+    {    
+        throw std::invalid_argument("Region not set");
+    }
     options.doMedian = true;
     if (vm.count("do_mean_static"))
     {   
@@ -986,6 +824,12 @@ int main(int argc, char *argv[])
 
     std::string resultsFile = programOptions.correctionsFile; //{"correctionsArchive.h5"};
     std::string locatorOutputFile = programOptions.eventsFile; //{"relocatedUtahCatalog.csv"};
+    // Delete the corrections file
+    if (std::filesystem::exists(resultsFile))
+    {
+        std::cout << "Deleting previous corrections file: " << resultsFile << std::endl; 
+        std::filesystem::remove(resultsFile);
+    }
     // Parameters for weighted median/mean
     bool doMedian = programOptions.doMedian;
     double maximumResidualForP = programOptions.maximumResidualForP;// 0.7;
@@ -993,8 +837,8 @@ int main(int argc, char *argv[])
     double maximumWeightedRMS = programOptions.maximumWeightedRMS;
     int minimumObservationsForStaticCorrection = programOptions.minimumObservationsForStaticCorrection; //{20};
     // Parameters for KNN and SSST
-    const int64_t nFolds = programOptions.nFolds; //{5}; // n-fold cross-validation for KNN fitting
-    const int64_t minObservationsForSSSC = programOptions.minimumObservationsForSSSC;// {250}; // 250 observations for KNN fitting
+    const int64_t nFolds = programOptions.nFolds; // n-fold cross-validation for KNN fitting
+    const int64_t minObservationsForSSSC = programOptions.minimumObservationsForSSSC;// 250 observations for KNN fitting
     int seed = 86332;
     constexpr int64_t nFeatures{3}; // UTM X, UTM Y, Depth
     const std::vector<int> nNeighborsSearch = std::vector<int>{//100,  
@@ -1013,23 +857,23 @@ int main(int argc, char *argv[])
                                                   maximumResidualForS,
                                                   maximumWeightedRMS); 
     std::cout << "Tabulating median static corrections..." << std::endl;
-    //std::ofstream correctionsFile("medianUtahCorrections.csv");
-    //correctionsFile << "network,station,phase,correction" << std::endl;
-    //std::vector<std::pair<std::string, double>> corrections;
-    std::vector<std::pair<std::string, ULocator::StaticCorrection>> corrections;
+    std::vector<std::pair<std::string, ULocator::Corrections::Static>>
+        corrections;
     for (const auto &workItem : workList)
     {
-        std::vector<double> residuals, observedArrivalTimes, predictedArrivalTimes, weights;
+        std::vector<double> residuals;
+        std::vector<double> observedArrivalTimes;
+        std::vector<double> predictedArrivalTimes;
+        std::vector<double> weights;
         std::vector<std::pair<double, int>> workSpace;
         if (workItem.second >= minimumObservationsForStaticCorrection)
         {
             std::vector<std::string> splitName;
             boost::split(splitName, workItem.first, boost::is_any_of("."));
-            ULocator::StaticCorrection staticCorrection;
-            staticCorrection.initialize(splitName[0],
-                                        splitName[1],
-                                        splitName[2],
-                                        0);
+            ULocator::Corrections::Static staticCorrection;
+            staticCorrection.setStationNameAndPhase(splitName[0],
+                                                    splitName[1],
+                                                    splitName[2]);
             getArrivalTimesAndWeightsForStaticCorrection(workItem.first,
                                                          totalDataTable,
                                                          &observedArrivalTimes,
@@ -1037,26 +881,21 @@ int main(int argc, char *argv[])
                                                          &weights);
             if (doMedian)
             {
-                staticCorrection.train(observedArrivalTimes,
-                                       predictedArrivalTimes,
-                                       weights,
-                                       ULocator::StaticCorrection::Method::Median);
+                staticCorrection.train(
+                    observedArrivalTimes,
+                    predictedArrivalTimes,
+                    weights,
+                    ULocator::Corrections::Static::Method::Median);
             }
             else
             {
-                staticCorrection.train(observedArrivalTimes,
-                                       predictedArrivalTimes,
-                                       weights,
-                                       ULocator::StaticCorrection::Method::Mean);
+                staticCorrection.train(
+                    observedArrivalTimes,
+                    predictedArrivalTimes,
+                    weights,
+                    ULocator::Corrections::Static::Method::Mean);
             }
             staticCorrection.save(resultsFile);
-            ::getWeightsAndResidualsForStaticCorrection(
-                workItem.first, totalDataTable,
-                &residuals, &weights);
-            auto medianCorrection
-                = ::weightedMedian(residuals, weights, workSpace);
-             auto meanCorrection
-                = ::weightedMean(residuals, weights);
             // Currently we have computed
             //   obs - est = bias 
             // and know the systematic bias
@@ -1066,7 +905,8 @@ int main(int argc, char *argv[])
             //   obs - est - bias = obs - (est + bias) = 0
             // Hence, our correction is simply the bias.
             std::cout << "Median correction for " << workItem.first << " is "
-                      << medianCorrection << " (s)" << " " << staticCorrection.evaluate(0) << std::endl;
+                      //<< medianCorrection << " (s)" << " "
+                      << staticCorrection.getCorrection() << " (s)" << std::endl;
             //corrections.push_back(std::pair {workItem.first, medianCorrection});
             corrections.push_back(std::pair {workItem.first, staticCorrection});
         }
@@ -1079,7 +919,7 @@ int main(int argc, char *argv[])
         {
             // Apply first model
             bool found{false};
-            ULocator::StaticCorrection correction;
+            ULocator::Corrections::Static correction;
             for (const auto &c : corrections)
             {
                 if (workItem.first == c.first)
@@ -1092,12 +932,13 @@ int main(int argc, char *argv[])
 #ifndef NDEBUG
             assert(found);
 #endif
-            std::vector<double> latitudes, longitudes, depths;
+            std::vector<double> xSources, ySources, zSources;
             std::vector<double> observedArrivalTimes, predictedArrivalTimes, residuals, weights;
-            ::getFeaturesAndTargets(workItem.first, totalDataTable,
-                                    &latitudes,
-                                    &longitudes,
-                                    &depths,
+            ::getFeaturesAndTargets(*programOptions.geographicRegion,
+                                    workItem.first, totalDataTable,
+                                    &xSources,
+                                    &ySources,
+                                    &zSources,
                                     &observedArrivalTimes,
                                     &predictedArrivalTimes,
                                     &weights,
@@ -1108,26 +949,14 @@ int main(int argc, char *argv[])
 //int nFeatures = 3;
             ::trainKNN(workItem.first,
                        resultsFile,
-                       latitudes, longitudes, depths,
+                       xSources, ySources, zSources,
                        observedArrivalTimes, predictedArrivalTimes, weights,
                        nFolds,
                        nNeighborsSearch,
                        maximumDistancesSearch,
-                       ULocator::SourceSpecificStationCorrection::EvaluationMethod::InverseDistanceWeighted,
+                       ULocator::Corrections::SourceSpecific::EvaluationMethod::InverseDistanceWeighted,
                        false,
                        seed);
-/*
-            std::vector<double> trainingFeatures;
-            std::vector<double> trainingTargets;
-            ::getFeaturesAndTargets(workItem.first, totalDataTable,
-                                    &trainingFeatures,
-                                    &trainingTargets,
-                                    medianCorrection,
-                                    nFeatures);
-            // Fit a model
-            ::trainKNN(trainingFeatures, trainingTargets, nNeighbors, nFeatures, nFolds, maxDistance);
-break;
-*/
         }
     }
     
@@ -1139,6 +968,5 @@ break;
 
 //std::cout << allData.get_row_count() << std::endl;
     //auto readOptions = dataSource.get_read_options();
-
     return EXIT_SUCCESS;
 }

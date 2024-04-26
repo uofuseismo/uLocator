@@ -1,0 +1,583 @@
+/*!
+\page TopicUUSSRelocation Relocation Examples
+\ingroup Examples_UUSSRelocation
+
+Here we work step-through the activity of relocating events in the UUSS catalog.  The overarching goal of this example is to develop a locator for real-time application that produces event locations that are highly-consistent with our production catalog.  The (re)location algorithm is as follows:
+
+   - Create an event catalog
+     - Partition the events into a training, validation, and testing dataset
+   - Refine the regional velocity model based on the training and validation datasets
+   - Locate the training events with the refined events
+   - Extend the 
+
+\subsection TopicUUSSRelocation_CatalogCreation Catalog Creation
+
+To begin, we generate an earthquake and quarry blast catalog for the utah region and an earthquake catalog for the Yellowstone region.  The catalog was created using the Oracle-based AQMS system which was in use from October 1, 2012 through December 31, 2023.  All events have been human-reviewed.
+
+~~~~~~~~~~~~~{.py}
+
+    #!/usr/bin/env python3
+    # Purpose: Queries the AQMS database for arrival times for desired local'ish events.
+    # Author: Ben Baker (University of Utah) distributed under the MIT license.
+    import pandas as pd
+    import psycopg2
+    if __name__ == "__main__":
+        username = USER # TODO
+        password = PASSWORD # TODO 
+        host = MACHINE # TODO
+        database = DATABASE_NAME # TODO 
+        port = PORT_NUMBER # TODO
+
+        utah_min_latitude = 36.5
+        utah_max_latitude = 42.5
+        utah_min_longitude =-114.5
+        utah_max_longitude =-108.5
+        query = "SELECT event.evid as event_identifier, event.etype as event_type, TrueTime.getEpoch(origin.datetime, 'NOMINAL') as origin_time, " \
+              +       " origin.lat as latitude, origin.lon as longitude, origin.depth as depth, " \
+              +       " arrival.arid as arrival_identifier, " \
+              +       " arrival.net as network, arrival.sta as station, arrival.seedchan as channel, arrival.location as location_code, " \
+              +       " arrival.iphase as phase, TrueTime.getEpoch(arrival.datetime, 'NOMINAL') as arrival_time, " \
+              +       " arrival.fm as first_motion, arrival.quality as quality, assocaro.timeres as residual, " \
+              +       " station_data.lat as station_latitude, station_data.lon as station_longitude, station_data.elev as station_elevation " \
+              + " FROM event " \
+              + " INNER JOIN origin ON event.prefor = origin.orid " \
+              +  " INNER JOIN assocaro ON origin.orid = assocaro.orid " \
+              +   " INNER JOIN arrival ON assocaro.arid = arrival.arid " \
+              +    " INNER JOIN station_data ON (arrival.net = station_data.net AND arrival.sta = station_data.sta AND origin.datetime BETWEEN EXTRACT(epoch FROM station_data.ondate) AND EXTRACT(epoch FROM station_data.offdate)) " \
+              + " WHERE ((event.etype = 'eq' AND origin.rflag = 'F') OR (event.etype = 'qb' AND origin.rflag IN ('I', 'H', 'F'))) " \
+              + "   AND (origin.lat BETWEEN {} AND {}) ".format(utah_min_latitude,  utah_max_latitude) \
+              + "   AND (origin.lon BETWEEN {} AND {}) ".format(utah_min_longitude, utah_max_longitude) \
+              + "   AND (event.evid >= 60000000 AND event.evid < 70000000) " \
+              + "   AND (arrival.quality > 0) " \
+              + " ORDER BY event.evid, arrival.datetime "
+        with psycopg2.connect("host='{}' port={} dbname='{}' user={} password={}".format(host, port, database, username, password)) as connection:
+            df = pd.read_sql_query(query, connection)
+            df = df[ ~df['residual'].isna() ]
+            df.to_csv('utahReviewedCatalog.csv', index = False)
+
+        ynp_min_latitude = 43.75
+        ynp_max_latitude = 45.25
+        ynp_min_longitude =-111.5
+        ynp_max_longitude =-109.5
+        query = "SELECT event.evid as event_identifier, event.etype as event_type, TrueTime.getEpoch(origin.datetime, 'NOMINAL') as origin_time, " \
+              +       " origin.lat as latitude, origin.lon as longitude, origin.depth as depth, " \
+              +       " arrival.arid as arrival_identifier, " \
+              +       " arrival.net as network, arrival.sta as station, arrival.seedchan as channel, arrival.location as location_code, " \
+              +       " arrival.iphase as phase, TrueTime.getEpoch(arrival.datetime, 'NOMINAL') as arrival_time, " \
+              +       " arrival.fm as first_motion, arrival.quality as quality, assocaro.timeres as residual, " \
+              +       " station_data.lat as station_latitude, station_data.lon as station_longitude, station_data.elev as station_elevation " \
+              + " FROM event " \
+              + " INNER JOIN origin ON event.prefor = origin.orid " \
+              +  " INNER JOIN assocaro ON origin.orid = assocaro.orid " \
+              +   " INNER JOIN arrival ON assocaro.arid = arrival.arid " \
+              +    " INNER JOIN station_data ON (arrival.net = station_data.net AND arrival.sta = station_data.sta AND origin.datetime BETWEEN EXTRACT(epoch FROM station_data.ondate) AND EXTRACT(epoch FROM station_data.offdate)) " \
+              + " WHERE (event.etype = 'eq' AND origin.rflag = 'F') " \
+              + "   AND (origin.lat BETWEEN {} AND {}) ".format(ynp_min_latitude,  ynp_max_latitude) \
+              + "   AND (origin.lon BETWEEN {} AND {}) ".format(ynp_min_longitude, ynp_max_longitude) \
+              + "   AND (event.evid >= 60000000 AND event.evid < 70000000) " \
+              + "   AND (arrival.quality > 0) " \
+              + " ORDER BY event.evid, arrival.datetime "
+        with psycopg2.connect("host='{}' port={} dbname='{}' user={} password={}".format(host, port, database, username, password)) as connection:
+            df = pd.read_sql_query(query, connection)
+            df = df[ ~df['residual'].isna() ]
+            df.to_csv('ynpReviewedCatalog.csv', index = False)
+~~~~~~~~~~~~~
+
+Next, we partition these catalogs into training, validation, and testing events.  Effectively, we are performing a series of model-fitting activity that include estimating static corrections and source-specific station corrections.  The models will be fit on the training events.  To prevent over-fitting, models are selected on the validation events.  To verify our results a relatively large test dataset will be integrated after model-fitting to assess the methodology.  We have found that geographic event-density-based sampling methods are complicated to implement and make it difficult to score model performance so we simply partition on unique event identifiers.
+
+~~~~~~~~~~~~~{.py}
+    #!/usr/bin/env python3
+    # Purpose: Splits the events into training, validation, and testing events.
+    # Author: Ben Baker (University of Utah) distributed under the MIT license.
+    import pandas as pd
+    import numpy as np
+    from sklearn.model_selection import train_test_split
+
+    def quality_to_standard_error(quality : float):
+        """
+        Converts a quality in the AQMS database to a corresponding uncertainty 
+        of 1 standard deviation in seconds.
+        """
+        if (abs(quality - 1) < 1.e-4):
+            return 0.03
+        elif (abs(quality - 0.75) < 1.e-4):
+            return 0.06
+        elif (abs(quality - 0.5) < 1.e-4):
+            return 0.15
+        elif (abs(quality - 0.25) < 1.e-4):
+            return 0.3
+        else:
+            print(quality)
+            assert False
+
+    def qualities_to_weights(qualities : np.array):
+        """
+        Converts a quality in the AQMS database to a corresponding weight with units 1/seconds.
+        """
+        weights = np.zeros(len(qualities))
+        for i in range(len(weights)):
+            weights[i] = 1./quality_to_standard_error(qualities[i])
+        return weights
+
+    if __name__ == "__main__":
+        training_pct = 0.5 
+        validation_pct = 0.2 # This will be 20 pct of remaining 50 pct 
+
+        for prefix in ['utah', 'ynp']:
+            print("Processing prefix:", prefix)
+            catalog_file = '{}ReviewedCatalog.csv'.format(prefix)
+            df = pd.read_csv(catalog_file, dtype = {'location_code' : str})
+            event_identifiers = df['event_identifier'].unique()
+            df_out = []
+            for event in event_identifiers:
+                temp_df = df[ df['event_identifier'] == event]
+                row = temp_df.iloc[0]
+                weights = qualities_to_weights(temp_df['quality'].to_numpy())
+                residuals = temp_df['residual'].to_numpy()
+                d = {'event_identifier' : row['event_identifier'],
+                     'latitude' : row['latitude'],
+                     'longitude' : row['longitude'],
+                     'depth' : row['depth'],
+                     'origin_time' : row['origin_time'],
+                     'event_type' : row['event_type'], 
+                     'weighted_rmse' : np.sqrt(np.sum(weights*(residuals*residuals))/np.sum(weights)),
+                     'weighted_l1.5_norm' : np.power( np.sum(weights*np.power(np.abs(residuals), 1.5)), 1./1.5 )} 
+                df_out.append(d)
+            df_out = pd.DataFrame(df_out)
+            [training_events, other_events] = train_test_split(event_identifiers, train_size = training_pct)
+            validation_events, testing_events = train_test_split(other_events, train_size = validation_pct)
+            assert len(training_events) + len(validation_events) + len(testing_events) == len(event_identifiers)
+            assert len(np.intersect1d(training_events, validation_events)) == 0
+            assert len(np.intersect1d(training_events, testing_events)) == 0
+            assert len(np.intersect1d(validation_events, testing_events)) == 0
+            print("Number of training events:", len(training_events))
+            print("Number of validation events:", len(validation_events))
+            print("Number of testing events:", len(testing_events))
+            df_out[ df_out['event_identifier'].isin(training_events) ].to_csv('{}ReviewedTrainingEvents.csv'.format(prefix), index = False)
+            df_out[ df_out['event_identifier'].isin(validation_events) ].to_csv('{}ReviewedValidationEvents.csv'.format(prefix), index = False)
+            df_out[ df_out['event_identifier'].isin(testing_events) ].to_csv('{}ReviewedTestingEvents.csv'.format(prefix), index = False)
+~~~~~~~~~~~~~
+
+These files can be obtained from:
+
+\subsection TopicUUSSRelocation_VelocityModelBuilding Velocity Model Estimation
+
+It is advantageous to estimate an improved velocity model.  This is a small research project in itself but for simplicity we adjust the velocities while fixing the layer interfaces and event locations.  For consistency, we minimize in the 1.5 norm (though it does not appear to make much difference if we use least-squares) using the derivative-free Bound Optimization BY Quadrtic Approximation (<a href="https://www.damtp.cam.ac.uk/user/na/NA_papers/NA2009_06.pdf">BOBYQA</a>) algorithm implemented in <a href="https://github.com/libprima/prima">libprima</a> libprima.  Note, if we were optimizing an L1-norm we would likely switch to an algorithm like Constrained Optimization BY Linear Approximation (COBYLA) since the quadratic interpolation will have a difficult time approximating the true (non-smooth) L1 objective function.
+
+    estimateVelocities --norm=lp --phase=P --catalog_file=${ULOCATOR_ROOT_DIR}/examples/uuss/utahReviewedCatalog.csv --training_file=${ULOCATOR_ROOT_DIR}/examples/uuss/utahReviewedTrainingEvents.csv --results_directory=../examples/uuss/utahResults
+    estimateVelocities --norm=lp --phase=S --catalog_file=${ULOCATOR_ROOT_DIR}/examples/uuss/utahReviewedCatalog.csv --training_file=${ULOCATOR_ROOT_DIR}/examples/uuss/utahReviewedTrainingEvents.csv --results_directory=../examples/uuss/utahResults
+
+We note the production UUSS Wasatch Front velocity model and our new model
+
+
+| Layer | Interface (m)  |  Vp (m/s) |   Vs (m/s)  | New Vp (m/s) | New Vs (m/s) |
+| ----: | :----:         | :----:    |   :----:    | :----:       | ----:        |
+| 1     | -4,500         | 3400      |   1950      | 3664         | 2004         | 
+| 2     |     40         | 5900      |   3390      | 5965         | 3480         |
+| 3     | 15,600         | 6400      |   3680      | 6566         | 3858         |
+| 4     | 26,500         | 7500      |   4310      | 7100         | 4168         |
+| 5     | 40,500         | 7900      |   4540      | 7856         | 5006         |
+
+where the interface is the depth of the top of the constant velocity slab relative to sea-level.
+
+\image html utahVelocityModelOptimized.jpg "Residuals in UUSS production velocity model and optimized model" width=1200cm
+
+One thing to keep in mind for the Utah residuals is that the production locator at UUSS uses a wonky interpolation of multiple velocity models so the catalog residuals will be different than the residuals computed in the Wasatch Front model for all events.  
+
+Similarly, for Yellowstone we note the model developed by Husen et al., (2004) and our new model
+
+     estimateVelocities --norm=lp --phase=P --do_ynp --catalog_file=${ULOCATOR_ROOT_DIR}/examples/uuss/ynpReviewedCatalog.csv --training_file=${ULOCATOR_ROOT_DIR}/examples/uuss/ynpReviewedTrainingEvents.csv --results_directory=../examples/uuss/ynpResults
+     estimateVelocities --norm=lp --phase=S --do_ynp --catalog_file=${ULOCATOR_ROOT_DIR}/examples/uuss/ynpReviewedCatalog.csv --training_file=${ULOCATOR_ROOT_DIR}/examples/uuss/ynpReviewedTrainingEvents.csv --results_directory=../examples/uuss/ynpResults
+
+
+| Layer | Interface (m)  |  Vp (m/s) |   Vs (m/s)  | New Vp (m/s) | New Vs (m/s) |
+| ----: | :----:         | :----:    |   :----:    | :----:       | ----:        |   
+| 1     | -4,500         | 2720      |   1660      | 2713         | 1745         |
+| 2     | -1,000         | 2790      |   1740      | 2787         | 2316         |
+| 3     |  2,000         | 5210      |   3230      | 5207         | 3066         |
+| 4     |  5,000         | 5560      |   3420      | 5565         | 3375         |
+| 5     |  8,000         | 5770      |   3490      | 5812         | 3529         |
+| 6     | 12,000         | 6070      |   3680      | 6150         | 3650         |
+| 7     | 16,000         | 6330      |   3780      | 6290         | 3713         |
+| 8     | 21,000         | 6630      |   4000      | 6611         | 4014         |
+| 9     | 50,000         | 8000      |   4850      | 7990         | 5054         |
+
+Though the optimization was performed in the 1.5-norm and locations are from a least-squares inversion, we see a large improvement in the S arrival times; particularly for Yellowstone.  This is of critical importance since our new-fangled S detectors typically detect as many, if not more, S arrivals than P arrivals.
+
+\image html ynpVelocityModelOptimized.jpg "Residuals in UUSS production velocity model and optimized model" width=1200cm
+
+\subsection TopicUUSSRelocation_ComputingCorrections Computing Corrections
+
+With velocity models in hand we now begin the activity of computing corrections.  This is an iterative process since the corrections influence the locations and the (re)locations influence the (new) corrections.  We perform four iterations of (re)location followed by optimizing for corrections and choose a final model based on the validation dataset.  Afterwards, we summarize our results on the test dataset.   For Utah, this is summarized by the following script
+
+~~~~~~~~~~~~~{.sh}
+#!/usr/bin/bash
+# Purpose: Drive the Utah locator and correction code for the reviewed
+#          pick catalog.
+# Author: Ben Baker (University of Utah) distributed under the MIT license.
+target=utah
+root_directory=/PATH/TO/ULOCATOR # TODO
+executable_directory=/usr/local/bin
+locator=${executable_directory}/ulocate
+corrector=${executable_directory}/computeCorrections
+
+# Inputs
+region=utah
+catalog_file=${root_directory}/examples/uuss/${target}ReviewedCatalog.csv
+events_training_file=${root_directory}/examples/uuss/${target}ReviewedTrainingEvents.csv
+events_validation_file=${root_directory}/examples/uuss/${target}ReviewedValidationEvents.csv
+topography_file=${root_directory}/examples/uuss/${target}Topography.h5
+
+# Fitting options
+n_folds=5
+max_residual_for_p=0.7
+max_residual_for_s=1.4
+min_observations_for_static=20
+# Undefined means do a median static correction (alternative is --do_mean_static for a mean static correction)
+do_mean_static=""
+min_observations_for_static=30
+min_observations_for_ssst=250
+
+# Outputs
+result_directory=${root_directory}/examples/uuss/${target}Results
+
+if [ ! -d ${result_directory} ]; then
+   mkdir -p ${result_directory}
+fi
+
+# Need a baseline evaluation
+echo "----------------------------------------------------------------"
+echo "                    Initial Validation Step                     "
+echo "----------------------------------------------------------------"
+locator_validation_output_file=${result_directory}/${target}ValidationCatalog.0.csv
+locator_executable_string="${locator} --catalog_file=${catalog_file} --events_file=${events_validation_file} --output_file=${locator_validation_output_file} --region=${region}"
+echo ${locator_executable_string}
+${locator_executable_string} &> ${result_directory}/validation.0.txt
+
+# Idea here is we want to really promote our initial catalog locations
+# so we compute corrections given event locations
+echo "----------------------------------------------------------------"
+echo "                       Initialization                           "
+echo "----------------------------------------------------------------"
+locator_training_output_file=${result_directory}/${target}ForwardOnlyTrainingCatalog.csv
+locator_executable_string="${locator} --catalog_file=${catalog_file} --events_file=${events_training_file} --output_file=${locator_training_output_file} --region=${region} --predict"
+echo ${locator_executable_string}
+${locator_executable_string} &> ${result_directory}/forwardOnly.txt
+
+corrections_file=${result_directory}/${target}Corrections.0.h5
+correction_executable_string="${corrector} --events_file=${locator_training_output_file} --corrections_file=${corrections_file} --maximum_residual_for_p=${max_residual_for_p} --maximum_residual_f
+or_s=${max_residual_for_s} --min_observations_for_static=${min_observations_for_static} --min_observations_for_ssst=${min_observations_for_ssst} --n_folds=${n_folds} ${do_mean_static} --region=${
+region}"
+echo ${correction_executable_string}
+${correction_executable_string} &> ${result_directory}/corrections.0.txt
+
+counter=1
+n_iterations=4
+while [ ${counter} -le ${n_iterations} ];
+do
+    ((counterm1=${counter}-1))
+    echo "----------------------------------------------------------------"
+    echo "                 Iteration: ${counter}                          "
+    echo "----------------------------------------------------------------"
+    # Run the locator with the corrections from the previous iteration
+    locator_training_output_file=${result_directory}/${target}TrainingCatalog.${counter}.csv
+    locator_executable_string="${locator} --catalog_file=${catalog_file} --events_file=${events_training_file} --output_file=${locator_training_output_file} --corrections_file=${result_directory}
+/${target}Corrections.${counterm1}.h5 --region=${region}"
+    echo ${locator_executable_string}
+    ${locator_executable_string} &> ${result_directory}/location.${counter}.txt
+
+    # Run the corrections utility 
+    corrections_file=${result_directory}/${target}Corrections.${counter}.h5
+    correction_executable_string="${corrector} --events_file=${locator_training_output_file} --corrections_file=${corrections_file} --maximum_residual_for_p=${max_residual_for_p} --maximum_residu
+al_for_s=${max_residual_for_s} --min_observations_for_static=${min_observations_for_static} --min_observations_for_ssst=${min_observations_for_ssst} --n_folds=${n_folds} ${do_mean_static} --regio
+n=${region}"
+    echo ${correction_executable_string}
+    ${correction_executable_string} &> ${result_directory}/corrections.${counter}.txt
+
+    # Run the validation step
+    correction_string=" --corrections_file=${corrections_file}"
+    locator_validation_output_file=${result_directory}/${target}ValidationCatalog.${counter}.csv
+    locator_executable_string="${locator} --catalog_file=${catalog_file} --events_file=${events_validation_file} --output_file=${locator_validation_output_file} --region=${region} ${correction_st
+ring}"
+    echo ${locator_executable_string}
+    ${locator_executable_string} &> ${result_directory}/validation.${counter}.txt
+
+    # Update the iterations
+    ((counter++))
+done
+~~~~~~~~~~~~~
+
+Likewise, for Yellowstone we have
+
+~~~~~~~~~~~~~{.sh}
+#!/usr/bin/bash
+# Purpose: Drive the YNP locator and correction code.
+# Author: Ben Baker (University of Utah) distributed under the MIT license.
+target=ynp
+root_directory=/PATH/TO/ULOCATOR # TODO
+executable_directory=/usr/local/bin
+locator=${executable_directory}/ulocate
+corrector=${executable_directory}/computeCorrections
+
+# Inputs
+region=${target}
+catalog_file=${root_directory}/examples/uuss/${target}ReviewedCatalog.csv
+events_training_file=${root_directory}/examples/uuss/${target}ReviewedTrainingEvents.csv
+events_validation_file=${root_directory}/examples/uuss/${target}ReviewedValidationEvents.csv
+topography_file=${root_directory}/examples/uuss/${target}Topography.h5
+
+# Fitting options
+n_folds=5
+max_residual_for_p=0.7
+max_residual_for_s=1.4
+min_observations_for_static=20
+do_mean_static=""
+min_observations_for_static=30
+min_observations_for_ssst=250
+
+# Outputs
+result_directory=${root_directory}/examples/uuss/${target}Results
+
+
+if [ ! -d ${result_directory} ]; then
+   mkdir -p ${result_directory}
+fi
+
+# Need a baseline evaluation
+echo "----------------------------------------------------------------"
+echo "                    Initial Validation Step                     "
+echo "----------------------------------------------------------------"
+locator_validation_output_file=${result_directory}/${target}ValidationCatalog.0.csv
+locator_executable_string="${locator} --catalog_file=${catalog_file} --events_file=${events_validation_file} --output_file=${locator_validation_output_file} --topography_file=${topography_file} -
+-region=${region}"
+echo ${locator_executable_string}
+${locator_executable_string} &> ${result_directory}/validation.0.txt
+
+# Idea here is we want to really promote our initial catalog locations
+# so we compute corrections given event locations
+echo "----------------------------------------------------------------"
+echo "                       Initialization                           "
+echo "----------------------------------------------------------------"
+locator_training_output_file=${result_directory}/${target}ForwardOnlyTrainingCatalog.csv
+locator_executable_string="${locator} --catalog_file=${catalog_file} --events_file=${events_training_file} --output_file=${locator_training_output_file} --topography_file=${topography_file} --reg
+ion=${region} --predict"
+echo ${locator_executable_string}
+${locator_executable_string} &> ${result_directory}/forwardOnly.txt
+
+corrections_file=${result_directory}/${target}Corrections.0.h5
+correction_executable_string="${corrector} --events_file=${locator_training_output_file} --corrections_file=${corrections_file} --maximum_residual_for_p=${max_residual_for_p} --maximum_residual_f
+or_s=${max_residual_for_s} --min_observations_for_static=${min_observations_for_static} --min_observations_for_ssst=${min_observations_for_ssst} --n_folds=${n_folds} ${do_mean_static} --region=${
+region}"
+echo ${correction_executable_string}
+${correction_executable_string} &> ${result_directory}/corrections.0.txt
+
+exit 0
+
+counter=1
+n_iterations=4
+while [ ${counter} -le ${n_iterations} ];
+do
+    ((counterm1=${counter}-1))
+    echo "----------------------------------------------------------------"
+    echo "                 Iteration: ${counter}                          "
+    echo "----------------------------------------------------------------"
+    # Run the locator with the corrections from the previous iteration
+    locator_training_output_file=${result_directory}/${target}TrainingCatalog.${counter}.csv
+    locator_executable_string="${locator} --catalog_file=${catalog_file} --events_file=${events_training_file} --output_file=${locator_training_output_file} --corrections_file=${result_directory}
+/${target}Corrections.${counterm1}.h5 --topography_file=${topography_file} --region=${region}"
+    echo ${locator_executable_string}
+    ${locator_executable_string} &> ${result_directory}/location.${counter}.txt
+
+    # Run the corrections utility 
+    corrections_file=${result_directory}/${target}Corrections.${counter}.h5
+    correction_executable_string="${corrector} --events_file=${locator_training_output_file} --corrections_file=${corrections_file} --maximum_residual_for_p=${max_residual_for_p} --maximum_residu
+al_for_s=${max_residual_for_s} --min_observations_for_static=${min_observations_for_static} --min_observations_for_ssst=${min_observations_for_ssst} --n_folds=${n_folds} ${do_mean_static} --regio
+n=${region}"
+    echo ${correction_executable_string}
+    ${correction_executable_string} &> ${result_directory}/corrections.${counter}.txt
+
+    # Run the validation step
+    correction_string=" --corrections_file=${corrections_file}"
+    locator_validation_output_file=${result_directory}/${target}ValidationCatalog.${counter}.csv
+    locator_executable_string="${locator} --catalog_file=${catalog_file} --events_file=${events_validation_file} --output_file=${locator_validation_output_file} --topography_file=${topography_fil
+e} --region=${region} ${correction_string}"
+    echo ${locator_executable_string}
+    ${locator_executable_string} &> ${result_directory}/validation.${counter}.txt
+
+    # Update the iterations
+    ((counter++))
+done
+~~~~~~~~~~~~~
+
+To proceed, we use the validation dataset to select a set of model corrections.  For Utah we look at a combination of event location consistency with the catalog and travel time misfit.  
+
+\image html utahValidationEarthquakeBoxPlots.jpeg "Comparison of location errors for earthquakes in latitude, longitude, depth, and origin time for the validation dataset when compared to the UUSS authorative catalog in Utah." width=520cm
+
+\image html utahValidationQuarryBlastBoxPlots.jpeg "Comparison of location errors for earthquakes in latitude, longitude, depth, and origin time for the validation dataset when compared to the UUSS authorative catalog in Utah." width=520cm
+
+\image html utahValidationTravelTimeResidualBoxPlots.jpeg "Travel time residuals for the validation dataset tabulated at every iteration of the optmization." width=520cm
+
+I ended up choosing the corrections at the end of the second iteration.  The most important factor for me on this iteration was predicting arrivals; particularly S.  On the second iteration, the validation S performance was ever-so-sleightly better than the first iteration.  It could be argued that iteration was plenty sufficient.  This is particularly evident on the event locations.  Note, however, that the whiskers on the box-and-whisker plots are at the 5th and 95th percentiles and the earthquake location errors are tiny the second iteration really is not much a step back from the first iteration in terms of earthquake location.  It is also not necessarily true that the catalog locations are perfect.  The quarry blast event locations are fairly stable.  The reason for the strange quarry blast depth residual distribution is at some point the UUSS catalog switched from letting the depth be free to fixing the depths to -2000 m.  Notice, that I require the quarry blasts to be at the free-surface which is a function of Utah's topography.   
+
+We play a similar game for YNP
+
+\image html ynpValidationEarthquakeBoxPlots.jpeg "Comparison of location errors for earthquakes in latitude, longitude, depth, and origin time for the validation dataset when compared to the UUSS authorative catalog in Utah." width=520cm
+
+\image html ynpValidationQuarryBlastBoxPlots.jpeg "Comparison of location errors for earthquakes in latitude, longitude, depth, and origin time for the validation dataset when compared to the UUSS authorative catalog in Utah." width=520cm
+
+\image html ynpValidationTravelTimeResidualBoxPlots.jpeg "Travel time residuals for the validation dataset tabulated at every iteration of the optmization." width=520cm
+
+Again, I choose the second iteration because this appears to best predict travel times for both P and, more importantly, S.  Unlike in Utah, the event locations do lose some consistency with the catalog after the first iteration.  But, as previously noted, the catalog locations are not necessarily perfect. 
+
+\subsection TopicUUSSRelocation_CatalogEnhancement Enhancing the Catalog
+
+Ultimately, our goal is to use this locator on real-time streaming data.  There are two major challenges.  First, the pick arrival times will be automatically generated.  Second, there will be many more S arrivals than P arrivals.  Such is the nature of deep-learning phase detectors.  To account for this, we run Alysha's P and S phase detectors and MultiSWAG pickers on the AQMS event-based waveform snippets.  When running the detectors we use and on-trigger threshold of 0.75 and off-trigger threshold of 0.65 for both P and S.  These relatively low tolerances will cast a fairly large net.  Additionally, we require the P arrivals from the detectors to be within 0.4 seconds of the computed arrival time for the original catalog event and the S arrival to be within 0.75 seconds of the estimated arrival time for the original catalog event.  These detections are passed to Alysha's MultiSWAG utilities to generate P and S picks with measures of uncertainty.  Next, we perform a catalog merge.  That is to say, in the rare instances that an automatic pick does not exist but a catalog pick does exist we save the catalog pick.  For the common scenario when both an automatic and catalog pick exists we retain the automatic pick.  Lastly, for the scenario that multiple automatic picks exist in the accepted time window we retain the pick on the preferred channel (e.g., HH, EH, BH, HN, then EN) that also has the lowest uncertainty.  The standard and enhanced catalog then look like
+
+Region    |P Standard          | S Standard | P Enhanced          | S Enhanced
+----------|--------------------| -----------| --------------------|-----------
+Utah      | 358,204 (247,679)  | 54,821     | 498,850 (319,338)   | 158,625
+YNP       | 219,594            | 56,643     | 257,656             | 177,995
+
+Note, the parentheticals are the number of earthquake-only P arrivals.
+
+\subsection TopicUUSSRelocation_EnhancementCorrections Enhanced Corrections
+
+Using the same optimization strategy as before, we can compute P and S corrections for the enhanced catalogs in Utah and YNP.
+
+\subsection TopicUUSSRelocation_SearchLocations Search Locations
+
+We can improve convergence in our initial global search location by picking a sensible event location.  Our strategy for choosing an initial search location in the optimization amounts to trying a few `likely' centers.
+
+1. Using the station with the smallest arrival time as a source and the average catalog depth.
+2. A pre-defined earthquake cluster center with the smallest cost function.
+3. The quarry with the smallest objective function.  This pertains only to Utah.
+
+Note, in each step we must optimize for the origin time as we are specifying the event location.  
+
+Selecting search locations based on the catalog training events is really a look at it and see if it makes sense activity.  Also, in this case, agglomerative clustering worked better than DBSCAN and KMeans but that doesn't mean those clustering strategies should be ruled out in other studies.
+
+The smallest
+~~~~~~~~~~~~~{.py}
+#!/usr/bin/env python3
+# Purpose: Defines earthquake clusters for initial searching.
+# Author: Ben Baker (University of Utah) distributed under the MIT license.
+import pyulocator
+import pandas as pd
+import numpy as np
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.preprocessing import MinMaxScaler
+
+def create_x_y_z_locations(df : pd.DataFrame, is_utah : bool = True):
+    """
+    Creates the (x,y,z) features in meters of the event locations dataframe.
+    """
+    if (is_utah):
+        region = pyulocator.Position.UtahRegion() 
+    else:
+        region  = pyulocator.Position.YNPRegion()
+    x_locations = np.zeros(len(df))
+    y_locations = np.zeros(len(df))
+    z_locations = np.zeros(len(df))
+    for i in range(len(df)):
+        row = df.iloc[i]
+        latitude = row['latitude']
+        longitude = row['longitude']
+        [x_locations[i], y_locations[i]] = region.geographic_to_local_coordinates(row['latitude'], row['longitude'])
+    df['x_locations'] = x_locations
+    df['y_locations'] = y_locations
+    df['z_locations'] = df['depth'].to_numpy()*1000
+    return df
+
+def dataframe_to_features_matrix(df : pd.DataFrame, do_depth : bool = True):
+    """
+    Converts the dataframe to a features matrix.
+    """
+    if (do_depth):
+        X = np.zeros([len(df), 3])
+        X[:, 2] = df['z_locations'].to_numpy()[:]
+    else:
+        X = np.zeros([len(df), 2])
+    X[:, 0] = df['x_locations'].to_numpy()[:]
+    X[:, 1] = df['y_locations'].to_numpy()[:]
+    return X
+
+def clusters_to_geographic_coordinates(X : np.array,
+                                       is_utah = True):
+    """
+    Returns the geographic coordinates of the clusters positions.
+    """
+    if (is_utah):
+        region = pyulocator.Position.UtahRegion() 
+    else:
+        region  = pyulocator.Position.YNPRegion()
+    for i in range(len(X)):
+        (X[i,0], X[i,1]) = region.local_to_geographic_coordinates(X[i, 0], X[i, 1])
+    return X
+
+def compute_clusters_agglomerative(df : pd.DataFrame,
+                                   n_clusters = 10,
+                                   do_depth : bool = True,
+                                   is_utah : bool = True,
+                                   rescale = False):
+    """
+    Performs Ward-agglomerative clustering on the (x,y,z) features.
+    """
+    if (is_utah):
+        print("Procesing Utah...")
+    else:
+        print("Processing YNP...")
+    df_training = create_x_y_z_locations(df, is_utah = is_utah)
+    X = dataframe_to_features_matrix(df_training, do_depth = do_depth)
+    scalar = MinMaxScaler()
+    if (rescale):
+        X_transformed = scalar.fit_transform(X)
+    else:
+        X_transformed = np.copy(X)
+    agg = AgglomerativeClustering(n_clusters = n_clusters, linkage = 'ward')
+    labels = agg.fit_predict(X_transformed)
+    cluster_centers = np.zeros([n_clusters, X.shape[1]])
+    ic = 0 
+    for label in np.unique(labels):
+        indices = np.where(labels == label)[0]
+        for j in range(X.shape[1]):
+            cluster_centers[ic, j] = np.mean(X[indices, j]) 
+        ic = ic + 1 
+    cluster_locations = clusters_to_geographic_coordinates(cluster_centers, is_utah = is_utah)
+    return cluster_locations
+
+if __name__ == "__main__":
+    prefixes = ['utah', 'ynp']
+    for prefix in prefixes:
+        if (prefix == 'utah'):
+            is_utah = True
+            n_clusters = 45
+        else:
+            is_utah = False
+            n_clusters = 22
+        training_events_file = '{}ReviewedTrainingEvents.csv'.format(prefix)
+        centroids_output_file = '{}SearchLocations.csv'.format(prefix)
+        df_training = pd.read_csv(training_events_file)
+        # Only want to deal with earthquakes
+        df_training = df_training[ df_training['event_type'] == 'eq' ]
+        # Perform agglomerative clustering 
+        cluster_centers = compute_clusters_agglomerative(df_training,
+                                                         n_clusters = n_clusters,
+                                                         do_depth = True,
+                                                         is_utah = is_utah,
+                                                         rescale = False)
+        # Write the result
+        ofl = open(centroids_output_file, 'w')
+        ofl.write("latitude,longitude,depth\n") 
+        for i in range(len(cluster_centers)):
+            if (cluster_centers.shape[1] == 3):
+                ofl.write("{},{},{}\n".format(cluster_centers[i, 0], cluster_centers[i, 1], cluster_centers[i, 2]))
+            else:
+                ofl.write("{},{},{}\n".format(cluster_centers[i, 0], cluster_centers[i, 1], 6400))
+        ofl.close() 
+~~~~~~~~~~~~~
+
+\image html utahSearchLocations.jpeg "Initial earthquake search locations in Utah based performing agglomerative clustering on the earthquake-only training dataset." width=520cm
+
+\image html ynpSearchLocations.jpeg "Initial earthquake search locations in YNP based performing agglomerative clustering on the earthquake-only training dataset." width=520cm
+
+*/

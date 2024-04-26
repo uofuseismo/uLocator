@@ -4,9 +4,13 @@
 namespace ULocator::Position
 {
  class WGS84;
+ class IGeographicRegion;
 }
 namespace ULocator
 {
+/// @class Station "station.hpp" "uLocator/station.hpp"
+/// @brief Defines a seismic station.
+/// @copyright Ben Baker (University of Utah) distributed under the MIT license.
 class Station
 {
 public:
@@ -51,7 +55,11 @@ public:
 
     /// @brief Sets the latitude and longitude of the station.
     /// @param[in] position  The geographic position of the station.
-    void setGeographicPosition(const Position::WGS84 &position);
+    void setGeographicPosition(const Position::WGS84 &position,
+                               const Position::IGeographicRegion &region);
+    /// @result The local coordaintes of the station.
+    /// @throws std::runtime_error if \c haveGeographicPosition() is false.
+    [[nodiscard]] std::pair<double, double> getLocalCoordinates() const;
     /// @result The geographic position of the station.
     [[nodiscard]] Position::WGS84 getGeographicPosition() const;
     /// @result The geographic position of the station.
@@ -59,7 +67,7 @@ public:
     ///       \c getGeographicPosition().
     [[nodiscard]] const Position::WGS84& getGeographicPositionReference() const;
     /// @result True indicates the geographic position was set. 
-    [[nodiscard]] bool haveGeographicPosition() const noexcept; 
+    [[nodiscard]] bool haveGeographicPosition() const noexcept;
 
     /// @brief Sets the station's elevation.
     /// @param[in] elevation  The station's elevation in meters with

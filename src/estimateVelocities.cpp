@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <functional>
 #include <vector>
+#include <prima/prima.h>
 #ifndef NDEBUG
 #include <cassert>
 #endif
@@ -19,162 +20,14 @@
 #include "logging/standardOut.hpp"
 #endif
 #include "uLocator/travelTimeCalculatorMap.hpp"
-#include "uLocator/firstArrivalRayTracer.hpp"
+#include "uLocator/rayTracer.hpp"
 #include "uLocator/station.hpp"
 #include "uLocator/arrival.hpp"
 #include "uLocator/origin.hpp"
-#include "uLocator/position/wgs84.hpp"
-
-#define UTM_ZONE 12
-
-double qualityToStandardError(const double quality)
-{
-    if (std::abs(quality - 1) < 1.e-4)
-    {   
-        return 0.03;
-    }   
-    else if (std::abs(quality - 0.75) < 1.e-4)
-    {   
-        return 0.06;
-    }   
-    else if (std::abs(quality - 0.5) < 1.e-4)
-    {   
-        return 0.15;
-    }   
-#ifndef NDEBUG
-    assert(false);
-#endif
-    return 1;
-}
-
-std::vector<ULocator::Origin>
-    loadCatalog(const std::string &fileName,
-                const std::string &trainingFileName,
-                std::shared_ptr<UMPS::Logging::ILog> logger)
-{
-    // Get training events
-    std::string line;
-    std::vector<int64_t> trainingEventIdentifiers;
-    std::ifstream trainingFile(trainingFileName);
-    getline(trainingFile, line); // Header
-    while (getline(trainingFile, line))
-    {   
-        std::vector<std::string> splitLine;
-        splitLine.reserve(64);
-        boost::tokenizer<boost::escaped_list_separator<char>>
-           tokenizer(line,
-                     boost::escaped_list_separator<char>('\\', ',', '\"'));
-        for (auto i = tokenizer.begin(); i != tokenizer.end(); ++i) 
-        {
-            splitLine.push_back(*i);
-        }
-        trainingEventIdentifiers.push_back(std::stol(splitLine[0]));
-    }   
-    // Get entire catalog
-    std::vector<ULocator::Origin> origins;
-    origins.reserve(10000);
-    std::ifstream csvFile(fileName); 
-    if (!csvFile.is_open())
-    {   
-        throw std::runtime_error("Couldn't open: " + fileName);
-    }   
-    ULocator::Origin origin;
-    std::vector<ULocator::Arrival> arrivals;
-    int64_t evidOld{-1};
-    getline(csvFile, line); // Header
-    while (getline(csvFile, line))
-    {   
-        std::vector<std::string> splitLine;
-        splitLine.reserve(64);
-        boost::tokenizer<boost::escaped_list_separator<char>>
-           tokenizer(line,
-                     boost::escaped_list_separator<char>('\\', ',', '\"'));
-        for (auto i = tokenizer.begin(); i != tokenizer.end(); ++i) 
-        {
-            splitLine.push_back(*i);
-        }
-        auto evid = std::stol(splitLine[0]);
-        auto network = splitLine[1];
-        auto stationName = splitLine[2];
-        auto phase = splitLine[5];
-        auto arid = std::stol(splitLine[6]);
-        auto time = std::stod(splitLine[7]);
-        auto residual = std::stod(splitLine[13]);
-        auto uncertainty = qualityToStandardError(std::stod(splitLine[8]));
-        auto stationLat = std::stod(splitLine[14]);
-        auto stationLon = std::stod(splitLine[15]);
-        auto stationElev = std::stod(splitLine[16]);
-        auto eventLat = std::stod(splitLine[17]); 
-        auto eventLon = std::stod(splitLine[18]);
-        auto eventDepth = 1000*std::stod(splitLine[19]);
-        auto originTime = std::stod(splitLine[20]);
-        auto eventType = splitLine[24];
-        if (evid != evidOld)
-        {
-            // When we get to a new event finish out this origin
-            if (evidOld !=-1)
-            {
-                if (std::find(trainingEventIdentifiers.begin(),
-                              trainingEventIdentifiers.end(),
-                              origin.getIdentifier())
-                    != trainingEventIdentifiers.end())
-                {
-                    origin.setArrivals(arrivals);
-                    origins.push_back(origin);
-                }
-            }
-            // Update
-            evidOld = evid;
-            arrivals.clear();
-            origin.clear();
-            // Set initial origin information
-            ULocator::Position::WGS84 epicenter{eventLat, eventLon, UTM_ZONE};
-            origin.setIdentifier(evid);
-            origin.setEpicenter(epicenter);
-            origin.setDepth(eventDepth);
-            origin.setTime(originTime);
-            origin.setEventType(ULocator::Origin::EventType::Earthquake);
-            if (eventType == "qb")
-            {
-                origin.setEventType(ULocator::Origin::EventType::QuarryBlast);
-            }
-        }
-        ULocator::Position::WGS84 stationPosition{stationLat, stationLon, UTM_ZONE};
-        ULocator::Arrival arrival;
-        ULocator::Station station;
-        station.setNetwork(network);
-        station.setName(stationName);
-        station.setGeographicPosition(stationPosition);
-        station.setElevation(stationElev);
-        arrival.setTime(time);
-        arrival.setStandardError(uncertainty);
-        arrival.setResidual(residual);
-        arrival.setPhase(phase);
-        arrival.setStation(station);
-        arrival.setIdentifier(arid);
-        // Assert the arrival does not already exist
-        bool exists{false};
-        for (const auto &a : arrivals)
-        {
-            const auto &si = a.getStation();
-            if (si.getNetwork() == network &&
-                si.getName()    == stationName &&
-                a.getPhase()    == phase)
-            {
-                exists = true;
-                logger->warn("Duplicate phase arrival for: "
-                            + std::to_string(evid)
-                            + " " + network + "." + stationName + "." + phase
-                            + "; skipping...");
-            }
-        }
-        if (!exists)
-        {
-            arrivals.push_back(std::move(arrival));
-        }
-    }   
-    return origins;    
-}
+#include "uLocator/position/utahRegion.hpp"
+#include "uLocator/position/ynpRegion.hpp"
+#include "optimizers/objectiveFunctions.hpp"
+#include "loadCatalog.hpp"
 
 struct Layer
 {
@@ -192,12 +45,16 @@ struct Layer
         if (velocity < lowerBound)
         {
             throw std::invalid_argument(
-                "Velocity cannot be less than lower bound");
+                "Velocity " + std::to_string(velocity)
+              + " cannot be less than lower bound " 
+              + std::to_string(lowerBound));
         }
         if (velocity > upperBound)
         {
             throw std::invalid_argument(
-                "Velocity cannot be greater than upper bound");
+                "Velocity " + std::to_string(velocity)
+              + " cannot be greater than upper bound "
+              + std::to_string(upperBound));
         }
     }
     double topInterface{0};
@@ -219,8 +76,8 @@ struct ObjectiveFunction
         origins.reserve(inOrigins.size());
         arrivalTimes.reserve(inOrigins.size()*10);
         weights.reserve(inOrigins.size()*10);
+        estimates.reserve(inOrigins.size()*10);
         stationPhasePairs.reserve(inOrigins.size()); 
-        double objectiveFunction = 0;
         for (const auto &inOrigin : inOrigins)
         {
             auto origin = inOrigin;
@@ -234,12 +91,10 @@ struct ObjectiveFunction
                     arrivalsToKeep.push_back(arrival);
                     arrivalTimes.push_back(arrival.getTime());
                     weights.push_back(1./arrival.getStandardError());
+                    estimates.push_back(
+                        arrival.getTime() - arrival.getResidual());
                     catalogResiduals.push_back(arrival.getResidual());
-                    auto weightedResidual
-                         = arrival.getResidual()/arrival.getStandardError();
                     spPair.push_back(std::pair {arrival.getStation(), phase});
-                    objectiveFunction = objectiveFunction
-                                      + weightedResidual*weightedResidual;
                 }
             }
             if (!arrivalsToKeep.empty())
@@ -249,8 +104,8 @@ struct ObjectiveFunction
                 stationPhasePairs.push_back(std::move(spPair));
             }
         }
-        estimates.resize(arrivalTimes.size());
-        logger->info("Catalog obj fn: " + std::to_string(objectiveFunction));
+        // Tabulate objective function
+        double objectiveFunction = evaluateObjectiveFunction();
         logger->info("Number of origins: " + std::to_string(origins.size()));
         logger->info("Number of phase arrivals: "
                    + std::to_string(arrivalTimes.size()));
@@ -283,9 +138,9 @@ struct ObjectiveFunction
         logger->info("Number of unique stations: "
                    + std::to_string(uniqueStations.size()));
     }
-    void initializeCalculators()
+    void initializeCalculators() const
     {
-        logger->info("Initializing calculators...");
+        logger->debug("Initializing calculators...");
 #ifndef NDEBUG
         assert(interfaces.size() == velocities.size());
 #endif
@@ -293,13 +148,16 @@ struct ObjectiveFunction
         for (const auto &uniqueStation : uniqueStations)
         {
             auto name = uniqueStation.getNetwork()
-                      + "." + uniqueStation.getName() + phase;
-            auto calculator
-                = std::make_unique<ULocator::FirstArrivalRayTracer> (logger);
+                      + "." + uniqueStation.getName() + "." + phase;
             try
             {
-                calculator->initialize(
-                    uniqueStation, phase, interfaces, velocities);
+                logger->debug("Initializing: " + name);
+                auto calculator
+                    = std::make_unique<ULocator::RayTracer> (uniqueStation,
+                                                             phase,
+                                                             interfaces,
+                                                             velocities,
+                                                             logger);
                 calculators.insert(uniqueStation, phase, std::move(calculator));
             }
             catch (const std::exception &e)
@@ -308,7 +166,7 @@ struct ObjectiveFunction
             }
         }
     }
-    double f(const int n, const double x[])
+    double f(const int n, const double x[]) const
     {
         nEvaluations = nEvaluations + 1;
         logger->info("Objective function evaluation: "
@@ -324,34 +182,31 @@ struct ObjectiveFunction
         std::copy(x, x + n, velocities.data());
         initializeCalculators();
         // Tabulate the objective function
-        double objectiveFunction = 0;
-        int nObservations{0};
-        for (int iOrigin = 0;
-             iOrigin < static_cast<int> (origins.size()); ++iOrigin)
+        int nOrigins = static_cast<int> (origins.size());
+        int iObservation{0};
+        for (int iOrigin = 0; iOrigin < nOrigins; ++iOrigin)
         {
             auto epicenter = origins.at(iOrigin).getEpicenter();
-            auto depth = origins[iOrigin].getDepth();
-            auto time = origins[iOrigin].getTime();
+            auto [xSource, ySource]
+                = region->geographicToLocalCoordinates(
+                    epicenter.getLatitude(), epicenter.getLongitude());
+            auto zSource = origins[iOrigin].getDepth();
+            double originTime = origins[iOrigin].getTime();
             const auto &arrivals = origins[iOrigin].getArrivalsReference();
             std::vector<double> travelTimes;
-            calculators.evaluate(stationPhasePairs[iOrigin], epicenter, depth,
-                                 &travelTimes, applyCorrection);
-            for (int iArrival = 0;
-                 iArrival < static_cast<int> (arrivals.size()); ++iArrival)
-            {
-                auto observed = arrivalTimes[nObservations]; //arrivals[iArrival].getTime();
-                auto weight = weights[nObservations]; //1./arrivals[iArrival].getStandardError();
-                double estimate = travelTimes[iArrival] + time;
-                auto weightedResidual = weight*(observed - estimate);
-                objectiveFunction = objectiveFunction
-                                  + weightedResidual*weightedResidual;
-                estimates[nObservations] = estimate;
-                nObservations = nObservations + 1;
-            }
+            constexpr bool applyCorrection{false};
+            calculators.evaluate(stationPhasePairs.at(iOrigin),
+                                 originTime, xSource, ySource, zSource,
+                                 &travelTimes,
+                                 applyCorrection);
+            std::copy(travelTimes.begin(), travelTimes.end(),
+                      estimates.begin() + iObservation);
+            iObservation = iObservation + travelTimes.size();
         }
 #ifndef NDEBUG
-        assert(nObservations == arrivalTimes.size());
+        assert(iObservation == estimates.size());
 #endif
+        auto objectiveFunction = evaluateObjectiveFunction();
         logger->info("Objective function: "
                    + std::to_string(objectiveFunction));
         return objectiveFunction;
@@ -364,6 +219,41 @@ struct ObjectiveFunction
         }
         throw std::runtime_error("gradient not done");
     } 
+    double evaluateObjectiveFunction() const
+    {
+        // Tabulate objective function
+        double objectiveFunction{0};
+        if (norm == ULocator::Optimizers::IOptimizer::Norm::L1)
+        {
+            objectiveFunction
+                = ::l1(weights, arrivalTimes, estimates, ::Measurement::Standard);
+            logger->debug("L1 objective function: "
+                        + std::to_string(objectiveFunction));
+        }
+        else if (norm == ULocator::Optimizers::IOptimizer::Norm::LeastSquares)
+        {
+            objectiveFunction
+                = ::leastSquares(weights, arrivalTimes, estimates,
+                                 ::Measurement::Standard);
+            logger->debug("Catalog least-squares objective function: "
+                        + std::to_string(objectiveFunction));
+        }
+        else if (norm == ULocator::Optimizers::IOptimizer::Norm::Lp)
+        {
+            objectiveFunction
+                = ::lp(weights, arrivalTimes, estimates, pNorm,
+                      ::Measurement::Standard);
+            logger->debug("Catalog lp objective function: "
+                        + std::to_string(objectiveFunction));
+        }
+#ifndef NDEBUG
+        else
+        {
+            assert(false);
+        }
+#endif
+        return objectiveFunction;
+    }
     void writeToCSV(const std::string &filename)
     {
         std::ofstream of(filename);
@@ -386,21 +276,40 @@ struct ObjectiveFunction
         stationPhasePairs;
     std::vector<double> arrivalTimes;
     std::vector<double> catalogResiduals;
-    std::vector<double> estimates;
+    mutable std::vector<double> estimates;
     std::vector<double> weights;
     std::vector<double> interfaces;
-    std::vector<double> velocities;
-    ULocator::TravelTimeCalculatorMap calculators;
+    mutable std::vector<double> velocities;
+    mutable ULocator::TravelTimeCalculatorMap calculators;
+    std::unique_ptr<ULocator::Position::IGeographicRegion> region{nullptr};
     std::string phase{"P"};
-    int nEvaluations{0};
+    double pNorm{1.5};
+    ULocator::Optimizers::IOptimizer::Norm
+        norm{ULocator::Optimizers::IOptimizer::Norm::LeastSquares};
+    mutable int nEvaluations{0};
 };
+
+static void primaCallbackFunction(const double x[],
+                                  double *f,
+                                  const void *data)
+{
+     auto objectiveFunction
+         = reinterpret_cast<const ObjectiveFunction *> (data);
+     auto n = static_cast<int> (objectiveFunction->velocities.size());
+     *f = objectiveFunction->f(n, x);
+}
+
 
 struct ProgramOptions
 {
-    std::filesystem::path resultsDirectory{"/home/bbaker/Codes/uLocator/examples/uuss/ynpResults"};
-    std::filesystem::path catalogFile{"/home/bbaker/Codes/uLocator/examples/uuss/ynpResults/utah_catalog.csv"};
-    std::filesystem::path trainingFile{"/home/bbaker/Codes/uLocator/examples/uuss/ynpResults/utah_events_training.csv"};
+    std::filesystem::path resultsDirectory{"/home/bbaker/Codes/uLocator/examples/uuss/utahResults"};
+    std::filesystem::path catalogFile{"/home/bbaker/Codes/uLocator/examples/uuss/utahReviewedCatalog.csv"};
+    std::filesystem::path trainingFile{"/home/bbaker/Codes/uLocator/examples/uuss/utahReviewedTrainingEvents.csv"};
     std::string phase{"P"};
+    std::unique_ptr<ULocator::Position::IGeographicRegion> region{nullptr};
+    double pNorm{1.5};
+    ULocator::Optimizers::IOptimizer::Norm 
+        norm{ULocator::Optimizers::IOptimizer::Norm::LeastSquares};
     bool doUtah{true};
     bool doHelp{false};
 };
@@ -421,6 +330,10 @@ Allowed options)""");
                          "A CSV with the events and travel times")
         ("training_file",  boost::program_options::value<std::string> ()->default_value(options.trainingFile),
                          "A CSV file with the events identifiers in the training set")
+        ("norm", boost::program_options::value<std::string> ()->default_value("l2"),
+                "This defines the norm in which to minimize.  This can be l1, l2 (least-squares), lp")
+        ("p", boost::program_options::value<double> ()->default_value(options.pNorm),
+              "If using norm = lp then this is the exponent.  This must be greater than or equal to 1")
         ("phase", boost::program_options::value<std::string> ()->default_value(options.phase),
                   "The phase velocity for which we are inverting e.g., P or S")
         ("do_ynp", "If present then this will use the default Yellowstone models.  Otherwise, this will be for optimizing a Utah model.");
@@ -485,8 +398,48 @@ Allowed options)""");
             throw std::invalid_argument("Unhandled phase " + phase);
         }
     }
+    if (vm.count("norm"))
+    {
+        auto snorm = vm["norm"].as<std::string> ();
+        if (snorm == "l2")
+        {
+            options.norm = ULocator::Optimizers::IOptimizer::Norm::LeastSquares;
+        }
+        else if (snorm == "l1")
+        {
+            options.norm = ULocator::Optimizers::IOptimizer::Norm::L1;
+        }
+        else if (snorm == "lp")
+        {
+           options.norm = ULocator::Optimizers::IOptimizer::Norm::Lp;
+           if (vm.count("p"))
+           {
+               auto p = vm["p"].as<double> ();
+               if (p < 1)
+               {
+                   throw std::invalid_argument("p must be >= 1");
+               }
+               if (p == 1)
+               {
+                   options.pNorm = 1;
+                   options.norm = ULocator::Optimizers::IOptimizer::Norm::L1;
+               }
+               else if (p == 2) 
+               {
+                   options.pNorm = 2;
+                   options.norm
+                       = ULocator::Optimizers::IOptimizer::Norm::LeastSquares;
+               }
+            }
+        }
+    }
     options.doUtah = true;
-    if (vm.count("do_ynp")){options.doUtah = false;}
+    options.region = std::make_unique<ULocator::Position::UtahRegion> ();
+    if (vm.count("do_ynp"))
+    {
+        options.region = std::make_unique<ULocator::Position::YNPRegion> ();
+        options.doUtah = false;
+    }
     return options;
 }
 
@@ -507,12 +460,18 @@ int main(int argc, char *argv[])
     auto logger = std::make_shared<UMPS::Logging::StandardOut> ();
 
     auto phase = programOptions.phase;
-    auto initialResidualsFile = programOptions.resultsDirectory / std::filesystem::path{"initialResiduals." + phase + ".csv"};
-    auto finalResidualsFile  = programOptions.resultsDirectory / std::filesystem::path{"finalResiduals." + phase + ".csv"};
+    auto initialResidualsFile
+        = programOptions.resultsDirectory /
+          std::filesystem::path{"initialResiduals." + phase + ".csv"};
+    auto finalResidualsFile 
+        = programOptions.resultsDirectory /
+          std::filesystem::path{"finalResiduals." + phase + ".csv"};
     auto catalogFile = programOptions.catalogFile;
     auto trainingFile = programOptions.trainingFile;
-    auto origins = ::loadCatalog(catalogFile, trainingFile, logger);
-
+    constexpr int catalogVersion{3};
+    auto origins = ::loadCatalog(catalogFile, trainingFile,
+                                 *programOptions.region,
+                                 logger, catalogVersion);
     // Make some baseline
     std::vector<::Layer> initialModel;
     if (programOptions.doUtah)
@@ -593,6 +552,9 @@ int main(int argc, char *argv[])
     ::ObjectiveFunction objectiveFunction;
     objectiveFunction.logger = logger;
     objectiveFunction.phase = phase;
+    objectiveFunction.region = programOptions.region->clone();
+    objectiveFunction.norm = programOptions.norm;
+    objectiveFunction.pNorm = programOptions.pNorm;
     objectiveFunction.setOrigins(origins);
     std::vector<double> xInitial;
     for (const auto &layer : initialModel)
@@ -640,15 +602,26 @@ int main(int argc, char *argv[])
             logger->info("Creating starting YNP P model...");
             layers = std::vector<::Layer>
             {
-                ::Layer{-4500,  2458, 1000, 2750},
-                ::Layer{-1000,  3375, 2750, 4000},
-                ::Layer{ 2000,  4675, 4000, 5000},
-                ::Layer{ 5000,  5475, 5000, 5600},
-                ::Layer{ 8000,  5725, 5600, 5900},
-                ::Layer{12000,  6133, 5900, 6250},
-                ::Layer{16000,  6400, 6250, 6450},
-                ::Layer{21000,  6575, 6450, 7200},
+/*
+                ::Layer{-4500,  2512, 1000, 2750 - 1.e-1},
+                ::Layer{-1000,  3398, 2750, 3800 - 1.e-1},
+                ::Layer{ 2000,  4689, 3800, 5000 - 1.e-1},
+                ::Layer{ 5000,  5456, 5000, 5600 - 1.e-1},
+                ::Layer{ 8000,  5674, 5600, 5900 - 1.e-1},
+                ::Layer{12000,  6250, 5900, 6300 - 1.e-1},
+                ::Layer{16000,  6398, 6300, 6450 - 1.e-1},
+                ::Layer{21000,  6575, 6450, 7200 - 1.e-1},
                 ::Layer{50000,  8200, 7200, 8400}
+*/
+                ::Layer{-4500,  2720, 1000, 2750 - 1.e-1},
+                ::Layer{-1000,  2790, 2750, 4000 - 1.e-1},
+                ::Layer{ 2000,  5210, 4000, 5350 - 1.e-1},
+                ::Layer{ 5000,  5560, 5350, 5600 - 1.e-1},
+                ::Layer{ 8000,  5770, 5600, 5850 - 1.e-1},
+                ::Layer{12000,  6070, 5850, 6150 - 1.e-1},
+                ::Layer{16000,  6330, 6150, 6450 - 1.e-1},
+                ::Layer{21000,  6630, 6450, 7200 - 1.e-1},
+                ::Layer{50000,  8000, 7200, 8400}
             };
         }
         else if (phase == "S")
@@ -656,14 +629,14 @@ int main(int argc, char *argv[])
             logger->info("Creating starting YNP S model...");
             layers = std::vector<::Layer>
             {
-                ::Layer{-4500,  1729,  500, 1975},
-                ::Layer{-1000,  2338, 1975, 2700},
-                ::Layer{ 2000,  3055, 2700, 3200},
-                ::Layer{ 5000,  3430, 3200, 3500},
-                ::Layer{ 8000,  3567, 3500, 3650},
-                ::Layer{12000,  3690, 3650, 3700},
-                ::Layer{16000,  3720, 3700, 3900},
-                ::Layer{21000,  3975, 3900, 4400},
+                ::Layer{-4500,  1729,  500, 1975 - 1.e-1},
+                ::Layer{-1000,  2338, 1975, 2700 - 1.e-1},
+                ::Layer{ 2000,  3055, 2700, 3200 - 1.e-1},
+                ::Layer{ 5000,  3430, 3200, 3500 - 1.e-1},
+                ::Layer{ 8000,  3567, 3500, 3650 - 1.e-1},
+                ::Layer{12000,  3690, 3650, 3700 - 1.e-1},
+                ::Layer{16000,  3750, 3700, 3900 - 1.e-1},
+                ::Layer{21000,  3975, 3900, 4400 - 1.e-1},
                 ::Layer{50000,  4950, 4400, 5500}
             };
         }
@@ -686,7 +659,48 @@ int main(int argc, char *argv[])
     } 
     objectiveFunction.interfaces = interfaces;
 
+    std::vector<double> xWork(x);
+    prima_problem_t primaProblem;
+    prima_init_problem(&primaProblem, n);
+    primaProblem.x0 = xWork.data();
+    primaProblem.calfun = &primaCallbackFunction;
+    primaProblem.xl = lowerBounds.data();
+    primaProblem.xu = upperBounds.data();
 
+    prima_options_t primaOptions;
+    prima_init_options(&primaOptions);
+    primaOptions.rhobeg = 25;  // reasonable initial change in velocities
+    primaOptions.rhoend = 0.1; // reasonable final change in velocities
+    primaOptions.data = &objectiveFunction;
+    primaOptions.maxfun = std::max(static_cast<int> (x.size()) + 3, 50);
+
+    prima_result_t primaResult;
+    prima_minimize(PRIMA_BOBYQA, &primaProblem, &primaOptions, &primaResult);
+    
+    std::copy(primaResult.x, primaResult.x + x.size(), x.begin());
+    if (primaResult.f < f0)
+    {
+        logger->info("Final loss: " + std::to_string(primaResult.f));
+    }
+    else
+    {
+        logger->warn("Optimization failed.  Using initial model");
+        
+        for (size_t i = 0; i < initialModel.size(); ++i)
+        {   
+            x[i] = initialModel[i].velocity;
+        }
+    }
+    
+    prima_free_result(&primaResult); 
+    //prima_free_problem(&primaProblem);
+ 
+    for (int i = 0; i < objectiveFunction.interfaces.size(); ++i)
+    {
+        std::cout << objectiveFunction.interfaces[i] << " "
+                  << x[i] << std::endl;
+    }
+/*
     //nlopt::opt optimizer(nlopt::GN_DIRECT_L, n);
     nlopt::opt optimizer(nlopt::LN_BOBYQA, n);
     optimizer.set_maxeval(100);
@@ -716,6 +730,7 @@ int main(int argc, char *argv[])
                   << x[i] << std::endl;
     }
     objectiveFunction.nEvaluations = 0;
+*/
     auto fFinal = objectiveFunction.f(x.size(), x.data());
     logger->info("Evaluating final loss: " + std::to_string(fFinal)
                + " ; " 

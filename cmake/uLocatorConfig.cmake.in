@@ -1,0 +1,35 @@
+# Time cmake module
+#
+# The following import targets are created
+#
+# ::
+#
+#   libuLocator-static
+#   libuLocator
+#
+# This module sets the following variables in your project::
+#
+#   uLocator_FOUND - true if uLocator library was found on the system
+#   uLocator_INCLUDE_DIR - the directory containing uLocator headers
+#   uLocator_LIBRARY - 
+#   uLocator_STATIC_LIBRARY
+
+@PACKAGE_INIT@
+
+if(NOT TARGET uLocator AND NOT TARGET uLocator-static)
+  include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake")
+
+  if (TARGET uLocator)
+    get_target_property(@PROJECT_NAME@_INCLUDE_DIR uLocator INTERFACE_INCLUDE_DIRECTORIES)
+  else ()
+    get_target_property(@PROJECT_NAME@_INCLUDE_DIR uLocator-static INTERFACE_INCLUDE_DIRECTORIES)
+  endif()
+
+  if (TARGET uLocator)
+    get_target_property(@PROJECT_NAME@_LIBRARY uLocator LOCATION)
+  endif()
+  if (TARGET uLocator-static)
+    get_target_property(@PROJECT_NAME@_STATIC_LIBRARY uLocator-static LOCATION)
+  endif()
+endif()
+

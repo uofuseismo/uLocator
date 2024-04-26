@@ -1,0 +1,42 @@
+/*!
+\page TopicTopography Topography
+\ingroup Topography_Introduction
+
+<p>
+Since earthquakes happen in the Earth a natural constraint to any earthquake location problem is to require the event be at or below the Earth's surface.  This section introduces concepts for defining this contraint.
+
+   - \ref TopicTopographyConstant : These are station-phase specific corrections that arise from sites being on, say, soft-soil and having some systematically biased residual.
+   - \ref TopicTopographyGridded : These are station-phase specific corrections that memorize residuals from sources in a given region.
+</p>
+
+We first define an abstract notion of topography.  For optimization purposes we must be able to compute 
+
+   - The elevation, \f$ E(x,y) \f$ at an epicentral location.
+   - The derivative \f$ \partial_x E(x,y) \f$  and \f$ \partial_y E(x,y) \f$ at an evaluation point (x,y).
+
+With this formulation, any objective function requiring travel time gradient information can use implicit partial derivatives to obtain
+
+\f[
+   \frac{\partial \hat{T}(x, y, z =-E(x,y))}{\partial x} = \frac{\partial \hat{T}}{\partial x} - \frac{\partial \hat{T}}{\partial z} \frac{\partial E}{\partial x}
+\f]
+\f[
+   \frac{\partial \hat{T}(x, y, z =-E(x,y))}{\partial y} = \frac{\partial \hat{T}}{\partial y} - \frac{\partial \hat{T}}{\partial z} \frac{\partial E}{\partial y}
+\f]
+
+Note, the minus sign accomodates the optimization coordinate system of z positive down which is opposite of the topography coordinate system of z positive up.
+
+These requirements are encapsulated in the abstract base class
+
+\include uLocator/topography/topography.hpp
+
+\page TopicTopographyConstant Constant
+\ingroup Topography_constant
+
+If topography seems a superfluous detail then I would recommend simply using the constant topography calculator.  Effectively, sources will not be allowed above this elevation.
+
+\page TopicTopographyGridded Gridded
+\ingroup Topography_gridded
+
+TODO
+*/
+

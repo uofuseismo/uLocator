@@ -1,0 +1,101 @@
+/*!
+\page TopicInstallation_page Installation
+\addindex installation
+\tableofcontents{html,latex}
+\section TopicInstallation_Outline Installation Section Outline
+
+This page outlines strategies for compiling the software. Pertinent subtopics are:
+- \link TopicInstall_Building_OS Supported Operating Systems \endlink
+- \link TopicInstall_Building_Prerequisites Software Prerequisites \endlink
+- \link TopicInstall_Building_Compiling Compiling \endlink
+- \link TopicInstall_Documentation Generating the Documentation \endlink
+
+\section TopicInstall_Building Building the Code
+
+This section provides strategies for obtaining and compiling ULocator.  The most recent version of the source is available <a href="https://github.com/uofuseismo/uLocator">here</a>.
+
+
+\subsection TopicInstall_Building_OS Supported Operating Systems
+
+Currently, the software has been compiled and tested on Ubuntu 22 and Rocky 8.  
+
+\subsection TopicInstall_Building_Prerequisites Prerequisites
+
+Earthquake location's computational bottleneck is estimation of travel times.  For this reason, we rely on compiled languages to improve the performance of uLocator.  To build the core package from source you need to satisfy the following dependencies:
+
+  - C++20
+  - <a href="https://cmake.org/">CMake</a> v3.16 or greater for generation of Makefiles.
+  - <a href="https://github.com/gabime/spdlog">SpdLog</a> for logging.
+  - <a href="https://github.com/google/googletest">GTest</a> for unit testing.
+
+Additionally, you may want to build the Python wrappers and generate this documentation.  In that case, you will need:
+
+  - <a href="https://github.com/pybind/pybind11">pybind11</a> for generating Python wrappers.
+  - <a href="https://www.doxygen.nl/index.html">Doxygen</a> for generating the documentation.
+
+\subsection TopicInstall_Building_Compiling Compiling
+
+To compile ULocator without Python you may make a script in the root source directory that looks like:
+
+    #!/bin/bash
+    export CXX=g++
+    export BUILD_DIR=gcc_build
+    if [ -d ${BUILD_DIR} ]; then
+       rm -rf ${BUILD_DIR}
+    fi
+    mkdir -p ${BUILD_DIR}
+    cd ${BUILD_DIR}
+    cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CXX_COMPILER=${CXX} \
+    -DCMAKE_CXX_FLAGS="-Wall"
+
+For those wishing to also generate the Python bindings, the following script may be of interest
+
+    #!/bin/bash
+    export CXX=clang++
+    export BUILD_DIR=clang_build
+    if [ -d ${BUILD_DIR} ]; then
+       rm -rf ${BUILD_DIR}
+    fi
+    mkdir -p ${BUILD_DIR}
+    cd ${BUILD_DIR}
+    cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CXX_COMPILER=${CXX} \
+    -DCMAKE_CXX_FLAGS="-Wall" \
+    -Dpybind11_DIR=${HOME}/anaconda3/lib/python3.10/site-packages/pybind11/share/cmake/pybind11 \
+    -DWRAP_PYTHON=ON \
+    -DPYTHON_EXECUTABLE=${HOME}/anaconda3/bin/python \
+    -DPYTHON_LIBRARIES=${HOME}/anaconda3/lib/libpython3.10.so
+
+Upon a successful CMake configuration, you then descend into the appropriate directory, e.g.,
+
+    cd clang_build
+    make
+
+After a successful compilation you can run the tests to ensure it is working
+
+    make test
+
+And install
+
+    make install
+
+Note that installation may require sudo privileges.
+
+\section TopicInstall_Documentation Generating the Documentation
+\ingroup TopicInstallation
+
+To generate the <a href="https://www.doxygen.nl/index.html">Doxygen</a> documentation displayed at the UMPS <a href="https://uofuseismo.github.io/uLocator/">github pages</a> site, you would descend into the docs path and do the following
+
+    cd docs
+    mkdir docs_build
+    cd docs_build
+    cmake ..
+    make docs
+    firefox html/index.html
+
+As parting note **DO NOT** touch docs/Doxyfile.gh or docs/html directory.  These exist for the benefit of github pages.
+
+*/
