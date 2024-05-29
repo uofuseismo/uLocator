@@ -51,6 +51,8 @@ public:
         }
 #ifndef NDEBUG
         assert(false);
+#else
+        throw std::runtime_error("Invalid node number");
 #endif
     }
     [[nodiscard]] double evaluate(const double x, const double y,
