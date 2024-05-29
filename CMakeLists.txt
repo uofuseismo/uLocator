@@ -11,6 +11,7 @@ option(USE_EIKONALXX "Link against the ray tracer in the eikonal-solver software
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 find_package(GTest REQUIRED)
+#find_package(Catch2)
 find_package(GeographicLib REQUIRED)
 
 find_package(prima)
@@ -145,7 +146,8 @@ target_include_directories(uLocator
                                    ${UMPS_INCLUDE_DIR} ${MCMC_INCLUDE_DIR}
                                    ${NLOPT_INCLUDE_DIRS} ${EIKONALXX_INCLUDE_DIR}
                                    ${oneDAL_INCLUDE_DIRS} ${HDF5_C_INCLUDE_DIRS}
-                           PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include/umps>)
+                           PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include/umps>
+                           PUBLIC $<INSTALL_INTERFACE:include>)
 
 if (${pagmo_FOUND})
    target_include_directories(uLocator PRIVATE Pagmo::pagmo)
