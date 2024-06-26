@@ -1,4 +1,5 @@
 #include <cmath>
+#include <functional>
 #include <algorithm>
 #include <vector>
 #include "uLocator/optimizers/originTime.hpp"
