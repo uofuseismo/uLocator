@@ -207,6 +207,11 @@ bool WGS84::isNorth() const
     return pImpl->mNorth;
 }
 
+int WGS84::getAlternateUTMZone() const noexcept
+{
+    return pImpl->mAlternateZone;
+}
+
 int WGS84::getUTMZone() const
 {
     if (!havePosition()){throw std::runtime_error("Position not set");}

@@ -1,6 +1,7 @@
 #ifndef ULOCATOR_UUSS_RAY_TRACER_HPP
 #define ULOCATOR_UUSS_RAY_TRACER_HPP
 #include <memory>
+#include <vector>
 #include <uLocator/travelTimeCalculator.hpp>
 namespace UMPS::Logging
 {

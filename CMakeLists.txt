@@ -273,7 +273,8 @@ if (${WRAP_PYTHON})
                python/pyulocator.cpp
                python/dataStructures.cpp
                python/position.cpp
-               python/topography.cpp)
+               python/topography.cpp
+               python/rayTracers.cpp)
    set_target_properties(pyulocator PROPERTIES
                          PREFIX ""
                          CXX_STANDARD 20
@@ -286,7 +287,7 @@ if (${WRAP_PYTHON})
                                       $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>)
    target_link_libraries(pyulocator
                          PRIVATE pybind11::module pybind11::pybind11 pybind11::lto
-                                 uLocator)
+                                 uLocator ${UMPS_LIBRARY} ${EIKONALXX_LIBRARY})
 endif()
 
 #add_executable(createSirenData src/createSirenData.cpp)
