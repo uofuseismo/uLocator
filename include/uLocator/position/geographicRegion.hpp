@@ -28,7 +28,7 @@ public:
     /// @brief From the local Cartesian (x,y) this returns the WGS84
     ///        latitude and longitude.
     /// @param[in] x  The x local coordinate in meters.
-    /// @param[in] y  The y local coordiante in meters.
+    /// @param[in] y  The y local coordinate in meters.
     /// @result result.first is the latitude and result.second is the longitude;
     ///         both in degrees.
     [[nodiscard]] virtual std::pair<double, double> localToGeographicCoordinates(double x, double y) const = 0;

@@ -288,6 +288,12 @@ if (${WRAP_PYTHON})
    target_link_libraries(pyulocator
                          PRIVATE pybind11::module pybind11::pybind11 pybind11::lto
                                  uLocator ${UMPS_LIBRARY} ${EIKONALXX_LIBRARY})
+   if (${pagmo_FOUND})
+      target_link_libraries(pyulocator PRIVATE Pagmo::pagmo)
+   endif()
+   if (${NLopt_FOUND})
+      target_link_libraries(pyulocator PRIVATE NLopt::nlopt)
+   endif()
 endif()
 
 #add_executable(createSirenData src/createSirenData.cpp)

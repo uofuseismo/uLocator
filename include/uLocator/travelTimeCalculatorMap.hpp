@@ -45,6 +45,8 @@ public:
     /// @param[in] phase     The phase.
     /// @result True indicates the map contains the given station, phase pair.
     [[nodiscard]] bool contains(const Station &station, const std::string &phase) const;
+    /// @result The station/phase pairs.
+    [[nodiscard]] std::vector<std::pair<Station, std::string>> getStationPhasePairs() const;
 
     /// @result The number of travel time calculators.
     [[nodiscard]] int size() const noexcept; 
@@ -78,8 +80,10 @@ public:
                   std::vector<double> *dtdy,
                   std::vector<double> *dtdz,
                   bool applyCorrection = true) const;
+    /// @result The epicentral distance, in meters, from the source to the given station.
     [[nodiscard]] double computeDistance(const Station &station, const std::string &phase,
                                          double xSource, double ySource) const;
+    /// @result The hypocentral distance, in meters, from the source to the given station.
     [[nodiscard]] double computeDistance(const Station &station, const std::string &phase,
                                          double xSource, double ySource, double zSource) const;
     [[nodiscard]] std::vector<double> computeDistance(const std::vector<std::pair<Station, std::string>> &stationPhase,

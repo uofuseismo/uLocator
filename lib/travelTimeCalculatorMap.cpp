@@ -321,3 +321,15 @@ TravelTimeCalculatorMap::operator=(TravelTimeCalculatorMap &&map) noexcept
     pImpl = std::move(map.pImpl);
     return *this;
 }
+
+std::vector<std::pair<Station, std::string>>
+TravelTimeCalculatorMap::getStationPhasePairs() const
+{
+    std::vector<std::pair<Station, std::string>> result;
+    result.reserve(pImpl->mTravelTimeCalculatorsMap.size());
+    for (const auto &item : pImpl->mTravelTimeCalculatorsMap)
+    {
+        result.push_back(item.first);
+    }
+    return result; 
+}
