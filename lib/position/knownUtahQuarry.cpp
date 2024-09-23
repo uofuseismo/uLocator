@@ -80,3 +80,19 @@ std::unique_ptr<IKnownLocalLocation> KnownUtahQuarry::clone() const
     return region;
 }
 
+/// Generate a list of known Utah quarries
+std::vector<KnownUtahQuarry>
+ULocator::Position::getKnownUtahQuarries()
+{
+    auto knownUtahQuarries = ULocator::Position::getUtahQuarries();
+    std::vector<KnownUtahQuarry> result;
+    result.reserve(knownUtahQuarries.size());
+    for (const auto &quarry : knownUtahQuarries)
+    {
+        KnownUtahQuarry utahQuarry{quarry};
+        result.push_back(std::move(utahQuarry));
+    }
+    return result;
+    
+}
+

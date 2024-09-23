@@ -73,5 +73,8 @@ private:
     class KnownUtahQuarryImpl;
     std::unique_ptr<KnownUtahQuarryImpl> pImpl;
 };
+/// @result The known Utah quarries.
+std::vector<KnownUtahQuarry> getKnownUtahQuarries();
+
 }
 #endif
