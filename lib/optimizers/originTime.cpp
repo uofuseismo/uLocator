@@ -460,3 +460,43 @@ void OriginTime::optimize()
     pImpl->mHaveOriginTime = true;
 }
 
+double OriginTime::computeObjectiveFunction() const
+{
+    if (!haveTime()){throw std::runtime_error("Origin time not yet computed");}
+    if (!haveTravelTimes()){throw std::runtime_error("Travel times not set");}
+    if (!haveArrivalTimes()){throw std::runtime_error("Arrival times not set");}
+ 
+    auto originTime = getTime();
+    auto estimates = pImpl->mTravelTimes;
+    std::transform(estimates.begin(), estimates.end(), estimates.begin(),
+                   [originTime](const auto x)
+                   {
+                       return originTime + x;
+                   });
+    auto reductionTime = pImpl->mReductionTime;
+    auto observations = pImpl->mObservations;
+    std::transform(observations.begin(), observations.end(),
+                   observations.begin(),
+                   [reductionTime](const auto x)
+                   {
+                       return x + reductionTime;
+                   });
+    auto norm = getNorm();
+    if (norm == IOptimizer::Norm::LeastSquares)
+    {
+        return ::leastSquares(pImpl->mWeights, observations,
+                              estimates, ::Measurement::Standard);
+    }
+    else if (getNorm() == IOptimizer::Norm::L1)
+    {
+        return ::l1(pImpl->mWeights, observations,
+                    estimates, ::Measurement::Standard);
+    }
+    else if (getNorm() == IOptimizer::Norm::Lp)
+    {
+        return ::lp(pImpl->mWeights, observations,
+                    estimates, pImpl->mP, 
+                    ::Measurement::Standard);
+    }
+    throw std::runtime_error("Unhandled norm");
+}

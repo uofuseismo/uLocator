@@ -10,7 +10,7 @@
 #include "uLocator/arrival.hpp"
 #include "uLocator/station.hpp"
 #include "uLocator/position/wgs84.hpp"
-#include "uLocator/optimizers/optimizer.hpp"
+//#include "uLocator/optimizers/optimizer.hpp"
 #include "originTime.hpp"
 
 namespace

@@ -116,6 +116,10 @@ public:
     /// @result True indicates the origin time was computed.
     [[nodiscard]] bool haveTime() const noexcept;
 
+    /// @brief Tabulates the objective function given the arrival times.
+    /// @throws std::runtime_error if \c haveTime() is false.
+    [[nodiscard]] double computeObjectiveFunction() const;
+
     /// @name Destructors
     /// @{
 

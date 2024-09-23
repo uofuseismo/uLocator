@@ -387,6 +387,8 @@ int main(int argc, char *argv[])
         constantTopography->set(2000);
         topography = std::move(constantTopography);
     }
+    double minPSOSearchDepth =-topography->getMinimumAndMaximumElevation().first;
+
 
     // Load the quarries
     std::unique_ptr<::UtahQuarryBlastTravelTimeDatabase> quarryLocator{nullptr};
@@ -799,12 +801,14 @@ int main(int argc, char *argv[])
             auto [y0, y1] = programOptions.geographicRegion->getExtentInY();
             double refineX{50000};
             double refineY{50000};
+            double maxPSOSearchDepth{65000};
             int nParticles{20};
             int nGenerations{140};
             if (programOptions.region == "ynp")
             {
                 refineX = 35000;
                 refineY = 35000;
+                maxPSOSearchDepth = 30000;
                 nParticles = 15;
                 nGenerations = 120;
             }
@@ -821,6 +825,7 @@ int main(int argc, char *argv[])
             pso.setGeographicRegion(*programOptions.geographicRegion);
             pso.setExtentInX(newExtentInX);
             pso.setExtentInY(newExtentInY);
+            pso.setExtentInZ(std::pair{minPSOSearchDepth, maxPSOSearchDepth});
             pso.setArrivals(arrivals);
             auto optimalOrigin = bestInitialOrigin;
             double optimalDepthObjectiveFunction{bestInitialObjectiveFunction};

@@ -1,3 +1,4 @@
+#include <iostream>
 #include <vector>
 #include "uLocator/optimizers/originTime.hpp"
 #include <gtest/gtest.h>
@@ -13,6 +14,7 @@ TEST(ULocatorOptimizersOriginTime, LeastSquares)
     originTime.setTravelTimes(travelTimes);
     originTime.optimize();
     EXPECT_NEAR(originTime.getTime(), 100, 1.e-10);
+    EXPECT_NEAR(originTime.computeObjectiveFunction(), 0, 1.e-10);
 }
 
 TEST(ULocatorOptimizersOriginTime, L1)
@@ -26,6 +28,7 @@ TEST(ULocatorOptimizersOriginTime, L1)
     originTime.setTravelTimes(travelTimes);
     originTime.optimize();
     EXPECT_NEAR(originTime.getTime(), 100, 1.e-10);
+    EXPECT_NEAR(originTime.computeObjectiveFunction(), 0, 1.e-10);
 }
 
 TEST(ULocatorOptimizersOriginTime, Lp) 
@@ -45,5 +48,6 @@ TEST(ULocatorOptimizersOriginTime, Lp)
     originTime.setTravelTimes(travelTimes);
     originTime.optimize();
     EXPECT_NEAR(originTime.getTime(), 100, 1.e-10);
+    EXPECT_NEAR(originTime.computeObjectiveFunction(), 0, 1.e-10); 
 }
 

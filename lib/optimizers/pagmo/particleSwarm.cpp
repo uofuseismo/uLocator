@@ -38,15 +38,17 @@ public:
     std::shared_ptr<UMPS::Logging::ILog> mLogger{nullptr};
     std::pair<double, double> mExtentInX;
     std::pair<double, double> mExtentInY;
+    std::pair<double, double> mExtentInZ;
     double mTimeWindow{120};
     double mInitialDepth{6500};
-    double mMaximumDepth{65000};
+    //double mMaximumDepth{65000};
     double mOptimalObjectiveFunction{std::numeric_limits<double>::max()};
     int mParticles{50};
     int mGenerations{250};
     bool mHaveOrigin{false};
     bool mHaveExtentInX{false};
     bool mHaveExtentInY{false};
+    bool mHaveExtentInZ{false};
 };
 
 /// Constructor
@@ -92,6 +94,19 @@ void ParticleSwarm::setExtentInX(
     pImpl->mHaveExtentInX = true;
 }
 
+void ParticleSwarm::setExtentInZ(const std::pair<double, double> &extent)
+{
+    if (extent.second <= extent.first)
+    {
+        throw std::invalid_argument("extent.second <= extent.first in z");
+    }
+    if (extent.first <-8600 || extent.second > 800000)
+    {
+        throw std::invalid_argument("Search depths must be in range [-8600,800000]");
+    }
+    pImpl->mExtentInZ = extent;
+    pImpl->mHaveExtentInZ = true;
+}
 
 void ParticleSwarm::setExtentInY(
     const std::pair<double, double> &extent)
@@ -120,6 +135,15 @@ std::pair<double, double> ParticleSwarm::getExtentInY() const
         throw std::runtime_error("Extent in y not set");
     }
     return pImpl->mExtentInY;
+}
+
+std::pair<double, double> ParticleSwarm::getExtentInZ() const
+{
+    if (!pImpl->mHaveExtentInZ)
+    {
+        throw std::runtime_error("Extent in z not set");
+    }
+    return pImpl->mExtentInZ;
 }
 
 void ParticleSwarm::setNumberOfParticles(const int nParticles)
@@ -175,14 +199,21 @@ void ParticleSwarm::locate(
     {
         setExtentInY(region->getExtentInY());
     }
+    if (!pImpl->mHaveExtentInZ)
+    {
+        auto minDepth =-ULocator::Optimizers::IOptimizer::getTopography()->getMinimumAndMaximumElevation().first;
+        auto maxDepth = 65000;
+        setExtentInZ(std::pair {minDepth, maxDepth});
+    }
     // Figure out the bounds
-    double z0 =-ULocator::Optimizers::IOptimizer::getTopography()->
-                getMinimumAndMaximumElevation().first;
-    double z1 = pImpl->mMaximumDepth;
+    //double z0 =-ULocator::Optimizers::IOptimizer::getTopography()->
+    //            getMinimumAndMaximumElevation().first;
+    //double z1 = std::max(z0 + 1, getMaximumSearchDepth()); //pImpl->mMaximumDepth);
     double t0 =-getOriginTimeSearchWindowDuration(); //pImpl->mTimeWindow;
     double t1 = 0; // Reduced arrival time - first arrival is t = 0
     auto [x0, x1] = getExtentInX();
     auto [y0, y1] = getExtentInY();
+    auto [z0, z1] = getExtentInZ();
 /*
 
     // Extract and reduce observations
