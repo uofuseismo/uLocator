@@ -58,7 +58,12 @@ public:
     /// @result The extent to search in y.  By default this is the region's
     ///         extent.
     [[nodiscard]] std::pair<double, double> getExtentInY() const;
-
+    /// @brief Sets the depth search extent in meters.
+    /// @param[in] extentInZ  The lower and upper extent to search in z in
+    ///                       meters.  This is with respect to the free surface.
+    void setExtentInZ(const std::pair<double, double> &extentInZ);
+    /// @result The extent to search in z.  By default this is -2000, 65000.
+    [[nodiscard]] std::pair<double, double> getExtentInZ() const;
 
     /// @brief Locates using the particle swarm method.
     /// @param[in] initialGuess     An initial guess for the origin.
