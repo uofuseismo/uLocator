@@ -2,6 +2,7 @@
 #define PRIVATE_LAYER_TRACER_HPP
 #include <iostream>
 #include <iomanip>
+#include <array>
 #include <vector>
 #include <cmath>
 #include <numeric>
