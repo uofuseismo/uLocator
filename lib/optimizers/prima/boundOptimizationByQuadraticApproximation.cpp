@@ -284,8 +284,8 @@ void BoundOptimizationByQuadraticApproximation::locate(
         {
             pImpl->mLogger->debug("Optimizing...");
             prima_minimize(optimizer.mAlgorithm, 
-                           &optimizer.mPrimaProblem,
-                           &optimizer.mPrimaOptions,
+                           optimizer.mPrimaProblem,
+                           optimizer.mPrimaOptions,
                            &primaResult);
             ::getReturnCodeAndThrow(primaResult.status);
 pImpl->mLogger->info(std::string {primaResult.message});

@@ -675,7 +675,7 @@ int main(int argc, char *argv[])
     primaOptions.maxfun = std::max(static_cast<int> (x.size()) + 3, 50);
 
     prima_result_t primaResult;
-    prima_minimize(PRIMA_BOBYQA, &primaProblem, &primaOptions, &primaResult);
+    prima_minimize(PRIMA_BOBYQA, primaProblem, primaOptions, &primaResult);
     
     std::copy(primaResult.x, primaResult.x + x.size(), x.begin());
     if (primaResult.f < f0)
