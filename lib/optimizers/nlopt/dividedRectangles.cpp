@@ -346,6 +346,9 @@ void DividedRectangles::locate(
             getMaximumNumberOfObjectiveFunctionEvaluations());
         optimizer.setLocationAndTimeTolerance(getLocationTolerance(),
                                               getOriginTimeTolerance());
+        // Copy observations/weights/etc.
+        optimizer.fillObservationsWeightsStationPhasesArraysFromArrivals(
+             arrivals, reduceTimes);
         // Initial guess
         auto xLocation = optimizer.createInitialGuess(initialGuess, *region);
         double sourceDepth = std::min(std::max(z0, pImpl->mInitialDepth), z1);
@@ -361,8 +364,8 @@ void DividedRectangles::locate(
                              + std::to_string(xLocation.at(2)) + ","
                              + std::to_string(sourceDepth) + ")");
         // Copy observations/weights/etc.
-        optimizer.fillObservationsWeightsStationPhasesArraysFromArrivals(
-             arrivals, reduceTimes);
+        //optimizer.fillObservationsWeightsStationPhasesArraysFromArrivals(
+        //     arrivals, reduceTimes);
         // Optimize
         double optimalValue{std::numeric_limits<double>::max()};
         try
