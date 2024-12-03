@@ -58,6 +58,18 @@ std::vector<ULocator::Arrival> createArrivals()
     return arrivals;
 }
 
+/// Problematic FERVO event
+std::vector<ULocator::Arrival> createArrivalsFervo()
+{   
+    std::vector<ULocator::Arrival> arrivals;
+    arrivals.push_back(::toArrival("UU", "FORK", "P", 38.501579, -112.886641, 1685.7,  1733256447.945893, 0.03));
+    arrivals.push_back(::toArrival("UU", "NMU",  "P", 38.5177,   -112.8509,   1848.91, 1733256448.292053, 0.03));
+    arrivals.push_back(::toArrival("UU", "FORU", "P", 38.458801, -112.861487, 1842.14, 1733256448.604687, 0.03));
+    arrivals.push_back(::toArrival("UU", "FORK", "S", 38.501579, -112.886641, 1685.7,  1733256461.514645, 0.06));
+    arrivals.push_back(::toArrival("UU", "NMU",  "S", 38.5177,   -112.8509,   1848.91, 1733256462.003129, 0.06));
+    arrivals.push_back(::toArrival("UU", "FORU", "S", 38.458801, -112.861487, 1842.14, 1733256462.634224, 0.06));
+    return arrivals;
+}   
 
 TEST(ULocatorPagmoParticleSwarm, General)
 {
@@ -107,6 +119,15 @@ TEST(ULocatorPagmoParticleSwarm, General)
                ULocator::Optimizers::IOptimizer::Norm::Lp);
     auto origin = pso.getOrigin();
     std::cout << std::setprecision(12) << origin.getEpicenter().getLatitude() << " " << origin.getEpicenter().getLongitude() << " " << " " << origin.getDepth() << " " << origin.getTime() << std::endl;
+
+/*
+   pso.setArrivals(createArrivalsFervo());
+   pso.locate(noGuess,
+              ULocator::Optimizers::IOptimizer::LocationProblem::ThreeDimensionsAndTime,
+              ULocator::Optimizers::IOptimizer::Norm::Lp); 
+    origin = pso.getOrigin();
+    std::cout << std::setprecision(12) << origin.getEpicenter().getLatitude() << " " << origin.getEpicenter().getLongitude() << " " << " " << origin.getDepth() << " " << origin.getTime() << std::endl; 
+*/
 }
 
 TEST(ULocatorPagmoParticleSwarm, FixedDepth)

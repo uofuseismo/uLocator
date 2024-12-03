@@ -135,7 +135,8 @@ std::vector<ULocator::Position::KnownUtahEvent>
           KnownUtahEvent {38.190056, -112.656680, 5713.505155},
           KnownUtahEvent {39.706717, -111.223339, 1222.222222},
           KnownUtahEvent {41.537563, -112.265330, 3749.936709},
-          KnownUtahEvent {40.971500, -109.883167, 58110.000000}
+          KnownUtahEvent {40.971500, -109.883167, 58110.000000},
+          KnownUtahEvent {38.500000, -112.890000, 3200.000000} // FERVO
     };
     return events;
 }
