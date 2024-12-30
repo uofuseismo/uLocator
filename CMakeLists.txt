@@ -10,7 +10,6 @@ option(USE_EIKONALXX "Link against the ray tracer in the eikonal-solver software
 
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
-find_package(GTest REQUIRED)
 find_package(Catch2 3 REQUIRED)
 find_package(GeographicLib REQUIRED)
 
