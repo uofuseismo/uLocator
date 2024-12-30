@@ -2,7 +2,9 @@
 #include <numeric>
 #include "optimizers/objectiveFunctions.hpp"
 #include "halfSpaceUtilities.hpp"
-#include <gtest/gtest.h>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 namespace
 {
@@ -25,36 +27,42 @@ std::vector<double> ATx(const int nRows, const int nColumns,
     return y;
 }
 
-TEST(ULocatorOptimizersObjectiveFunctions, ReduceTime)
+}
+
+TEST_CASE("ULocator::Optimizers::ObjectiveFunctions", "[reduceTime]")
 {
     std::vector<double> arrivals{13, 12, 10, 11};
     std::vector<double> reducedArrivals;
     double reductionTime;
     ::reduceTimes(arrivals, &reducedArrivals, &reductionTime);
-    EXPECT_NEAR(reductionTime, 10, 1.e-14);
+    REQUIRE_THAT(reductionTime,
+                 Catch::Matchers::WithinAbs(10, 1.e-14));
     for (size_t i = 0; i < arrivals.size(); ++i)
     {
-        EXPECT_NEAR(arrivals.at(i) - 10, reducedArrivals.at(i), 1.e-14);
+        REQUIRE_THAT(arrivals.at(i) - 10,
+                     Catch::Matchers::WithinAbs(reducedArrivals.at(i), 1.e-14));
     }
     std::vector<double> newArrivals;
     ::restoreTimes(reducedArrivals, reductionTime, &newArrivals);
     for (size_t i = 0; i < arrivals.size(); ++i)
     {
-        EXPECT_NEAR(newArrivals.at(i), arrivals.at(i), 1.e-14);
+        REQUIRE_THAT(newArrivals.at(i),
+                     Catch::Matchers::WithinAbs(arrivals.at(i), 1.e-14));
     }
  
 }
 
-TEST(ULocatorOptimizersObjectiveFunctions, L1Standard)
+TEST_CASE("ULocator::Optimizers::ObjectiveFunctions", "[l1Standard]")
 {
     std::vector<double> weights{1, 0.5, 3};
     std::vector<double> observations{4, 3, 6};
     std::vector<double> estimates{5, 1, 8};
-    EXPECT_NEAR(::l1(weights, observations, estimates,
-                     Measurement::Standard), 8, 1.e-10);
+    REQUIRE_THAT(::l1(weights, observations, estimates,
+                      Measurement::Standard),
+                 Catch::Matchers::WithinAbs(8, 1.e-10));
 }
 
-TEST(ULocatorOptimizersObjectiveFunctions, L1DoubleDifference)
+TEST_CASE("ULocator::Optimizers::ObjectiveFunctions", "[l1DoubleDifference]")
 {
     std::vector<double> weights{1, 0.5, 3}; 
     std::vector<double> observations{4, 3, 6}; 
@@ -62,20 +70,22 @@ TEST(ULocatorOptimizersObjectiveFunctions, L1DoubleDifference)
     double reference = std::sqrt(1*0.5)*std::abs( (4 - 3) - (5 - 1) )
                      + std::sqrt(1*3)*std::abs( (4 - 6) - (5 - 8) )
                      + std::sqrt(0.5*3)*std::abs( (3 - 6) - (1 - 8) );
-    EXPECT_NEAR(::l1(weights, observations, estimates,
-                     Measurement::DoubleDifference), reference, 1.e-10);
+    REQUIRE_THAT(::l1(weights, observations, estimates,
+                      Measurement::DoubleDifference),
+                 Catch::Matchers::WithinAbs(reference, 1.e-10));
 }
 
-TEST(ULocatorOptimizersObjectiveFunctions, LeastSquaresStandard)
+TEST_CASE("ULocator::Optimizers::ObjectiveFunctions", "[leastSquaresStandard]")
 {
     std::vector<double> weights{0.1, 0.2, 0.3};
     std::vector<double> observations{7, 1, 4};
     std::vector<double> estimates{3, -1, 5};
-    EXPECT_NEAR(::leastSquares(weights, observations, estimates,
-                               Measurement::Standard), 0.41, 1.e-10);
+    REQUIRE_THAT(::leastSquares(weights, observations, estimates,
+                                Measurement::Standard),
+                 Catch::Matchers::WithinAbs(0.41, 1.e-10));
 }
 
-TEST(ULocatorOptimizersObjectiveFunctions, LeastSquaresDoubleDifference)
+TEST_CASE("ULocator::Optimizers::ObjectiveFunctions", "[leastSquaresDoubleDifference]")
 {
     std::vector<double> weights{0.1, 0.2, 0.3};
     std::vector<double> observations{7, 1, 4};
@@ -83,22 +93,23 @@ TEST(ULocatorOptimizersObjectiveFunctions, LeastSquaresDoubleDifference)
     double reference = std::pow(std::sqrt(0.1*0.2)*( (7 - 1) - ( 3 - -1) ), 2)
                      + std::pow(std::sqrt(0.1*0.3)*( (7 - 4) - ( 3 -  5) ), 2)
                      + std::pow(std::sqrt(0.2*0.3)*( (1 - 4) - (-1 -  5) ), 2);
-    EXPECT_NEAR(::leastSquares(weights, observations, estimates,
-                               Measurement::DoubleDifference),
-                reference, 1.e-10);
+    REQUIRE_THAT(::leastSquares(weights, observations, estimates,
+                                Measurement::DoubleDifference),
+                 Catch::Matchers::WithinAbs(reference, 1.e-10));
 }
 
-TEST(ULocatorOptimizersObjectiveFunctions, LpStandard)
+TEST_CASE("ULocator::Optimizers::ObjectiveFunctions", "[lpStandard]")
 {
     constexpr double p{1.5};
     std::vector<double> weights{0.1, 0.3, 0.5};
     std::vector<double> observations{4, 9, 2};
     std::vector<double> estimates{3, 11, 0.5};
-    EXPECT_NEAR(::lp(weights, observations, estimates,
-                p, Measurement::Standard), 1.0950428241353785, 1.e-10);
+    REQUIRE_THAT(::lp(weights, observations, estimates,
+                      p, Measurement::Standard),
+                 Catch::Matchers::WithinAbs(1.0950428241353785, 1.e-10));
 }
 
-TEST(ULocatorOptimizersObjectiveFunctions, LpDoubleDifference)
+TEST_CASE("ULocator::Optimizers::ObjectiveFunctions", "[lpDoubleDifference]")
 {
     constexpr double p{1.5};
     std::vector<double> weights{0.1, 0.3, 0.5};
@@ -110,12 +121,12 @@ TEST(ULocatorOptimizersObjectiveFunctions, LpDoubleDifference)
            + std::pow(std::sqrt(0.1*0.5)*std::abs((4 - 2) - (3 - 0.5)),  p)
            + std::pow(std::sqrt(0.3*0.5)*std::abs((9 - 2) - (11 - 0.5)), p),
            1/p);
-    EXPECT_NEAR(::lp(weights, observations, estimates,
-                     p, Measurement::DoubleDifference),
-                reference, 1.e-10);
+    REQUIRE_THAT(::lp(weights, observations, estimates,
+                      p, Measurement::DoubleDifference),
+                 Catch::Matchers::WithinAbs(reference, 1.e-10));
 }
 
-TEST(ULocatorOptimizersObjectiveFunctions, ThreeDimensionsAndTime)
+TEST_CASE("ULocator::Optimizers::ObjectiveFunctions", "[threeDimensionsAndTime]")
 {
     constexpr int nParameters{4};
     constexpr double p{1.5};
@@ -161,7 +172,8 @@ TEST(ULocatorOptimizersObjectiveFunctions, ThreeDimensionsAndTime)
         jacobian.at(4*i + 1) =-deltaX/(distance*velocity);
         jacobian.at(4*i + 2) =-deltaY/(distance*velocity);
         jacobian.at(4*i + 3) =-deltaZ/(distance*velocity);
-        EXPECT_NEAR(dtdt0, 1, 1.e-14);
+        REQUIRE_THAT(dtdt0,
+                     Catch::Matchers::WithinAbs(1, 1.e-14));
         estimates.push_back(estimate); 
         double residual = obj.mObservations.at(i) - estimate;
         double weightedResidual = obj.mWeights.at(i)*residual;
@@ -180,67 +192,82 @@ TEST(ULocatorOptimizersObjectiveFunctions, ThreeDimensionsAndTime)
     auto gradientL2 = ::ATx(l2Residuals.size(), nParameters, jacobian, l2Residuals, -1);
     obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::LeastSquares;
     auto logLikelihood = obj.logLikelihood(x.size(), x.data());
-    EXPECT_NEAR(logLikelihood, -referenceL2, 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs(-referenceL2, 1.e-4));
     // Compute gradient
     logLikelihood
         = obj.logLikelihoodAndGradient(x.size(), x.data(), gradient.data());
-    EXPECT_NEAR(logLikelihood, -referenceL2, 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs(-referenceL2, 1.e-4));
     std::vector<double> gradientFiniteDifference(4);
     obj.finiteDifference(x.size(), x.data(), gradientFiniteDifference.data());
-    EXPECT_NEAR(logLikelihood, -referenceL2, 1.e-4); 
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs(-referenceL2, 1.e-4));
     for (int i = 0; i < nParameters; ++i)
     {
-        EXPECT_NEAR(gradientL2[i], gradient[i], 1.e-8);
+        REQUIRE_THAT(gradientL2[i],
+                     Catch::Matchers::WithinAbs(gradient[i], 1.e-8));
         if (i == 0)
         {
-            EXPECT_NEAR(gradientL2[i], gradientFiniteDifference[i], 1); 
+            REQUIRE_THAT(gradientL2[i],
+                         Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 1)); 
         }
         else
         {
-            EXPECT_NEAR(gradientL2[i], gradientFiniteDifference[i], 1.e-5);
+            REQUIRE_THAT(gradientL2[i],
+                         Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 1.e-5));
         }
     }
     //------------------------------------l1----------------------------------//
     obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::L1;
     logLikelihood = obj.logLikelihood(x.size(), x.data());
-    EXPECT_NEAR(logLikelihood, -referenceL1, 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs( -referenceL1, 1.e-4));
     // Compute the gradient
     logLikelihood
         = obj.logLikelihoodAndGradient(x.size(), x.data(), gradient.data());
-    EXPECT_NEAR(logLikelihood, -referenceL1, 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs( -referenceL1, 1.e-4));
     obj.finiteDifference(x.size(), x.data(), gradientFiniteDifference.data());
     for (int i = 0; i < nParameters; ++i)
     {
-        EXPECT_NEAR(gradientL1[i], gradient[i], 1.e-8);
+        REQUIRE_THAT(gradientL1[i],
+                     Catch::Matchers::WithinAbs(gradient[i], 1.e-8));
         if (i == 0)
         {
-            EXPECT_NEAR(gradientL1[i], gradientFiniteDifference[i], 1); 
+            REQUIRE_THAT(gradientL1[i],
+                         Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 1)); 
         }
         else
         {
-            EXPECT_NEAR(gradientL1[i], gradientFiniteDifference[i], 1.e-5);
+            REQUIRE_THAT(gradientL1[i],
+                         Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 1.e-5));
         }
     }
     //------------------------------------lp----------------------------------//
     obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::Lp;
     obj.mPNorm = p;
     logLikelihood = obj.logLikelihood(x.size(), x.data());
-    EXPECT_NEAR(logLikelihood, -referenceLp, 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                Catch::Matchers::WithinAbs( -referenceLp, 1.e-4));
     // Compute gradient.  This is a PITA.  By now we've confirmed the
     // finite differencing works.  So let's just compare with that.
     logLikelihood
         = obj.logLikelihoodAndGradient(x.size(), x.data(), gradient.data());
-    EXPECT_NEAR(logLikelihood, -referenceLp, 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs( -referenceLp, 1.e-4));
     obj.finiteDifference(x.size(), x.data(), gradientFiniteDifference.data());
     for (int i = 0; i < nParameters; ++i)
     {
         if (i == 0)
         {
-            EXPECT_NEAR(gradient[i], gradientFiniteDifference[i], 1.e-3);
+            REQUIRE_THAT(gradient[i],
+                         Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 1.e-3));
         }
         else
         {
-            EXPECT_NEAR(gradient[i], gradientFiniteDifference[i], 1.e-6);
+            REQUIRE_THAT(gradient[i],
+                         Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 1.e-6));
         }
     }
     //------------------------------------------------------------------------//
@@ -285,7 +312,8 @@ TEST(ULocatorOptimizersObjectiveFunctions, ThreeDimensionsAndTime)
         jacobian.at(4*i + 1) =-deltaX/(distance*velocity);
         jacobian.at(4*i + 2) =-deltaY/(distance*velocity);
         jacobian.at(4*i + 3) =-deltaZ/(distance*velocity);
-        EXPECT_NEAR(dtdt0, 1, 1.e-14);
+        REQUIRE_THAT(dtdt0,
+                     Catch::Matchers::WithinAbs(1, 1.e-14));
         estimates.push_back(estimate);
         double residual = obj.mObservations.at(i) - estimate;
         double weightedResidual = obj.mWeights.at(i)*residual;
@@ -313,33 +341,41 @@ TEST(ULocatorOptimizersObjectiveFunctions, ThreeDimensionsAndTime)
     gradientL1[1] = gradientL1[1] - obj.mPenaltyCoefficient*dedx;
     gradientL1[2] = gradientL1[2] - obj.mPenaltyCoefficient*dedy;
     gradientL1[3] = gradientL1[3] + obj.mPenaltyCoefficient;
-    EXPECT_NEAR(logLikelihood, -(referenceL2 + l2Penalty), 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs(-(referenceL2 + l2Penalty), 1.e-4));
     logLikelihood
         = obj.logLikelihoodAndGradient(x.size(), x.data(), gradient.data());
-    EXPECT_NEAR(logLikelihood, -(referenceL2 + l2Penalty), 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs(-(referenceL2 + l2Penalty), 1.e-4));
     obj.finiteDifference(x.size(), x.data(), gradientFiniteDifference.data());
     for (int i = 0; i < nParameters; ++i)
     {
-        EXPECT_NEAR(gradientL2[i], gradient[i], 1.e-8);
-        EXPECT_NEAR(gradientL2[i], gradientFiniteDifference[i], 5.e-1);
+        REQUIRE_THAT(gradientL2[i],
+                     Catch::Matchers::WithinAbs(gradient[i], 1.e-8));
+        REQUIRE_THAT(gradientL2[i],
+                     Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 5.e-1));
     }
     //---------------------------------------l1-------------------------------//
     obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::L1;
     logLikelihood = obj.logLikelihood(x.size(), x.data());
-    EXPECT_NEAR(logLikelihood, -(referenceL1 + l1Penalty), 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs( -(referenceL1 + l1Penalty), 1.e-4));
     // Compute the gradient
     logLikelihood
         = obj.logLikelihoodAndGradient(x.size(), x.data(), gradient.data());
     obj.finiteDifference(x.size(), x.data(), gradientFiniteDifference.data());
     for (int i = 0; i < nParameters; ++i)
     {
-        EXPECT_NEAR(gradientL1[i], gradient[i], 1.e-8);
-        EXPECT_NEAR(gradientL1[i], gradientFiniteDifference[i], 5.e-1);
+        REQUIRE_THAT(gradientL1[i],
+                     Catch::Matchers::WithinAbs(gradient[i], 1.e-8));
+        REQUIRE_THAT(gradientL1[i],
+                     Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 5.e-1));
     }
     //---------------------------------------lp-------------------------------//
     obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::Lp;
     logLikelihood = obj.logLikelihood(x.size(), x.data());
-    EXPECT_NEAR(logLikelihood, -(referenceLp + lpPenalty), 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs( -(referenceLp + lpPenalty), 1.e-4));
     logLikelihood
         = obj.logLikelihoodAndGradient(x.size(), x.data(), gradient.data());
     obj.finiteDifference(x.size(), x.data(), gradientFiniteDifference.data());
@@ -347,11 +383,13 @@ TEST(ULocatorOptimizersObjectiveFunctions, ThreeDimensionsAndTime)
     {
         if (i == 0)
         {
-            EXPECT_NEAR(gradient[i], gradientFiniteDifference[i], 1.e-3);
+            REQUIRE_THAT(gradient[i],
+                         Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 1.e-3));
         }
         else
         {
-            EXPECT_NEAR(gradient[i], gradientFiniteDifference[i], 1.e-6);
+            REQUIRE_THAT(gradient[i],
+                         Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 1.e-6));
         }
     }
 }
@@ -360,7 +398,7 @@ TEST(ULocatorOptimizersObjectiveFunctions, ThreeDimensionsAndTime)
 //                    Fixed Depth; Free Epicenter and Time                    //
 //----------------------------------------------------------------------------//
 
-TEST(ULocatorOptimizersObjectiveFunctions, EpicenterAndTime)
+TEST_CASE("ULocator::Optimizers::ObjectiveFunctions", "[epicenterAndTime]")
 {
     constexpr int nParameters{3};
     constexpr double depth{6000};
@@ -405,7 +443,8 @@ TEST(ULocatorOptimizersObjectiveFunctions, EpicenterAndTime)
         jacobian.at(3*i + 0) = dtdt0;
         jacobian.at(3*i + 1) =-deltaX/(distance*velocity);
         jacobian.at(3*i + 2) =-deltaY/(distance*velocity);
-        EXPECT_NEAR(dtdt0, 1, 1.e-14); 
+        REQUIRE_THAT(dtdt0,
+                     Catch::Matchers::WithinAbs(1, 1.e-14));
         estimates.push_back(estimate); 
         double residual = obj.mObservations.at(i) - estimate;
         double weightedResidual = obj.mWeights.at(i)*residual;
@@ -424,67 +463,82 @@ TEST(ULocatorOptimizersObjectiveFunctions, EpicenterAndTime)
     auto gradientL2 = ::ATx(l2Residuals.size(), nParameters, jacobian, l2Residuals, -1);
     obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::LeastSquares;
     auto logLikelihood = obj.logLikelihood(x.size(), x.data());
-    EXPECT_NEAR(logLikelihood, -referenceL2, 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs(-referenceL2, 1.e-4));
     // Compute gradient
     logLikelihood
         = obj.logLikelihoodAndGradient(x.size(), x.data(), gradient.data());
-    EXPECT_NEAR(logLikelihood, -referenceL2, 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs(-referenceL2, 1.e-4));
     std::vector<double> gradientFiniteDifference(3);
     obj.finiteDifference(x.size(), x.data(), gradientFiniteDifference.data());
-    EXPECT_NEAR(logLikelihood, -referenceL2, 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs(-referenceL2, 1.e-4));
     for (int i = 0; i < nParameters; ++i)
     {
-        EXPECT_NEAR(gradientL2[i], gradient[i], 1.e-8);
+        REQUIRE_THAT(gradientL2[i],
+                     Catch::Matchers::WithinAbs(gradient[i], 1.e-8));
         if (i == 0)
         {
-            EXPECT_NEAR(gradientL2[i], gradientFiniteDifference[i], 1);
+            REQUIRE_THAT(gradientL2[i],
+                         Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 1));
         }
         else
         {
-            EXPECT_NEAR(gradientL2[i], gradientFiniteDifference[i], 1.e-5);
+            REQUIRE_THAT(gradientL2[i],
+                         Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 1.e-5));
         }
     }
     //------------------------------------l1----------------------------------//
     obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::L1;
     logLikelihood = obj.logLikelihood(x.size(), x.data());
-    EXPECT_NEAR(logLikelihood, -referenceL1, 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs(-referenceL1, 1.e-4));
     // Compute the gradient
     logLikelihood
         = obj.logLikelihoodAndGradient(x.size(), x.data(), gradient.data());
-    EXPECT_NEAR(logLikelihood, -referenceL1, 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs(-referenceL1, 1.e-4));
     obj.finiteDifference(x.size(), x.data(), gradientFiniteDifference.data());
     for (int i = 0; i < nParameters; ++i)
     {
-        EXPECT_NEAR(gradientL1[i], gradient[i], 1.e-8);
+        REQUIRE_THAT(gradientL1[i],
+                     Catch::Matchers::WithinAbs(gradient[i], 1.e-8));
         if (i == 0)
         {
-            EXPECT_NEAR(gradientL1[i], gradientFiniteDifference[i], 1);
+            REQUIRE_THAT(gradientL1[i],
+                         Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 1));
         }
         else
         {
-            EXPECT_NEAR(gradientL1[i], gradientFiniteDifference[i], 1.e-5);
+            REQUIRE_THAT(gradientL1[i],
+                         Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 1.e-5));
         }
     }
     //------------------------------------lp----------------------------------//
     obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::Lp;
     obj.mPNorm = p;
     logLikelihood = obj.logLikelihood(x.size(), x.data());
-    EXPECT_NEAR(logLikelihood, -referenceLp, 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs(-referenceLp, 1.e-4));
     // Compute gradient.  This is a PITA.  By now we've confirmed the
     // finite differencing works.  So let's just compare with that.
     logLikelihood
         = obj.logLikelihoodAndGradient(x.size(), x.data(), gradient.data());
-    EXPECT_NEAR(logLikelihood, -referenceLp, 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs(-referenceLp, 1.e-4));
     obj.finiteDifference(x.size(), x.data(), gradientFiniteDifference.data());
     for (int i = 0; i < nParameters; ++i)
     {
         if (i == 0)
         {
-            EXPECT_NEAR(gradient[i], gradientFiniteDifference[i], 1.e-3);
+            REQUIRE_THAT(gradient[i],
+                         Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 1.e-3));
         }
         else
         {
-            EXPECT_NEAR(gradient[i], gradientFiniteDifference[i], 1.e-6);
+            REQUIRE_THAT(gradient[i],
+                         Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 1.e-6));
         }
     }
 }
@@ -493,7 +547,7 @@ TEST(ULocatorOptimizersObjectiveFunctions, EpicenterAndTime)
 //                Depth Fixed to Free Surface; Free Epicenter and Time        //
 //----------------------------------------------------------------------------//
 
-TEST(ULocatorOptimizersObjectiveFunctions, EpicenterFreeSurfaceAndTime)
+TEST_CASE("ULocator::Optimizers::ObjectiveFunctions", "[epicenterFreeSurfaceAndTime]")
 {
     constexpr int nParameters{3};
     constexpr double p{1.5};
@@ -545,7 +599,8 @@ TEST(ULocatorOptimizersObjectiveFunctions, EpicenterFreeSurfaceAndTime)
                              - deltaZ/(distance*velocity)*dEdx;
         jacobian.at(3*i + 2) =-deltaY/(distance*velocity)
                              - deltaZ/(distance*velocity)*dEdy;
-        EXPECT_NEAR(dtdt0, 1, 1.e-14); 
+        REQUIRE_THAT(dtdt0,
+                     Catch::Matchers::WithinAbs(1, 1.e-14));
         estimates.push_back(estimate); 
         double residual = obj.mObservations.at(i) - estimate;
         double weightedResidual = obj.mWeights.at(i)*residual;
@@ -564,67 +619,81 @@ TEST(ULocatorOptimizersObjectiveFunctions, EpicenterFreeSurfaceAndTime)
     auto gradientL2 = ::ATx(l2Residuals.size(), nParameters, jacobian, l2Residuals, -1);
     obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::LeastSquares;
     auto logLikelihood = obj.logLikelihood(x.size(), x.data());
-    EXPECT_NEAR(logLikelihood, -referenceL2, 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs(-referenceL2, 1.e-4));
     // Compute gradient
     logLikelihood
         = obj.logLikelihoodAndGradient(x.size(), x.data(), gradient.data());
-    EXPECT_NEAR(logLikelihood, -referenceL2, 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs(-referenceL2, 1.e-4));
     std::vector<double> gradientFiniteDifference(3);
     obj.finiteDifference(x.size(), x.data(), gradientFiniteDifference.data());
-    EXPECT_NEAR(logLikelihood, -referenceL2, 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs(-referenceL2, 1.e-4));
     for (int i = 0; i < nParameters; ++i)
     {   
-        EXPECT_NEAR(gradientL2[i], gradient[i], 1.e-8);
+        REQUIRE_THAT(gradientL2[i],
+                     Catch::Matchers::WithinAbs(gradient[i], 1.e-8));
         if (i == 0)
         {
-            EXPECT_NEAR(gradientL2[i], gradientFiniteDifference[i], 1); 
+            REQUIRE_THAT(gradientL2[i],
+                         Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 1));
         }
         else
         {
-            EXPECT_NEAR(gradientL2[i], gradientFiniteDifference[i], 1.e-5);
+            REQUIRE_THAT(gradientL2[i],
+                         Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 1.e-5));
         }
     }
     //------------------------------------l1----------------------------------//
     obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::L1;
     logLikelihood = obj.logLikelihood(x.size(), x.data());
-    EXPECT_NEAR(logLikelihood, -referenceL1, 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs(-referenceL1, 1.e-4));
     // Compute the gradient
     logLikelihood
         = obj.logLikelihoodAndGradient(x.size(), x.data(), gradient.data());
-    EXPECT_NEAR(logLikelihood, -referenceL1, 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs(-referenceL1, 1.e-4));
     obj.finiteDifference(x.size(), x.data(), gradientFiniteDifference.data());
     for (int i = 0; i < nParameters; ++i)
     {   
-        EXPECT_NEAR(gradientL1[i], gradient[i], 1.e-8);
+        REQUIRE_THAT(gradientL1[i],
+                     Catch::Matchers::WithinAbs(gradient[i], 1.e-8));
         if (i == 0)
         {
-            EXPECT_NEAR(gradientL1[i], gradientFiniteDifference[i], 1); 
+            REQUIRE_THAT(gradientL1[i],
+                         Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 1)); 
         }
         else
         {
-            EXPECT_NEAR(gradientL1[i], gradientFiniteDifference[i], 1.e-5);
+            REQUIRE_THAT(gradientL1[i],
+                         Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 1.e-5));
         }
     }
     //------------------------------------lp----------------------------------//
     obj.mNorm = ULocator::Optimizers::IOptimizer::Norm::Lp;
     obj.mPNorm = p;
     logLikelihood = obj.logLikelihood(x.size(), x.data());
-    EXPECT_NEAR(logLikelihood, -referenceLp, 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs(-referenceLp, 1.e-4));
     logLikelihood
         = obj.logLikelihoodAndGradient(x.size(), x.data(), gradient.data());
-    EXPECT_NEAR(logLikelihood, -referenceLp, 1.e-4);
+    REQUIRE_THAT(logLikelihood,
+                 Catch::Matchers::WithinAbs(-referenceLp, 1.e-4));
     obj.finiteDifference(x.size(), x.data(), gradientFiniteDifference.data());
     for (int i = 0; i < nParameters; ++i)
     {   
         if (i == 0)
         {
-            EXPECT_NEAR(gradient[i], gradientFiniteDifference[i], 1.e-3);
+            REQUIRE_THAT(gradient[i],
+                         Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 1.e-3));
         }
         else
         {
-            EXPECT_NEAR(gradient[i], gradientFiniteDifference[i], 1.e-6);
+            REQUIRE_THAT(gradient[i],
+                         Catch::Matchers::WithinAbs(gradientFiniteDifference[i], 1.e-6));
         }
     }
 }
 
-}

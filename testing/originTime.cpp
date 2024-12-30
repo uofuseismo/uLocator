@@ -1,9 +1,11 @@
 #include <iostream>
 #include <vector>
 #include "uLocator/optimizers/originTime.hpp"
-#include <gtest/gtest.h>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-TEST(ULocatorOptimizersOriginTime, LeastSquares)
+TEST_CASE("ULocator::Optimizers::OriginTime", "[leastSquares]")
 {
     ULocator::Optimizers::OriginTime originTime;
     originTime.setNorm(ULocator::Optimizers::IOptimizer::Norm::LeastSquares, 2);
@@ -13,11 +15,13 @@ TEST(ULocatorOptimizersOriginTime, LeastSquares)
     originTime.setArrivalTimes(arrivals, weights);
     originTime.setTravelTimes(travelTimes);
     originTime.optimize();
-    EXPECT_NEAR(originTime.getTime(), 100, 1.e-10);
-    EXPECT_NEAR(originTime.computeObjectiveFunction(), 0, 1.e-10);
+    REQUIRE_THAT(originTime.getTime(),
+                 Catch::Matchers::WithinAbs(100, 1.e-10));
+    REQUIRE_THAT(originTime.computeObjectiveFunction(),
+                 Catch::Matchers::WithinAbs(0, 1.e-10));
 }
 
-TEST(ULocatorOptimizersOriginTime, L1)
+TEST_CASE("ULocator::Optimizers::OriginTime", "[l1]")
 {
     ULocator::Optimizers::OriginTime originTime;
     originTime.setNorm(ULocator::Optimizers::IOptimizer::Norm::L1, 1); 
@@ -27,11 +31,13 @@ TEST(ULocatorOptimizersOriginTime, L1)
     originTime.setArrivalTimes(arrivals, weights);
     originTime.setTravelTimes(travelTimes);
     originTime.optimize();
-    EXPECT_NEAR(originTime.getTime(), 100, 1.e-10);
-    EXPECT_NEAR(originTime.computeObjectiveFunction(), 0, 1.e-10);
+    REQUIRE_THAT(originTime.getTime(),
+                 Catch::Matchers::WithinAbs(100, 1.e-10));
+    REQUIRE_THAT(originTime.computeObjectiveFunction(),
+                 Catch::Matchers::WithinAbs(0, 1.e-10));
 }
 
-TEST(ULocatorOptimizersOriginTime, Lp) 
+TEST_CASE("ULocator::Optimizers::OriginTime", "[lp]")
 {
     ULocator::Optimizers::OriginTime originTime;
     originTime.setNorm(ULocator::Optimizers::IOptimizer::Norm::Lp, 1.5);
@@ -41,13 +47,17 @@ TEST(ULocatorOptimizersOriginTime, Lp)
     originTime.setTolerance(1.e-12);
     originTime.setTimeWindow(100);
     originTime.setNumberOfIterations(1000);
-    EXPECT_NEAR(originTime.getTolerance(), 1.e-12, 1.e-14);
-    EXPECT_NEAR(originTime.getTimeWindow(), 100, 1.e-10);
-    EXPECT_EQ(originTime.getNumberOfIterations(), 1000);
-    originTime.setArrivalTimes(arrivals, weights);
-    originTime.setTravelTimes(travelTimes);
+    REQUIRE_THAT(originTime.getTolerance(),
+                 Catch::Matchers::WithinAbs(1.e-12, 1.e-14));
+    REQUIRE_THAT(originTime.getTimeWindow(),
+                 Catch::Matchers::WithinAbs(100, 1.e-10));
+    REQUIRE(originTime.getNumberOfIterations() == 1000);
+    REQUIRE_NOTHROW(originTime.setArrivalTimes(arrivals, weights));
+    REQUIRE_NOTHROW(originTime.setTravelTimes(travelTimes));
     originTime.optimize();
-    EXPECT_NEAR(originTime.getTime(), 100, 1.e-10);
-    EXPECT_NEAR(originTime.computeObjectiveFunction(), 0, 1.e-10); 
+    REQUIRE_THAT(originTime.getTime(),
+                 Catch::Matchers::WithinAbs(100, 1.e-10));
+    REQUIRE_THAT(originTime.computeObjectiveFunction(),
+                 Catch::Matchers::WithinAbs(0, 1.e-10)); 
 }
 

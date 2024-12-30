@@ -11,7 +11,7 @@ option(USE_EIKONALXX "Link against the ray tracer in the eikonal-solver software
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 find_package(GTest REQUIRED)
-#find_package(Catch2)
+find_package(Catch2 3 REQUIRED)
 find_package(GeographicLib REQUIRED)
 
 find_package(prima)
@@ -167,7 +167,7 @@ endif()
 ##########################################################################################
 #file(COPY ${CMAKE_SOURCE_DIR}/testing/data DESTINATION .)
 set(TEST_SRC
-    testing/main.cpp
+    #testing/main.cpp
     testing/position.cpp
     testing/station.cpp
     testing/arrival.cpp
@@ -184,10 +184,10 @@ set(TEST_SRC
     #testing/example.cpp
     )
 if (${pagmo_FOUND})
-   set(TEST_SRC ${TEST_SRC} testing/pagmo.cpp)
+   #set(TEST_SRC ${TEST_SRC} testing/pagmo.cpp)
 endif()
 if (${NLopt_FOUND})
-   set(TEST_SRC ${TEST_SRC} testing/nlopt.cpp)
+   #set(TEST_SRC ${TEST_SRC} testing/nlopt.cpp)
 endif()
 
 add_executable(unitTests ${TEST_SRC})
@@ -195,7 +195,9 @@ set_target_properties(unitTests PROPERTIES
                       CXX_STANDARD 20
                       CXX_STANDARD_REQUIRED YES
                       CXX_EXTENSIONS NO)
-target_link_libraries(unitTests PRIVATE uLocator ${GTEST_BOTH_LIBRARIES} ${UMPS_LIBRARY}
+target_link_libraries(unitTests PRIVATE uLocator
+                      Catch2::Catch2 Catch2::Catch2WithMain # ${GTEST_BOTH_LIBRARIES}
+                      ${UMPS_LIBRARY}
                       oneDAL::onedal oneDAL::onedal_core oneDAL::onedal_parameters oneDAL::onedal_thread Boost::boost Threads::Threads)# nlohmann_json::nlohmann_json)
 target_include_directories(unitTests
                            PRIVATE ${GTEST_INCLUDE_DIRS}

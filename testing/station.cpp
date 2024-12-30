@@ -2,14 +2,13 @@
 #include "uLocator/station.hpp"
 #include "uLocator/position/wgs84.hpp"
 #include "uLocator/position/utahRegion.hpp"
-#include <gtest/gtest.h>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 using namespace ULocator;
 
-namespace
-{
-
-TEST(ULocator, Station)
+TEST_CASE("ULocator", "[station]")
 {
     Position::UtahRegion utah;
     const std::string network{"UU"};
@@ -25,15 +24,19 @@ TEST(ULocator, Station)
     station.setElevation(elevation);
 
     Station sCopy(station);
-    EXPECT_EQ(sCopy.getNetwork(), network);
-    EXPECT_EQ(sCopy.getName(), name);
-    EXPECT_NEAR(sCopy.getElevation(), elevation, 1.e-10);
+    REQUIRE(sCopy.getNetwork() == network);
+    REQUIRE(sCopy.getName() == name);
+    REQUIRE_THAT(sCopy.getElevation(),
+                 Catch::Matchers::WithinAbs(elevation, 1.e-10));
     auto positionBack = sCopy.getGeographicPosition();
-    EXPECT_NEAR(positionBack.getLatitude(),  latitude, 1.e-8);
-    EXPECT_NEAR(positionBack.getLongitude(), longitude, 1.e-8);
+    REQUIRE_THAT(positionBack.getLatitude(),
+                 Catch::Matchers::WithinAbs(latitude, 1.e-8));
+    REQUIRE_THAT(positionBack.getLongitude(),
+                 Catch::Matchers::WithinAbs(longitude, 1.e-8));
     auto localCoordinates = sCopy.getLocalCoordinates();
-    EXPECT_NEAR(localCoordinates.first,  -28327.81065000718, 1.e-3);
-    EXPECT_NEAR(localCoordinates.second,  155642.5444867647, 1.e-3);
+    REQUIRE_THAT(localCoordinates.first,
+                 Catch::Matchers::WithinAbs(-28327.81065000718, 1.e-3));
+    REQUIRE_THAT(localCoordinates.second,
+                 Catch::Matchers::WithinAbs(  155642.5444867647, 1.e-3));
 }
 
-}

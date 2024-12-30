@@ -4,7 +4,9 @@
 #include "uLocator/station.hpp"
 #include "uLocator/position/wgs84.hpp"
 #include "uLocator/position/utahRegion.hpp"
-#include <gtest/gtest.h>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 using namespace ULocator;
 
@@ -64,7 +66,9 @@ std::vector<ULocator::Arrival> createArrivals()
     return arrivals;
 }
 
-TEST(ULocator, Origin)
+}
+
+TEST_CASE("ULocator", "[origin]")
 {
     Origin origin;
     constexpr int64_t identifier{60484462};
@@ -74,33 +78,45 @@ TEST(ULocator, Origin)
     constexpr double time{1646479475};
     auto arrivals = ::createArrivals();
  
-    EXPECT_NO_THROW(origin.setEpicenter(Position::WGS84 {latitude, longitude}));
-    EXPECT_NO_THROW(origin.setDepth(depth));
-    EXPECT_NO_THROW(origin.setTime(time));
-    EXPECT_NO_THROW(origin.setArrivals(arrivals));
+    REQUIRE_NOTHROW(origin.setEpicenter(Position::WGS84 {latitude, longitude}));
+    REQUIRE_NOTHROW(origin.setDepth(depth));
+    REQUIRE_NOTHROW(origin.setTime(time));
+    REQUIRE_NOTHROW(origin.setArrivals(arrivals));
     origin.setIdentifier(identifier);
     origin.setEventType(Origin::EventType::Earthquake);
  
+    SECTION("copy constructor")
+    {
     Origin copy(origin);
-    EXPECT_NEAR(copy.getEpicenter().getLatitude(),  latitude,  1.e-10);
-    EXPECT_NEAR(copy.getEpicenter().getLongitude(), longitude, 1.e-10);
-    EXPECT_NEAR(copy.getDepth(), depth, 1.e-10);
-    EXPECT_EQ(copy.getIdentifier(), identifier);
-    EXPECT_EQ(copy.getEventType(), Origin::EventType::Earthquake);
-    EXPECT_NEAR(copy.getTime(), time, 1.e-4);
-    EXPECT_EQ(copy.getArrivals().size(), arrivals.size());
-    EXPECT_NEAR(copy.getWeightedRootMeanSquaredError(),
-                0.12139539573337683, 1.e-12);
-    EXPECT_NEAR(copy.getAzimuthalGap(), 107.820850789, 1.e-5);
-    EXPECT_NEAR(copy.getNearestStationDistance(), 1046.187573, 1.e-5);
+    REQUIRE_THAT(copy.getEpicenter().getLatitude(),
+                 Catch::Matchers::WithinAbs(latitude,  1.e-10));
+    REQUIRE_THAT(copy.getEpicenter().getLongitude(),
+                 Catch::Matchers::WithinAbs(longitude, 1.e-10));
+    REQUIRE_THAT(copy.getDepth(),
+                 Catch::Matchers::WithinAbs(depth, 1.e-10));
+    REQUIRE(copy.getIdentifier() == identifier);
+    REQUIRE(copy.getEventType() == Origin::EventType::Earthquake);
+    REQUIRE_THAT(copy.getTime(),
+                 Catch::Matchers::WithinAbs(time, 1.e-4));
+    REQUIRE(copy.getArrivals().size() == arrivals.size());
+    REQUIRE_THAT(copy.getWeightedRootMeanSquaredError(),
+                 Catch::Matchers::WithinAbs(0.12139539573337683, 1.e-12));
+    REQUIRE_THAT(copy.getAzimuthalGap(),
+                 Catch::Matchers::WithinAbs(107.820850789, 1.e-5));
+    REQUIRE_THAT(copy.getNearestStationDistance(),
+                 Catch::Matchers::WithinAbs(1046.187573, 1.e-5));
+    }
 
+    SECTION("clear")
+    {
+    auto copy = origin;
     copy.clear();
-    EXPECT_FALSE(copy.haveEpicenter());
-    EXPECT_FALSE(copy.haveDepth());
-    EXPECT_FALSE(copy.haveTime());
-    EXPECT_TRUE(copy.getArrivals().empty());
-    EXPECT_FALSE(copy.haveAzimuthalGap());
-    EXPECT_FALSE(copy.haveNearestStationDistance());
+    REQUIRE_FALSE(copy.haveEpicenter());
+    REQUIRE_FALSE(copy.haveDepth());
+    REQUIRE_FALSE(copy.haveTime());
+    REQUIRE(copy.getArrivals().empty());
+    REQUIRE_FALSE(copy.haveAzimuthalGap());
+    REQUIRE_FALSE(copy.haveNearestStationDistance());
+    }
 }
 
-}

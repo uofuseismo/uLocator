@@ -2,14 +2,13 @@
 #include "uLocator/position/utahRegion.hpp"
 #include "uLocator/position/ynpRegion.hpp"
 #include "uLocator/position/utahQuarry.hpp"
-#include <gtest/gtest.h>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 using namespace ULocator;
 
-namespace
-{
-
-TEST(ULocatorPosition, WGS84)
+TEST_CASE("ULocator::Position", "[position]")
 {
     // http://rcn.montana.edu/resources/Converter.aspx
     const double latitude{40.7608};
@@ -20,24 +19,32 @@ TEST(ULocatorPosition, WGS84)
     const bool isNorth{true};
  
     Position::WGS84 position(latitude, longitude);
-    EXPECT_TRUE(position.havePosition());
-    EXPECT_NEAR(position.getLatitude(), latitude, 1.e-8);
-    EXPECT_NEAR(position.getLongitude(), longitude - 360, 1.e-8);
-    EXPECT_TRUE(position.isNorth());
-    EXPECT_EQ(position.getUTMZone(), utmZone);
-    EXPECT_NEAR(position.getEasting(),  easting,  1);
-    EXPECT_NEAR(position.getNorthing(), northing, 1);
+    REQUIRE(position.havePosition());
+    REQUIRE_THAT(position.getLatitude(),
+                 Catch::Matchers::WithinAbs(latitude, 1.e-8));
+    REQUIRE_THAT(position.getLongitude(),
+                 Catch::Matchers::WithinAbs(longitude - 360, 1.e-8));
+    REQUIRE(position.isNorth());
+    REQUIRE(position.getUTMZone() == utmZone);
+    REQUIRE_THAT(position.getEasting(),
+                 Catch::Matchers::WithinAbs(easting,  1));
+    REQUIRE_THAT(position.getNorthing(),
+                 Catch::Matchers::WithinAbs(northing, 1));
 
     
     Position::WGS84 utmPosition(utmZone, isNorth, easting, northing);
-    EXPECT_TRUE(utmPosition.havePosition());
-    EXPECT_NEAR(utmPosition.getEasting(),  easting,  1.e-6);
-    EXPECT_NEAR(utmPosition.getNorthing(), northing, 1.e-6);
-    EXPECT_NEAR(utmPosition.getLatitude(),    40.76080047521302, 1.e-5);
-    EXPECT_NEAR(utmPosition.getLongitude(), -111.89099802607673, 1.e-5);
+    REQUIRE(utmPosition.havePosition());
+    REQUIRE_THAT(utmPosition.getEasting(),  
+                 Catch::Matchers::WithinAbs(easting,  1.e-6));
+    REQUIRE_THAT(utmPosition.getNorthing(),
+                 Catch::Matchers::WithinAbs(northing, 1.e-6));
+    REQUIRE_THAT(utmPosition.getLatitude(),
+                 Catch::Matchers::WithinAbs(40.76080047521302, 1.e-5));
+    REQUIRE_THAT(utmPosition.getLongitude(),
+                 Catch::Matchers::WithinAbs(-111.89099802607673, 1.e-5));
 }
 
-TEST(ULocatorPosition, DistanceAzimuthBackAzimuth)
+TEST_CASE("ULocator::Position", "[distanceAzimuthBackazimuth]")
 {
     constexpr double azimuthRef{-101.69839545926366 + 360};
     constexpr double backAzimuthRef{-99.84855154050379 + 180};
@@ -52,57 +59,77 @@ TEST(ULocatorPosition, DistanceAzimuthBackAzimuth)
                                      &distance,
                                      &azimuth,
                                      &backAzimuth);
-    EXPECT_NEAR(greatCircleDistance, gcDistanceRef, 1.e-8);
-    EXPECT_NEAR(distance, distanceRef, 1.e-7);
-    EXPECT_NEAR(azimuth, azimuthRef, 1.e-10);
-    EXPECT_NEAR(backAzimuth, backAzimuthRef, 1.e-10);
+    REQUIRE_THAT(greatCircleDistance,
+                 Catch::Matchers::WithinAbs(gcDistanceRef, 1.e-8));
+    REQUIRE_THAT(distance,
+                 Catch::Matchers::WithinAbs(distanceRef, 1.e-7));
+    REQUIRE_THAT(azimuth,
+                 Catch::Matchers::WithinAbs(azimuthRef, 1.e-10));
+    REQUIRE_THAT(backAzimuth,
+                 Catch::Matchers::WithinAbs(backAzimuthRef, 1.e-10));
 }
 
-TEST(ULocatorPosition, UtahRegion)
+TEST_CASE("ULocator::Position", "[utahRegion]")
 {
     Position::UtahRegion utah;
     const double centerLatitude{39.625};
     const double centerLongitude{-111.5};
     auto localCoordinates
         = utah.geographicToLocalCoordinates(centerLatitude, centerLongitude);
-    EXPECT_NEAR(localCoordinates.first,  0, 1.e-10);
-    EXPECT_NEAR(localCoordinates.second, 0, 1.e-10);
+    REQUIRE_THAT(localCoordinates.first,
+                 Catch::Matchers::WithinAbs(0, 1.e-10));
+    REQUIRE_THAT(localCoordinates.second,
+                 Catch::Matchers::WithinAbs(0, 1.e-10));
     auto geographicCoordinates
         = utah.localToGeographicCoordinates(localCoordinates.first,
                                             localCoordinates.second); 
-    EXPECT_NEAR(geographicCoordinates.first,  centerLatitude,  1.e-10);
-    EXPECT_NEAR(geographicCoordinates.second, centerLongitude, 1.e-10);
+    REQUIRE_THAT(geographicCoordinates.first,
+                 Catch::Matchers::WithinAbs(centerLatitude,  1.e-10));
+    REQUIRE_THAT(geographicCoordinates.second,
+                 Catch::Matchers::WithinAbs(centerLongitude, 1.e-10));
     auto minMaxX = utah.getExtentInX();
     auto minMaxY = utah.getExtentInY();
-    EXPECT_NEAR(minMaxX.first,  -264866.0565037383, 1.e-3);
-    EXPECT_NEAR(minMaxX.second,  264866.0565037381, 1.e-3);
-    EXPECT_NEAR(minMaxY.first,  -369110.6893637062, 1.e-3);
-    EXPECT_NEAR(minMaxY.second,  379402.8900178153, 1.e-3);
+    REQUIRE_THAT(minMaxX.first,
+                 Catch::Matchers::WithinAbs( -264866.0565037383, 1.e-3));
+    REQUIRE_THAT(minMaxX.second,
+                 Catch::Matchers::WithinAbs(  264866.0565037381, 1.e-3));
+    REQUIRE_THAT(minMaxY.first,
+                 Catch::Matchers::WithinAbs(  -369110.6893637062, 1.e-3));
+    REQUIRE_THAT(minMaxY.second,
+                 Catch::Matchers::WithinAbs(  379402.8900178153, 1.e-3));
 }
 
-TEST(ULocatorPosition, YNPRegion)
+TEST_CASE("ULocator::Position", "[ynpRegion]")
 {
     Position::YNPRegion ynp;
     const double centerLatitude{44.5};
     const double centerLongitude{-110.75};
     auto localCoordinates
         = ynp.geographicToLocalCoordinates(centerLatitude, centerLongitude);
-    EXPECT_NEAR(localCoordinates.first,  0, 1.e-10);
-    EXPECT_NEAR(localCoordinates.second, 0, 1.e-10);
+    REQUIRE_THAT(localCoordinates.first,
+                 Catch::Matchers::WithinAbs(0, 1.e-10));
+    REQUIRE_THAT(localCoordinates.second,
+                 Catch::Matchers::WithinAbs(0, 1.e-10));
     auto geographicCoordinates
         = ynp.localToGeographicCoordinates(localCoordinates.first,
                                            localCoordinates.second); 
-    EXPECT_NEAR(geographicCoordinates.first,  centerLatitude,  1.e-10);
-    EXPECT_NEAR(geographicCoordinates.second, centerLongitude, 1.e-10);
+    REQUIRE_THAT(geographicCoordinates.first,
+                 Catch::Matchers::WithinAbs(centerLatitude,  1.e-10));
+    REQUIRE_THAT(geographicCoordinates.second,
+                 Catch::Matchers::WithinAbs(centerLongitude, 1.e-10));
     auto minMaxX = ynp.getExtentInX();
     auto minMaxY = ynp.getExtentInY();
-    EXPECT_NEAR(minMaxX.first,  -78154.09571331975, 1.e-3);
-    EXPECT_NEAR(minMaxX.second,  78154.09571331974, 1.e-3);
-    EXPECT_NEAR(minMaxY.first,  -110611.925792941,  1.e-3);
-    EXPECT_NEAR(minMaxY.second,  111604.1838556079, 1.e-3);
+    REQUIRE_THAT(minMaxX.first,
+                 Catch::Matchers::WithinAbs(-78154.09571331975, 1.e-3));
+    REQUIRE_THAT(minMaxX.second,
+                 Catch::Matchers::WithinAbs( 78154.09571331974, 1.e-3));
+    REQUIRE_THAT(minMaxY.first,
+                 Catch::Matchers::WithinAbs(-110611.925792941,  1.e-3));
+    REQUIRE_THAT(minMaxY.second,
+                 Catch::Matchers::WithinAbs( 111604.1838556079, 1.e-3));
 }
 
-TEST(ULocatorPosition, UtahQuarry)
+TEST_CASE("ULocator::Position", "[utahQuarry]")
 {
     const std::string name{"Bingham"};
     constexpr double latitude{40.529800};
@@ -118,29 +145,42 @@ TEST(ULocatorPosition, UtahQuarry)
     bingham.setGeographicCoordinates(latitude, longitude);
 
     auto copy = bingham;
-    EXPECT_NEAR(copy.getGeographicCoordinates().first,  latitude,  1.e-10);
-    EXPECT_NEAR(copy.getGeographicCoordinates().second, longitude, 1.e-10);
-    EXPECT_NEAR(copy.getElevation(), elevation, 1.e-10);
-    EXPECT_EQ(copy.getName(), name);
-    EXPECT_NEAR(copy.getLocalCoordinates().first,
-                localCoordinates.first, 1.e-10);
-    EXPECT_NEAR(copy.getLocalCoordinates().second,
-                localCoordinates.second, 1.e-10);
+    REQUIRE_THAT(copy.getGeographicCoordinates().first,
+                 Catch::Matchers::WithinAbs(latitude,  1.e-10));
+    REQUIRE_THAT(copy.getGeographicCoordinates().second,
+                 Catch::Matchers::WithinAbs(longitude, 1.e-10));
+    REQUIRE_THAT(copy.getElevation(),
+                 Catch::Matchers::WithinAbs(elevation, 1.e-10));
+    REQUIRE(copy.getName() == name);
+    REQUIRE_THAT(copy.getLocalCoordinates().first,
+                 Catch::Matchers::WithinAbs(localCoordinates.first, 1.e-10));
+    REQUIRE_THAT(copy.getLocalCoordinates().second,
+                 Catch::Matchers::WithinAbs(localCoordinates.second, 1.e-10));
 
+    SECTION("move assignment")
+    {
     auto move = std::move(bingham);
-    EXPECT_NEAR(move.getGeographicCoordinates().first,  latitude,  1.e-10);
-    EXPECT_NEAR(move.getGeographicCoordinates().second, longitude, 1.e-10);
-    EXPECT_NEAR(move.getElevation(), elevation, 1.e-10);
-    EXPECT_EQ(move.getName(), name);
+    REQUIRE_THAT(move.getGeographicCoordinates().first,
+                 Catch::Matchers::WithinAbs(latitude,  1.e-10));
+    REQUIRE_THAT(move.getGeographicCoordinates().second,
+                 Catch::Matchers::WithinAbs(longitude, 1.e-10));
+    REQUIRE_THAT(move.getElevation(),
+                 Catch::Matchers::WithinAbs(elevation, 1.e-10));
+    REQUIRE(move.getName() == name);
+    }
 
-    auto clone = move.clone();
-    EXPECT_TRUE(clone->haveGeographicCoordinates());
-    EXPECT_NEAR(clone->getGeographicCoordinates().first,  latitude,  1.e-10);
-    EXPECT_NEAR(clone->getGeographicCoordinates().second, longitude, 1.e-10);
-    EXPECT_NEAR(clone->getLocalCoordinates().first,
-                localCoordinates.first, 1.e-10);
-    EXPECT_NEAR(clone->getLocalCoordinates().second,
-                localCoordinates.second, 1.e-10);
-}
+    SECTION("clone")
+    {
+    auto clone = bingham.clone();
+    REQUIRE(clone->haveGeographicCoordinates());
+    REQUIRE_THAT(clone->getGeographicCoordinates().first,
+                 Catch::Matchers::WithinAbs(latitude,  1.e-10));
+    REQUIRE_THAT(clone->getGeographicCoordinates().second,
+                 Catch::Matchers::WithinAbs(longitude, 1.e-10));
+    REQUIRE_THAT(clone->getLocalCoordinates().first,
+                 Catch::Matchers::WithinAbs(localCoordinates.first, 1.e-10));
+    REQUIRE_THAT(clone->getLocalCoordinates().second,
+                 Catch::Matchers::WithinAbs(localCoordinates.second, 1.e-10));
+    }
 
 }

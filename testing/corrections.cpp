@@ -9,7 +9,10 @@
 #include "uLocator/position/utahRegion.hpp"
 #include "weightedMean.hpp"
 #include "weightedMedian.hpp"
-#include <gtest/gtest.h>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+
 
 using namespace ULocator::Corrections;
 
@@ -44,31 +47,38 @@ std::vector<int>
     return result;
 }
 
-TEST(ULocatorCorrections, WeightedMean)
+}
+
+TEST_CASE("ULocator::Corrections", "[weightedMean]")
 {
     std::vector<double> residuals{14.424, 14.421, 14.417, 14.413, 14.41};
     std::vector<double> weights{3058.0, 8826.0, 56705.0, 30657.0, 12984.0};
-    EXPECT_NEAR(::weightedMean(residuals, weights), 14.415602815646439, 1.e-12);
+    REQUIRE_THAT(::weightedMean(residuals, weights),
+                 Catch::Matchers::WithinAbs(14.415602815646439, 1.e-12));
 }
 
-TEST(ULocatorCorrections, WeightedMedian)
+TEST_CASE("ULocator::Corrections", "[weightedMedian]")
 {
     std::vector<std::pair<double, int>> workSpace;
-    EXPECT_NEAR(::weightedMedian(std::vector<double> {-2, -1, 1, 3},
-                                 std::vector<double> {1, 1, 1, 1},
-                                 workSpace), 0, 1.e-14);
-    EXPECT_NEAR(::weightedMedian(std::vector<double> {-2, 1, -1, 2, 4},
-                                 std::vector<double> { 1, 1,  1, 1, 1},
-                                 workSpace), 1, 1.e-14); 
-    EXPECT_NEAR(::weightedMedian(std::vector<double> {1, 2, 3, 4},
-                                 std::vector<double> {0.1, 0.4, 0.4, 0.1},
-                                 workSpace), 2.5, 1.e-14);
-    EXPECT_NEAR(::weightedMedian(std::vector<double> {1, 4, 5, 6, 11},
-                                 std::vector<double> {0.1, 0.2, 0.3, 0.2, 0.1},
-                                 workSpace), 5, 1.e-14);
+    REQUIRE_THAT(::weightedMedian(std::vector<double> {-2, -1, 1, 3},
+                                  std::vector<double> {1, 1, 1, 1},
+                                  workSpace),
+                                  Catch::Matchers::WithinAbs(0, 1.e-14));
+    REQUIRE_THAT(::weightedMedian(std::vector<double> {-2, 1, -1, 2, 4},
+                                  std::vector<double> { 1, 1,  1, 1, 1},
+                                  workSpace),
+                                  Catch::Matchers::WithinAbs(1, 1.e-14));
+    REQUIRE_THAT(::weightedMedian(std::vector<double> {1, 2, 3, 4},
+                                  std::vector<double> {0.1, 0.4, 0.4, 0.1},
+                                  workSpace),
+                                  Catch::Matchers::WithinAbs(2.5, 1.e-14));
+    REQUIRE_THAT(::weightedMedian(std::vector<double> {1, 4, 5, 6, 11},
+                                  std::vector<double> {0.1, 0.2, 0.3, 0.2, 0.1},
+                                  workSpace),
+                                  Catch::Matchers::WithinAbs(5, 1.e-14));
 }
 
-TEST(ULocatorCorrections, Static)
+TEST_CASE("ULocator::Corrections", "[static]")
 {
     std::string network{"UU"};
     std::string station{"FORU"};
@@ -76,32 +86,40 @@ TEST(ULocatorCorrections, Static)
     const double staticCorrection{1};
     const double estimateTime{30};
     Static correction;
-    EXPECT_NO_THROW(correction.setStationNameAndPhase(network, station, phase));
-    EXPECT_EQ(correction.getNetwork(), network);
-    EXPECT_EQ(correction.getStation(), station);
-    EXPECT_EQ(correction.getPhase(), phase);
+    REQUIRE_NOTHROW(correction.setStationNameAndPhase(network, station, phase));
+    REQUIRE(correction.getNetwork() == network);
+    REQUIRE(correction.getStation() == station);
+    REQUIRE(correction.getPhase() == phase);
     correction.setCorrection(staticCorrection);
-    EXPECT_NEAR(correction.getCorrection(), staticCorrection, 1.e-14); 
-    EXPECT_NEAR(correction(0), staticCorrection, 1.e-14);
-    EXPECT_NEAR(correction(estimateTime),
-                staticCorrection + estimateTime, 1.e-14);
+    REQUIRE_THAT(correction.getCorrection(),
+                 Catch::Matchers::WithinAbs(staticCorrection, 1.e-14));
+    REQUIRE_THAT(correction(0),
+                 Catch::Matchers::WithinAbs( staticCorrection, 1.e-14));
+    REQUIRE_THAT(correction(estimateTime),
+                 Catch::Matchers::WithinAbs(staticCorrection + estimateTime, 1.e-14));
     double dtdt0, dtdx, dtdy, dtdz;
-    EXPECT_NEAR(correction.evaluate(&dtdt0, &dtdx, &dtdy, &dtdz, estimateTime), 
-                staticCorrection + estimateTime, 1.e-14);
-    EXPECT_NEAR(dtdt0, 0, 1.e-14);
-    EXPECT_NEAR(dtdx,  0, 1.e-14);
-    EXPECT_NEAR(dtdy,  0, 1.e-14);
-    EXPECT_NEAR(dtdz,  0, 1.e-14);
+    REQUIRE_THAT(correction.evaluate(&dtdt0, &dtdx, &dtdy, &dtdz, estimateTime), 
+                 Catch::Matchers::WithinAbs(staticCorrection + estimateTime, 1.e-14));
+    REQUIRE_THAT(dtdt0,
+                 Catch::Matchers::WithinAbs(0, 1.e-14));
+    REQUIRE_THAT(dtdx,
+                 Catch::Matchers::WithinAbs(0, 1.e-14));
+    REQUIRE_THAT(dtdy,
+                 Catch::Matchers::WithinAbs(0, 1.e-14));
+    REQUIRE_THAT(dtdz,
+                 Catch::Matchers::WithinAbs(0, 1.e-14));
     const std::vector<double> observed{3.4, 4.8, 5.1, 4.9};
     const std::vector<double> estimated{3.2, 5.0, 5.3, 4.3};
     const std::vector<double> weights{1./3., 1./3., 4./15., 1./15};
     correction.train(observed, estimated, Static::Method::Mean);
-    EXPECT_NEAR(correction.getCorrection(), 0.1, 1.e-10);
+    REQUIRE_THAT(correction.getCorrection(),
+                 Catch::Matchers::WithinAbs(0.1, 1.e-10));
     correction.train(observed, estimated, weights, Static::Method::Mean);
-    EXPECT_NEAR(correction.getCorrection(), -0.01333333333333333, 1.e-10);
+    REQUIRE_THAT(correction.getCorrection(),
+                 Catch::Matchers::WithinAbs(-0.01333333333333333, 1.e-10));
 }
 
-TEST(ULocatorCorrections, SourceSpecific)
+TEST_CASE("ULocator::Corrections", "[sourceSpecific]")
 {
     std::mt19937 rng(86754309);
     std::uniform_real_distribution<double> distribution(-0.5, 0.5);
@@ -152,19 +170,20 @@ TEST(ULocatorCorrections, SourceSpecific)
         }
     }
 
-    EXPECT_NO_THROW(correction.setStationNameAndPhase(network, station, phase));
-    EXPECT_NO_THROW(correction.setNumberOfNeighbors(nNeighbors));
-    EXPECT_NO_THROW(correction.setEvaluationMethod(SourceSpecific::EvaluationMethod::InverseDistanceWeighted));
-    EXPECT_NO_THROW(correction.setMaximumDistance(maximumDistance));
+    REQUIRE_NOTHROW(correction.setStationNameAndPhase(network, station, phase));
+    REQUIRE_NOTHROW(correction.setNumberOfNeighbors(nNeighbors));
+    REQUIRE_NOTHROW(correction.setEvaluationMethod(SourceSpecific::EvaluationMethod::InverseDistanceWeighted));
+    REQUIRE_NOTHROW(correction.setMaximumDistance(maximumDistance));
     
-    EXPECT_EQ(correction.getNetwork(), network);
-    EXPECT_EQ(correction.getStation(), station);
-    EXPECT_EQ(correction.getPhase(),   phase);
-    EXPECT_NEAR(correction.getMaximumDistance(), maximumDistance, 1.e-8);
+    REQUIRE(correction.getNetwork() == network);
+    REQUIRE(correction.getStation() == station);
+    REQUIRE(correction.getPhase() ==   phase);
+    REQUIRE_THAT(correction.getMaximumDistance(),
+                 Catch::Matchers::WithinAbs( maximumDistance, 1.e-8));
    
-    EXPECT_NO_THROW(correction.train(xSources, ySources, zSources,
+    REQUIRE_NOTHROW(correction.train(xSources, ySources, zSources,
                                      observations, estimates, weights));
-    EXPECT_TRUE(correction.haveModel());
+    REQUIRE(correction.haveModel());
     std::array<SourceSpecific::EvaluationMethod, 3> evaluationMethods
     {
         SourceSpecific::EvaluationMethod::WeightedAverage,
@@ -193,17 +212,17 @@ TEST(ULocatorCorrections, SourceSpecific)
         }
         double referenceCorrection = numerator/denominator;
         constexpr double travelTime{10};
-        EXPECT_NEAR(correction.evaluate(x, y, z, travelTime), 
-                    travelTime + referenceCorrection, 1.e-10);
+        REQUIRE_THAT(correction.evaluate(x, y, z, travelTime), 
+                     Catch::Matchers::WithinAbs(travelTime + referenceCorrection, 1.e-10));
         double dcdt0, dcdx, dcdy, dcdz;
-        EXPECT_NEAR(correction.evaluate(x, y, z,
+        REQUIRE_THAT(correction.evaluate(x, y, z,
                                         &dcdt0, &dcdx, &dcdy, &dcdz,
                                         travelTime),
-                    travelTime + referenceCorrection, 1.e-10); 
-        EXPECT_EQ(dcdt0, 0);
-        EXPECT_EQ(dcdx,  0);
-        EXPECT_EQ(dcdy,  0);
-        EXPECT_EQ(dcdz,  0);
+                     Catch::Matchers::WithinAbs(travelTime + referenceCorrection, 1.e-10)); 
+        REQUIRE_THAT(dcdt0, Catch::Matchers::WithinAbs(0, 2.e-16));
+        REQUIRE_THAT(dcdx,  Catch::Matchers::WithinAbs(0, 2.e-16));
+        REQUIRE_THAT(dcdy,  Catch::Matchers::WithinAbs(0, 2.e-16));
+        REQUIRE_THAT(dcdz,  Catch::Matchers::WithinAbs(0, 2.e-16));
     }
     // Have to be a bit more intelligent for weighted distance
     correction.setEvaluationMethod(
@@ -234,19 +253,20 @@ TEST(ULocatorCorrections, SourceSpecific)
         }
         double referenceCorrection = numerator/denominator;
         constexpr double travelTime{11};
-        EXPECT_NEAR(correction.evaluate(x, y, z, travelTime), 
-                    travelTime + referenceCorrection, 1.e-10);
+        REQUIRE_THAT(correction.evaluate(x, y, z, travelTime), 
+                     Catch::Matchers::WithinAbs(travelTime + referenceCorrection, 1.e-10));
         double dcdt0, dcdx, dcdy, dcdz;
-        EXPECT_NEAR(correction.evaluate(x, y, z,
+        REQUIRE_THAT(correction.evaluate(x, y, z,
                                         &dcdt0, &dcdx, &dcdy, &dcdz,
                                         travelTime),
-                    travelTime + referenceCorrection, 1.e-10); 
-        EXPECT_EQ(dcdt0, 0); 
-        EXPECT_EQ(dcdx,  0); 
-        EXPECT_EQ(dcdy,  0); 
-        EXPECT_EQ(dcdz,  0); 
+                     Catch::Matchers::WithinAbs(travelTime + referenceCorrection, 1.e-10));
+        REQUIRE_THAT(dcdt0, Catch::Matchers::WithinAbs(0, 2.e-16)); 
+        REQUIRE_THAT(dcdx,  Catch::Matchers::WithinAbs(0, 2.e-16)); 
+        REQUIRE_THAT(dcdy,  Catch::Matchers::WithinAbs(0, 2.e-16)); 
+        REQUIRE_THAT(dcdz,  Catch::Matchers::WithinAbs(0, 2.e-16)); 
         // Let's go far away
-        EXPECT_EQ(correction.evaluate(1.e10, 1.e10, 1.e10, 0), 0); 
+        REQUIRE_THAT(correction.evaluate(1.e10, 1.e10, 1.e10, 0),
+                     Catch::Matchers::WithinAbs(0, 2.e-16)); 
     }
     // This is the hard one...
     correction.setEvaluationMethod(
@@ -279,15 +299,16 @@ TEST(ULocatorCorrections, SourceSpecific)
         }
         double referenceCorrection = numerator/denominator;
         constexpr double travelTime{12};
-        EXPECT_NEAR(correction.evaluate(x, y, z, travelTime), 
-                    travelTime + referenceCorrection, 1.e-10);
+        REQUIRE_THAT(correction.evaluate(x, y, z, travelTime), 
+                     Catch::Matchers::WithinAbs(travelTime + referenceCorrection, 1.e-10));
         double dcdt0, dcdx, dcdy, dcdz;
-        EXPECT_NEAR(correction.evaluate(x, y, z,
-                                        &dcdt0, &dcdx, &dcdy, &dcdz,
-                                        travelTime),
-                    travelTime + referenceCorrection, 1.e-10); 
+        REQUIRE_THAT(correction.evaluate(x, y, z,
+                                         &dcdt0, &dcdx, &dcdy, &dcdz,
+                                         travelTime),
+                     Catch::Matchers::WithinAbs(travelTime + referenceCorrection, 1.e-10));
 
-        EXPECT_EQ(dcdt0, 0);
+        REQUIRE_THAT(dcdt0,
+                     Catch::Matchers::WithinAbs(0, 2.e-16));
         // A gnarly thing can happen at the centroid.  Basically,
         // we switch class membership.  So let's move away.
         double xp = x + 520;
@@ -303,10 +324,12 @@ TEST(ULocatorCorrections, SourceSpecific)
         double dcdxfd = (cx - c)/h;
         double dcdyfd = (cy - c)/h;
         double dcdzfd = (cz - c)/h;
-        EXPECT_NEAR(dcdx, dcdxfd, 1.e-4);
-        EXPECT_NEAR(dcdy, dcdyfd, 1.e-4);
-        EXPECT_NEAR(dcdz, dcdzfd, 1.e-4);
+        REQUIRE_THAT(dcdx,
+                     Catch::Matchers::WithinAbs(dcdxfd, 1.e-4));
+        REQUIRE_THAT(dcdy,
+                     Catch::Matchers::WithinAbs(dcdyfd, 1.e-4));
+        REQUIRE_THAT(dcdz, 
+                     Catch::Matchers::WithinAbs(dcdzfd, 1.e-4));
     }
 }
 
-}

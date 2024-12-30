@@ -7,8 +7,10 @@
 #include <uLocator/uussRayTracer.hpp>
 #include <uLocator/travelTimeCalculatorMap.hpp>
 #include <uLocator/topography/constant.hpp>
-#include "uLocator/optimizers/pagmo/particleSwarm.hpp"
-#include <gtest/gtest.h>
+#include <uLocator/optimizers/pagmo/particleSwarm.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 namespace
 {
@@ -70,6 +72,8 @@ std::vector<ULocator::Arrival> createArrivalsFervo()
     arrivals.push_back(::toArrival("UU", "FORU", "S", 38.458801, -112.861487, 1842.14, 1733256462.634224, 0.06));
     return arrivals;
 }   
+
+}
 
 TEST(ULocatorPagmoParticleSwarm, General)
 {
@@ -140,4 +144,3 @@ TEST(ULocatorPagmoParticleSwarm, Blast)
 
 }
 
-}

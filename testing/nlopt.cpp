@@ -9,7 +9,9 @@
 #include <uLocator/topography/constant.hpp>
 #include <uLocator/optimizers/nlopt/dividedRectangles.hpp>
 #include <uLocator/optimizers/nlopt/stochasticGradientOptimization.hpp>
-#include <gtest/gtest.h>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 namespace
 {
@@ -77,6 +79,8 @@ std::vector<ULocator::Arrival> createQuarryBlastArrivals()
     arrivals.push_back(::toArrival("UU", "SPU",  "P", 41.30867,-112.44917, 2086.0, 1646684893.4537792,  0.15));
     arrivals.push_back(::toArrival("UU", "HVU",  "P", 41.77967,-112.775,   1609.0, 1646684902.3164327,  0.06));
     return arrivals;
+}
+
 }
 
 TEST(ULocatorNLOptDividedRectangles, FixedDepthLp)
@@ -293,4 +297,3 @@ std::cout << dLatitude << " " << dLongitude << " " << dDepth << " " << dTime << 
 
 }
 
-}

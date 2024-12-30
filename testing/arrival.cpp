@@ -3,14 +3,16 @@
 #include "uLocator/station.hpp"
 #include "uLocator/position/wgs84.hpp"
 #include "uLocator/position/ynpRegion.hpp"
-#include <gtest/gtest.h>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 using namespace ULocator;
 
 namespace
 {
 
-TEST(ULocator, Arrival)
+TEST_CASE("ULocator", "[arrival]")
 {
     const std::string network{"WY"};
     const std::string stationName{"YML"};
@@ -45,26 +47,35 @@ TEST(ULocator, Arrival)
     arrival.setBackAzimuth(backAzimuth);
     
     Arrival copy(arrival);
-    EXPECT_NEAR(copy.getTime(),     time, 1.e-14);
-    EXPECT_NEAR(copy.getStandardError(), standardError, 1.e-14);
-    EXPECT_NEAR(copy.getResidual(), residual, 1.e-14);
-    EXPECT_NEAR(copy.getDistance(), distance, 1.e-12);
-    EXPECT_NEAR(copy.getAzimuth(), azimuth, 1.e-14);
-    EXPECT_NEAR(copy.getBackAzimuth(), backAzimuth, 1.e-14); 
-    EXPECT_EQ(copy.getIdentifier(), identifier);
-    EXPECT_EQ(copy.getPhase(), "S");
-    EXPECT_EQ(copy.getStationReference().getNetwork(), network);
-    EXPECT_TRUE(copy.haveStation());
-    EXPECT_NEAR(copy.getStationReference().getElevation(),
-                stationElevation, 1.e-8);
-    EXPECT_NEAR(copy.getStationReference().getLocalCoordinates().first,
-                8480.827504103971, 1.e-4);
-    EXPECT_NEAR(copy.getStationReference().getLocalCoordinates().second,
-                11710.12450692187, 1.e-4);
-    EXPECT_EQ(copy.getStation().getName(), stationName);
+    REQUIRE_THAT(copy.getTime(),
+                 Catch::Matchers::WithinAbs(time, 1.e-14));
+    REQUIRE_THAT(copy.getStandardError(),
+                 Catch::Matchers::WithinAbs(standardError, 1.e-14));
+    REQUIRE_THAT(copy.getResidual(),
+                 Catch::Matchers::WithinAbs(residual, 1.e-14));
+    REQUIRE_THAT(copy.getDistance(),
+                 Catch::Matchers::WithinAbs(distance, 1.e-12));
+    REQUIRE_THAT(copy.getAzimuth(),
+                 Catch::Matchers::WithinAbs(azimuth, 1.e-14));
+    REQUIRE_THAT(copy.getBackAzimuth(),
+                 Catch::Matchers::WithinAbs(backAzimuth, 1.e-14));
+    REQUIRE(copy.getIdentifier() == identifier);
+    REQUIRE(copy.getPhase() == "S");
+    REQUIRE(copy.getStationReference().getNetwork() == network);
+    REQUIRE(copy.haveStation());
+    REQUIRE_THAT(copy.getStationReference().getElevation(),
+                 Catch::Matchers::WithinAbs(stationElevation, 1.e-8));
+    REQUIRE_THAT(copy.getStationReference().getLocalCoordinates().first,
+                 Catch::Matchers::WithinAbs(8480.827504103971, 1.e-4));
+    REQUIRE_THAT(copy.getStationReference().getLocalCoordinates().second,
+                 Catch::Matchers::WithinAbs(11710.12450692187, 1.e-4));
+    REQUIRE(copy.getStation().getName() == stationName);
 
+    SECTION("clear")
+    {
     arrival.clear();
-    EXPECT_FALSE(arrival.haveTime());
+    REQUIRE_FALSE(arrival.haveTime());
+    }
 }
 
 }

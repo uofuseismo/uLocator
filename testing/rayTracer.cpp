@@ -5,7 +5,9 @@
 #include "uLocator/position/utahRegion.hpp"
 #include "uLocator/position/ynpRegion.hpp"
 #include "uLocator/position/wgs84.hpp"
-#include <gtest/gtest.h>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 namespace
 {
@@ -46,7 +48,7 @@ ULocator::Station toStation(const std::string &network,
 
 }
 
-TEST(ULocatorRayTracer, UncorrectedTravelTimes)
+TEST_CASE("ULocator::RayTracer", "[uncorrectedTravelTimes]")
 {
     ULocator::Origin referenceOrigin;
     referenceOrigin.setTime(1646479475.880001);
@@ -89,17 +91,19 @@ TEST(ULocatorRayTracer, UncorrectedTravelTimes)
                                              referenceOrigin.getDepth(),
                                              nullptr, nullptr, nullptr, nullptr,
                                              applyCorrection);
-        EXPECT_NEAR(travelTime, referenceTimes[i], 1.e-4);
+        REQUIRE_THAT(travelTime,
+                     Catch::Matchers::WithinAbs(referenceTimes[i], 1.e-4));
         travelTime = rayTracer.evaluate(1, xSource, ySource,
                                         referenceOrigin.getDepth(),
                                         nullptr, nullptr, nullptr, nullptr,
                                         applyCorrection);
-        EXPECT_NEAR(travelTime, 1 + referenceTimes[i], 1.e-4);
+        REQUIRE_THAT(travelTime,
+                     Catch::Matchers::WithinAbs(1 + referenceTimes[i], 1.e-4));
         //std::cout << std::setprecision(16) << travelTime << std::endl;
     }
 }
 
-TEST(ULocatorRayTracer, UncorrectedUtahToLayerTracerTimes)
+TEST_CASE("ULocator::RayTracer", "[uncorrectedUtahToLayerTracerTimes]")
 {
     ULocator::Position::UtahRegion utah;
     auto [xSource, ySource] = utah.geographicToLocalCoordinates(38.5615, -112.2196667);
@@ -142,11 +146,16 @@ TEST(ULocatorRayTracer, UncorrectedUtahToLayerTracerTimes)
                 = pUtah.evaluate(1, xSource, ySource, depth,
                                  &dtdt0, &dtdx, &dtdy, &dtdz,
                                  applyCorrection);
-            EXPECT_NEAR(travelTimeRef, travelTime, 1.e-8);
-            EXPECT_NEAR(dtdt0Ref,      dtdt0,      1.e-8);
-            EXPECT_NEAR(dtdxRef,       dtdx,       1.e-8);
-            EXPECT_NEAR(dtdyRef,       dtdy,       1.e-8);
-            EXPECT_NEAR(dtdzRef,       dtdz,       1.e-8);
+            REQUIRE_THAT(travelTimeRef,
+                         Catch::Matchers::WithinAbs( travelTime, 1.e-8));
+            REQUIRE_THAT(dtdt0Ref,
+                         Catch::Matchers::WithinAbs( dtdt0,      1.e-8));
+            REQUIRE_THAT(dtdxRef,
+                         Catch::Matchers::WithinAbs( dtdx,       1.e-8));
+            REQUIRE_THAT(dtdyRef,
+                         Catch::Matchers::WithinAbs( dtdy,       1.e-8));
+            REQUIRE_THAT(dtdzRef,
+                         Catch::Matchers::WithinAbs( dtdz,       1.e-8));
         }
     }
 
@@ -173,16 +182,21 @@ TEST(ULocatorRayTracer, UncorrectedUtahToLayerTracerTimes)
                 = sUtah.evaluate(1, xSource, ySource, depth,
                                  &dtdt0, &dtdx, &dtdy, &dtdz,
                                  applyCorrection);
-            EXPECT_NEAR(travelTimeRef, travelTime, 1.e-8);
-            EXPECT_NEAR(dtdt0Ref,      dtdt0,      1.e-8);
-            EXPECT_NEAR(dtdxRef,       dtdx,       1.e-8);
-            EXPECT_NEAR(dtdyRef,       dtdy,       1.e-8);
-            EXPECT_NEAR(dtdzRef,       dtdz,       1.e-8);
+            REQUIRE_THAT(travelTimeRef,
+                         Catch::Matchers::WithinAbs( travelTime, 1.e-8));
+            REQUIRE_THAT(dtdt0Ref,
+                         Catch::Matchers::WithinAbs( dtdt0,      1.e-8));
+            REQUIRE_THAT(dtdxRef, 
+                         Catch::Matchers::WithinAbs( dtdx,       1.e-8));
+            REQUIRE_THAT(dtdyRef,
+                         Catch::Matchers::WithinAbs( dtdy,       1.e-8));
+            REQUIRE_THAT(dtdzRef,
+                         Catch::Matchers::WithinAbs( dtdz,       1.e-8));
         }
     }   
 }
 
-TEST(ULocatorRayTracer, UncorrectedYNPToLayerTracerTimes)
+TEST_CASE("ULocator::RayTracer", "[uncorrectedYNPToLayerTracerTimes]")
 {
     ULocator::Position::UtahRegion ynp;
     auto [xSource, ySource] = ynp.geographicToLocalCoordinates(44.7433333, -111.0675);
@@ -223,11 +237,16 @@ TEST(ULocatorRayTracer, UncorrectedYNPToLayerTracerTimes)
                 = pYNP.evaluate(1, xSource, ySource, depth,
                                 &dtdt0, &dtdx, &dtdy, &dtdz,
                                 applyCorrection);
-            EXPECT_NEAR(travelTimeRef, travelTime, 1.e-8);
-            EXPECT_NEAR(dtdt0Ref,      dtdt0,      1.e-8);
-            EXPECT_NEAR(dtdxRef,       dtdx,       1.e-8);
-            EXPECT_NEAR(dtdyRef,       dtdy,       1.e-8);
-            EXPECT_NEAR(dtdzRef,       dtdz,       1.e-8);
+            REQUIRE_THAT(travelTimeRef,
+                         Catch::Matchers::WithinAbs( travelTime, 1.e-8));
+            REQUIRE_THAT(dtdt0Ref,
+                         Catch::Matchers::WithinAbs( dtdt0,      1.e-8));
+            REQUIRE_THAT(dtdxRef,
+                         Catch::Matchers::WithinAbs( dtdx,       1.e-8));
+            REQUIRE_THAT(dtdyRef,
+                         Catch::Matchers::WithinAbs( dtdy,       1.e-8));
+            REQUIRE_THAT(dtdzRef,
+                         Catch::Matchers::WithinAbs( dtdz,       1.e-8));
         }
     }
 
@@ -254,11 +273,16 @@ TEST(ULocatorRayTracer, UncorrectedYNPToLayerTracerTimes)
                 = sYNP.evaluate(1, xSource, ySource, depth,
                                 &dtdt0, &dtdx, &dtdy, &dtdz,
                                 applyCorrection);
-            EXPECT_NEAR(travelTimeRef, travelTime, 1.e-8);
-            EXPECT_NEAR(dtdt0Ref,      dtdt0,      1.e-8);
-            EXPECT_NEAR(dtdxRef,       dtdx,       1.e-8);
-            EXPECT_NEAR(dtdyRef,       dtdy,       1.e-8);
-            EXPECT_NEAR(dtdzRef,       dtdz,       1.e-8);
+            REQUIRE_THAT(travelTimeRef,
+                         Catch::Matchers::WithinAbs(travelTime, 1.e-8));
+            REQUIRE_THAT(dtdt0Ref,
+                         Catch::Matchers::WithinAbs(dtdt0,      1.e-8));
+            REQUIRE_THAT(dtdxRef,
+                         Catch::Matchers::WithinAbs(dtdx,       1.e-8));
+            REQUIRE_THAT(dtdyRef,
+                         Catch::Matchers::WithinAbs(dtdy,       1.e-8));
+            REQUIRE_THAT(dtdzRef,
+                         Catch::Matchers::WithinAbs(dtdz,       1.e-8));
         }
     }
 }

@@ -3,7 +3,10 @@
 #include "uLocator/origin.hpp"
 #include "uLocator/position/wgs84.hpp"
 #include "originTime.hpp"
-#include <gtest/gtest.h>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+
 
 namespace
 {
@@ -89,7 +92,9 @@ ULocator::Origin createQuarryBlast60484742()
     return origin;
 }
 
-TEST(ULocator, UtahQuarryBlastTravelTimeDatabase)
+}
+
+TEST_CASE("ULocator", "[utahQuarryBlastTravelTimeDatabase]")
 {
     ::UtahQuarryBlastTravelTimeDatabase db;
 
@@ -107,12 +112,14 @@ TEST(ULocator, UtahQuarryBlastTravelTimeDatabase)
     {
         auto [bestQuarryIndex, bestQuarry, bestObjectiveFunction]
             = db.findBestQuarry(origin, norm, p, timeWindow, applyCorrection);
-        EXPECT_NEAR(origin.getTime(), bestQuarry.getTime(), 0.5);
-        EXPECT_EQ(db[bestQuarryIndex].getName(), "BINGHAM MINE");
+        REQUIRE_THAT(origin.getTime(),
+                     Catch::Matchers::WithinAbs(bestQuarry.getTime(), 0.5));
+        REQUIRE(db[bestQuarryIndex].getName() == "BINGHAM MINE");
         auto arrivals = bestQuarry.getArrivals();
         for (const auto &arrival : arrivals)
         {
-            EXPECT_NEAR(arrival.getResidual(), 0, 0.9);
+            REQUIRE_THAT(arrival.getResidual(),
+                         Catch::Matchers::WithinAbs(0, 0.9));
         }
         //std::cout << objectiveFunction << " " << bestQuarry.getName() << std::endl;
     }
@@ -121,16 +128,17 @@ TEST(ULocator, UtahQuarryBlastTravelTimeDatabase)
     {
         auto [bestQuarryIndex, bestQuarry, bestObjectiveFunction]
             = db.findBestQuarry(origin, norm, p, timeWindow, applyCorrection);
-        EXPECT_NEAR(origin.getTime(), bestQuarry.getTime(), 0.5);
-        EXPECT_EQ(db.at(bestQuarryIndex).getName(), "BINGHAM MINE");
+        REQUIRE_THAT(origin.getTime(),
+                     Catch::Matchers::WithinAbs(bestQuarry.getTime(), 0.5));
+        REQUIRE(db.at(bestQuarryIndex).getName() == "BINGHAM MINE");
         auto arrivals = bestQuarry.getArrivals();
         for (const auto &arrival : arrivals)
         {
-            EXPECT_NEAR(arrival.getResidual(), 0, 0.9);
+            REQUIRE_THAT(arrival.getResidual(),
+                         Catch::Matchers::WithinAbs(0, 0.9));
         }
     }
     // First event had 13 station phase pairs, second event had 2 new station phase pairs
-    EXPECT_EQ(db.getNumberOfStationPhasePairs(), 15);
+    REQUIRE(db.getNumberOfStationPhasePairs() == 15);
 }
 
-}
