@@ -1,0 +1,143 @@
+# If using podman, you may have to run this first:
+#podman pull docker.io/intel/oneapi:2025.0.1-0-devel-ubuntu24.04
+FROM intel/oneapi:2025.0.1-0-devel-ubuntu24.04
+
+USER root
+
+# Environment variables
+ENV LD_LIBRARY_PATH /usr/local/lib:/usr/local/hdf5/lib:$LD_LIBRARY_PATH
+
+# You'll need an account with HDF5 then have to navigate to the 
+# downloads, then source code section to get this file.  If you do this
+# then you can put it along side this dockerfile.
+COPY ./hdf5-1.14.5.tar.gz /home/ubuntu
+
+# Download some helpful files
+ADD https://docs.google.com/uc?export=download&id=1WdZ5CWsCkWr19lXlQd7S_fLuuW_SCUGU /usr/local/share/uLocator/utahTopography.h5
+ADD https://docs.google.com/uc?export=download&id=1HjwoDcWPz4Pj1JwJTijRvXH85hevMs_O /usr/local/share/uLocator/ynpTopography.h5
+ADD https://docs.google.com/uc?export=download&id=1TORlGYsgEAxSib2KNZiqIOwE1Yd-CjXJ /usr/local/share/uLocator/utahCorrections.h5
+ADD https://docs.google.com/uc?export=download&id=1L6Uts4dzfsIQlKR2AaZE0jsk08bC_yLR /usr/local/share/uLocator/ynpCorrections.h5
+
+# Install the prerequisites
+# N.B. On a regular system DO NOT USE pip3 install "pybind11[global]".
+#      I do this here simply because it's a container and nothing
+#      of importance is damaged if this messes something up.
+#      Additionally, we purge some Intel stuff that we will never use.
+RUN apt-get update &&\
+    apt-get install -y wget &&\
+    apt-get install -y git &&\
+    apt-get install -y gcc &&\
+    apt-get install -y g++ &&\
+    apt-get install -y build-essential &&\
+    apt-get install -y curl &&\
+    apt-get install -y pkg-config &&\
+    apt-get install -y make &&\
+    apt-get install -y cmake &&\
+    apt-get install -y python3 &&\
+    apt-get install -y python3-pip &&\
+    apt-get install -y python3-pytest &&\
+    apt-get install -y python3-numpy &&\
+    apt-get install -y python3-pybind11 &&\
+    apt-get install -y libboost-all-dev &&\
+    rm -rf /opt/intel/oneapi/advisor/ &&\
+    rm -rf /opt/intel/oneapi/vtune/ &&\
+    rm -rf /opt/intel/oneapi/debugger/ &&\
+    rm -rf /opt/intel/oneapi/dnnl/ &&\
+    rm -rf /opt/intel/oneapi/pti &&\
+    rm /opt/intel/oneapi/dal/2025.0/lib/*.a &&\
+    rm /opt/intel/oneapi/mkl//2025.0/lib/*.a &&\
+    rm /opt/intel/oneapi/ipp/2022.0/lib/intel64/*.a &&\
+    cd /home/ubuntu
+
+# Install software (catch2, spdlog, nlopt, ...)
+RUN cd /home/ubuntu &&\
+    mkdir -p /usr/local/include &&\
+    mkdir -p /usr/local/lib &&\
+    wget https://github.com/catchorg/Catch2/archive/refs/tags/v3.7.1.tar.gz &&\
+    tar -xf v3.7.1.tar.gz &&\
+    rm v3.7.1.tar.gz &&\
+    cd Catch2-3.7.1/ &&\
+    mkdir build &&\
+    cd build &&\
+    cmake .. &&\
+    make &&\
+    make install &&\
+    cd /home/ubuntu &&\
+    rm -rf Catch2-3.7.1/ &&\
+    wget https://github.com/gabime/spdlog/archive/refs/tags/v1.15.0.tar.gz &&\
+    tar -xf v1.15.0.tar.gz &&\
+    rm v1.15.0.tar.gz &&\
+    cd spdlog-1.15.0 &&\
+    mkdir build &&\
+    cd build &&\
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DSPDLOG_BUILD_SHARED=ON &&\
+    make &&\
+    make install &&\
+    cd /home/ubuntu &&\
+    rm -rf spdlog-1.15.0 &&\
+    cd /home/ubuntu &&\
+    wget https://github.com/geographiclib/geographiclib/archive/refs/tags/v2.4.tar.gz &&\
+    tar -xf v2.4.tar.gz &&\
+    rm v2.4.tar.gz &&\
+    cd geographiclib-2.4 &&\
+    mkdir build &&\
+    cd build &&\
+    cmake .. -DCMAKE_BUILD_TYPE=Release &&\
+    make &&\
+    make install &&\
+    cd /home/ubuntu/ &&\
+    rm -r geographiclib-2.4 &&\
+    cd /home/ubuntu/ &&\
+    wget https://github.com/stevengj/nlopt/archive/refs/tags/v2.9.1.tar.gz &&\
+    tar -xvf v2.9.1.tar.gz &&\
+    rm v2.9.1.tar.gz &&\
+    cd nlopt-2.9.1/ &&\
+    mkdir build &&\
+    cd build &&\
+    cmake .. -DNLOPT_CXX=ON -DCMAKE_BUILD_TYPE=Release &&\
+    make &&\
+    make install &&\
+    cd  /home/ubuntu &&\
+    rm -rf nlopt-2.9.1/ &&\
+    cd  /home/ubuntu &&\
+    wget https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz &&\
+    tar -xf eigen-3.4.0.tar.gz &&\
+    rm eigen-3.4.0.tar.gz &&\
+    cd eigen-3.4.0 &&\
+    mkdir build &&\
+    cd build &&\
+    cmake .. -DCMAKE_BUILD_TYPE=Release &&\
+    make install &&\
+    cd /home/ubuntu &&\
+    rm -rf eigen-3.4.0 &&\
+    wget https://github.com/esa/pagmo2/archive/refs/tags/v2.19.1.tar.gz &&\
+    tar -xf v2.19.1.tar.gz &&\
+    rm v2.19.1.tar.gz &&\
+    cd pagmo2-2.19.1/ &&\
+    mkdir build &&\
+    cd build &&\
+    cmake .. -DCMAKE_BUILD_TYPE=Release &&\
+    make &&\
+    make install &&\
+    cd /home/ubuntu &&\
+    rm -rf pagmo2-2.19.1/ &&\
+    cd /home/ubuntu &&\
+    tar -xf hdf5-1.14.5.tar.gz &&\
+    rm hdf5-1.14.5.tar.gz &&\
+    cd hdf5-1.14.5 &&\
+    mkdir build &&\
+    cd build &&\
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local/hdf5 &&\
+    make &&\
+    make install &&\
+    cd /home/ubuntu &&\
+    rm -rf hdf5-1.14.5 &&\
+    cd /home/ubuntu
+
+# Finally, get the uLocator software 
+# git clone https://github.com/uofuseismo/uLocator.git &&\
+# cd uLocator &&\
+# mkdir build &&\
+# cd build &&\
+# cmake .. -DUSE_EIKONALXX=OFF -DUSE_UMPS=OFF
+    
