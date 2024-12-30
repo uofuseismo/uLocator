@@ -1,3 +1,5 @@
+#include <iostream>
+#include <iomanip>
 #include <string>
 #include <uLocator/origin.hpp>
 #include <uLocator/position/wgs84.hpp>
@@ -75,7 +77,7 @@ std::vector<ULocator::Arrival> createArrivalsFervo()
 
 }
 
-TEST(ULocatorPagmoParticleSwarm, General)
+TEST_CASE("ULocator::Pagmo::ParticleSwarm", "[general]")
 {
     ULocator::Origin referenceOrigin;
     referenceOrigin.setTime(1646479475);
@@ -134,13 +136,14 @@ TEST(ULocatorPagmoParticleSwarm, General)
 */
 }
 
-TEST(ULocatorPagmoParticleSwarm, FixedDepth)
+/*
+TEST_CASE("ULocator::Pagmo::ParticleSwarm", "[fixedDepth]")
 {
 
 }
 
-TEST(ULocatorPagmoParticleSwarm, Blast)
+TEST_CASE("ULocator::Pagmo::ParticleSwarm", "[blast"])
 {
 
 }
-
+*/

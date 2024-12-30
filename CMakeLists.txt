@@ -183,10 +183,10 @@ set(TEST_SRC
     #testing/example.cpp
     )
 if (${pagmo_FOUND})
-   #set(TEST_SRC ${TEST_SRC} testing/pagmo.cpp)
+   set(TEST_SRC ${TEST_SRC} testing/pagmo.cpp)
 endif()
 if (${NLopt_FOUND})
-   #set(TEST_SRC ${TEST_SRC} testing/nlopt.cpp)
+   set(TEST_SRC ${TEST_SRC} testing/nlopt.cpp)
 endif()
 
 add_executable(unitTests ${TEST_SRC})
@@ -195,9 +195,9 @@ set_target_properties(unitTests PROPERTIES
                       CXX_STANDARD_REQUIRED YES
                       CXX_EXTENSIONS NO)
 target_link_libraries(unitTests PRIVATE uLocator
-                      Catch2::Catch2 Catch2::Catch2WithMain # ${GTEST_BOTH_LIBRARIES}
+                      Catch2::Catch2 Catch2::Catch2WithMain
                       ${UMPS_LIBRARY}
-                      oneDAL::onedal oneDAL::onedal_core oneDAL::onedal_parameters oneDAL::onedal_thread Boost::boost Threads::Threads)# nlohmann_json::nlohmann_json)
+                      oneDAL::onedal oneDAL::onedal_core oneDAL::onedal_parameters oneDAL::onedal_thread Boost::boost Threads::Threads)
 target_include_directories(unitTests
                            PRIVATE ${GTEST_INCLUDE_DIRS}
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
