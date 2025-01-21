@@ -199,7 +199,6 @@ target_link_libraries(unitTests PRIVATE uLocator
                       ${UMPS_LIBRARY}
                       oneDAL::onedal oneDAL::onedal_core oneDAL::onedal_parameters oneDAL::onedal_thread Boost::boost Threads::Threads)
 target_include_directories(unitTests
-                           PRIVATE ${GTEST_INCLUDE_DIRS}
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/lib>
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
