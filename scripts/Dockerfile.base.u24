@@ -1,6 +1,9 @@
+# Purpose: Creates the base image for building the uLocator C++ software -
+#          i.e., all the prerequisites so you are ready to build.
+# Usage: podman build -t ulocatorbase:latest -f Dockerfile.base.u24
 # If using podman, you may have to run this first:
-#podman pull docker.io/intel/oneapi:2025.0.1-0-devel-ubuntu24.04
-FROM intel/oneapi:2025.0.1-0-devel-ubuntu24.04
+#podman pull docker.io/intel/oneapi:2025.1.3-0-devel-ubuntu24.04
+FROM docker pull intel/oneapi-basekit:2025.1.3-0-devel-ubuntu24.04
 
 USER root
 
@@ -23,7 +26,11 @@ ADD https://docs.google.com/uc?export=download&id=1L6Uts4dzfsIQlKR2AaZE0jsk08bC_
 #      I do this here simply because it's a container and nothing
 #      of importance is damaged if this messes something up.
 #      Additionally, we purge some Intel stuff that we will never use.
-RUN apt-get update &&\
+RUN export DEBIAN_FRONTEND=noninteractive &&\
+    apt-get update &&\
+    apt-get upgrade -y &&\
+    apt-get autoremove -y &&\
+    apt-get autoclean -y &&\
     apt-get install -y wget &&\
     apt-get install -y git &&\
     apt-get install -y gcc &&\
@@ -53,52 +60,52 @@ RUN apt-get update &&\
 RUN cd /home/ubuntu &&\
     mkdir -p /usr/local/include &&\
     mkdir -p /usr/local/lib &&\
-    wget https://github.com/catchorg/Catch2/archive/refs/tags/v3.7.1.tar.gz &&\
-    tar -xf v3.7.1.tar.gz &&\
-    rm v3.7.1.tar.gz &&\
-    cd Catch2-3.7.1/ &&\
+    wget https://github.com/catchorg/Catch2/archive/refs/tags/v3.8.1.tar.gz &&\
+    tar -xf v3.8.1.tar.gz &&\
+    rm v3.8.1.tar.gz &&\
+    cd Catch2-3.8.1/ &&\
     mkdir build &&\
     cd build &&\
     cmake .. &&\
     make &&\
     make install &&\
     cd /home/ubuntu &&\
-    rm -rf Catch2-3.7.1/ &&\
-    wget https://github.com/gabime/spdlog/archive/refs/tags/v1.15.0.tar.gz &&\
-    tar -xf v1.15.0.tar.gz &&\
-    rm v1.15.0.tar.gz &&\
-    cd spdlog-1.15.0 &&\
+    rm -rf Catch2-3.8.1/ &&\
+    wget https://github.com/gabime/spdlog/archive/refs/tags/v1.15.3.tar.gz &&\
+    tar -xf v1.15.3.tar.gz &&\
+    rm v1.15.3.tar.gz &&\
+    cd spdlog-1.15.3 &&\
     mkdir build &&\
     cd build &&\
     cmake .. -DCMAKE_BUILD_TYPE=Release -DSPDLOG_BUILD_SHARED=ON &&\
     make &&\
     make install &&\
     cd /home/ubuntu &&\
-    rm -rf spdlog-1.15.0 &&\
+    rm -rf spdlog-1.15.3 &&\
     cd /home/ubuntu &&\
-    wget https://github.com/geographiclib/geographiclib/archive/refs/tags/v2.4.tar.gz &&\
-    tar -xf v2.4.tar.gz &&\
-    rm v2.4.tar.gz &&\
-    cd geographiclib-2.4 &&\
+    wget https://github.com/geographiclib/geographiclib/archive/refs/tags/v2.5.tar.gz &&\
+    tar -xf v2.5.tar.gz &&\
+    rm v2.5.tar.gz &&\
+    cd geographiclib-2.5 &&\
     mkdir build &&\
     cd build &&\
     cmake .. -DCMAKE_BUILD_TYPE=Release &&\
     make &&\
     make install &&\
     cd /home/ubuntu/ &&\
-    rm -r geographiclib-2.4 &&\
+    rm -r geographiclib-2.5 &&\
     cd /home/ubuntu/ &&\
-    wget https://github.com/stevengj/nlopt/archive/refs/tags/v2.9.1.tar.gz &&\
-    tar -xvf v2.9.1.tar.gz &&\
-    rm v2.9.1.tar.gz &&\
-    cd nlopt-2.9.1/ &&\
+    wget https://github.com/stevengj/nlopt/archive/refs/tags/v2.10.0.tar.gz &&\
+    tar -xvf v2.10.0.tar.gz &&\
+    rm v2.10.0.tar.gz &&\
+    cd nlopt-2.10.0/ &&\
     mkdir build &&\
     cd build &&\
     cmake .. -DNLOPT_CXX=ON -DCMAKE_BUILD_TYPE=Release &&\
     make &&\
     make install &&\
     cd  /home/ubuntu &&\
-    rm -rf nlopt-2.9.1/ &&\
+    rm -rf nlopt-2.10.0/ &&\
     cd  /home/ubuntu &&\
     wget https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz &&\
     tar -xf eigen-3.4.0.tar.gz &&\
@@ -140,4 +147,5 @@ RUN cd /home/ubuntu &&\
 # mkdir build &&\
 # cd build &&\
 # cmake .. -DUSE_EIKONALXX=OFF -DUSE_UMPS=OFF
-    
+# make 
+# make install 
